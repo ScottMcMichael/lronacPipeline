@@ -20,21 +20,18 @@
 import os, glob, optparse, re, shutil, subprocess, sys, string, time, urllib2
 from BeautifulSoup import BeautifulSoup
 
+#TODO: Clean this up!
+sys.path.append('/home/smcmich1/mechanize-0.2.5/')
+
+import mechanize
+
 job_pool = [];
 
 def man(option, opt, value, parser):
     print >>sys.stderr, parser.usage
     print >>sys.stderr, '''\
 This program operates on LRO (.IMG) files, and performs the
-following ISIS 3 operations:
- * Converts to ISIS format (lronac2isis)
- * Attaches SPICE information (spiceinit and spicefit)
- * Performs radiometric calibration (lronaccal)
- * lronacecho?
- * Removes camera distortions from the CCD images (noproj)
- * Performs jitter analysis (lrojitreg)
- * Mosaics individual CCDs into one unified image file (handmos)
- * Normalizes the mosaic (cubenorm) 
+
 '''
 
     sys.exit()
@@ -59,6 +56,148 @@ def wait_on_all_jobs():
 
 #--------------------------------------------------------------------------------
 
+
+def getLinksForImgFile(productId):
+
+	pdsUrl = 'http://wms.lroc.asu.edu/lroc/search'
+
+	# Open browser object to ASU data search page 
+	br = mechanize.Browser()
+	response = br.open(pdsUrl)
+ 
+	# Get unnamed form handle, set product ID filter
+	br.form = list(br.forms())[0]
+	control = br.form.find_control("filter[product_id]")
+	control.value = (productId #'M112646261'
+
+	# Submit the form, then parse the response of the form submission
+	response = br.submit()
+	parsedResponse = BeautifulSoup(response.read())
+
+
+	# Get the links to the LE and RE file pages
+	resultsNode = parsedResponse.find(id="table")
+
+	leftRegex  = "M[0-9]*LE$"
+	rightRegex = "M[0-9]*RE$"
+	leftLink  = 'NOT_FOUND'
+	rightLink = 'NOT_FOUND'
+	for line in resultsNode.findAll('a'):
+		if re.search( leftRegex, line.get('href')):
+			leftLink = 'http://wms.lroc.asu.edu' + line.get('href')
+		if re.search( rightRegex, line.get('href')):
+			rightLink = 'http://wms.lroc.asu.edu' + line.get('href')
+
+	# Parse the left and right side result pages
+	leftPage  = BeautifulSoup(urllib2.urlopen(leftLink).read())
+	rightPage = BeautifulSoup(urllib2.urlopen(rightLink).read())
+
+	# Extract the left and right EDR paths
+	leftEdrPath = 'NOT_FOUND'
+	for link in leftPage.findAll('a'):
+		if link.string == 'Download EDR':
+			leftEdrPath = link.get('href')
+#			print 'left = ' + leftEdrPath
+
+	rightEdrPath = 'NOT_FOUND'
+	for link in rightPage.findAll('a'):
+		if link.string == 'Download EDR':
+			rightEdrPath = link.get('href')
+#			print 'right = ' + rightEdrPath
+
+	# Return the output
+	results = (leftEdrPath, rightEdrPath)
+	return results
+
+
+
+def getDataList():
+	baseUrl     = "http://wms.lroc.asu.edu/lroc/dtm_select?page="
+	currentPage = 1
+
+	# Get URL to current page
+	currentPageUrl = baseUrl + str(currentPage)
+
+	# Parse the current page
+	parsedIndexPage = BeautifulSoup(urllib2.urlopen((currentPageUrl)).read())
+
+
+	# Figure out how many pages in total
+	largestPage = 1
+	pageNavNode = parsedIndexPage.find(id="dtm_select_pagenav")
+	for line in pageNavNode.findAll('a'):
+		index = line.get('href').find("page=")
+		if ( index >= 0 ):  
+			if (line.string.find("Next") < 0):
+				page = int(line.string)
+				if (page > largestPage):
+					largestPage = page
+	print "Found " + str(largestPage) + " pages of DEMs"
+
+	# Loop through all index pages and collect DEM pages
+	dtmPageList = []
+	for currentPage in range(1,largestPage+1):
+		currentPageUrl  = baseUrl + str(currentPage)
+		parsedIndexPage = BeautifulSoup(urllib2.urlopen((currentPageUrl)).read())
+		tableNode       = parsedIndexPage.find(id="dtm_select_selectiontable")
+		for line in tableNode.findAll('a'):	
+			if (line.get('href').find("dtm_detail")	> 0):
+				dtmPageList.append('http://wms.lroc.asu.edu/' + line.get('href'))
+		
+	print "Found " + str(len(dtmPageList)) + " DEM pages"
+
+
+	outputFilePath = 'logFile.txt'
+	outputFile = open(outputFilePath, 'w')
+
+	# Loop through all individual pages and get download links
+	for p in dtmPageList:
+
+		print p
+		thisPage        = BeautifulSoup(urllib2.urlopen((p)).read())
+		downloadSection = thisPage.find(id="dtm_downloads")	
+
+		# Find the two input files (the links are not here but we can get the names)
+		firstImgFile  = "NOT_FOUND"
+		secondImgFile = "NOT_FOUND"
+		imgFileRegex  = "_M[0-9]*_[a-zA-Z0-9]*.IMG$"
+		for line in downloadSection.findAll('a'):
+
+			matchObj = re.search( imgFileRegex, line.get('href'))
+			if matchObj:
+				startIndex = line.string.rfind("_M")  + 1
+				stopIndex  = line.string.find("_", startIndex) 
+				imgFile    = line.string[startIndex:stopIndex]
+				print imgFile
+				if (firstImgFile  == "NOT_FOUND"):
+					firstImgFile = imgFile
+					print "first!"
+				else:
+					if imgFile != firstImgFile:
+						secondImgFile = imgFile
+						print "second!"
+						break
+
+		# Find the ASU DEM	
+		demLink = "NOT_FOUND"
+		for line in downloadSection.findAll('a'):
+			if  line.get('href').find(".TIF") >= 0:
+				demLink = line.get('href')
+				break
+
+		outputFile.write('----------------------------------------------\n')
+		outputFile.write('First  Input = ' + firstImgFile + '\n')
+		outputFile.write('Second Input = ' + secondImgFile + '\n')
+		outputFile.write('ASU DTM      = ' + demLink + '\n')
+
+	outputFile.close()
+
+
+
+#--------------------------------------------------------------------------------
+
+
+
 #TODO: Support for file based logging of results
 
 def main():
@@ -81,73 +220,11 @@ def main():
 
         print "Beginning processing....."
 
-        baseUrl     = "http://wms.lroc.asu.edu/lroc/dtm_select?page="
-        currentPage = 1
-
-	# Get URL to current page
-        currentPageUrl = baseUrl + str(currentPage)
-      
-        # Parse the current page
-        parsedIndexPage = BeautifulSoup(urllib2.urlopen((currentPageUrl)).read())
 
 
-	# Figure out how many pages in total
-	largestPage = 1
-	pageNavNode = parsedIndexPage.find(id="dtm_select_pagenav")
-	for line in pageNavNode.findAll('a'):
-		index = line.get('href').find("page=")
-		if ( index >= 0 ):  
-			if (line.string.find("Next") < 0):
-				page = int(line.string)
-				if (page > largestPage):
-					largestPage = page
-	print "Found " + str(largestPage) + " pages of DEMs"
+		
 
-	# Loop through all index pages and collect DEM pages
-	dtmPageList = []
-	for currentPage in range(1,largestPage+1):
-	        currentPageUrl  = baseUrl + str(currentPage)
-	        parsedIndexPage = BeautifulSoup(urllib2.urlopen((currentPageUrl)).read())
-		tableNode       = parsedIndexPage.find(id="dtm_select_selectiontable")
-		for line in tableNode.findAll('a'):	
-			if (line.get('href').find("dtm_detail")	> 0):
-				dtmPageList.append(line.get('href'))
-			
-	print "Found " + str(len(dtmPageList)) + " DEM pages"
-
-
-	# Loop through all individual pages and get download links
-	for p in dtmPageList:
-
-		thisPage        = BeautifulSoup(urllib2.urlopen((p)).read())
-		downloadSection = thisPage.find(id="dtm_downloads")	
-
-		# Find the two input files (the links are not here but we can get the names)
-		leftImgFile  = "NOT_FOUND"
-		rightImgFile = "NOT_FOUND"
-		imgFileCounter = 0
-		for line in downloadSection.findAll('a'):
-			if  line.get('href').find(".IMG") >= 0:
-				imgFileCounter = imgFileCounter + 1
-				if imgFileCounter == 3:
-					startIndex  = line.string.rfind("_M")  + 1
-					stopIndex   = line.string.rfind("_2m") 
-					leftImgFile = line.string[startIndex:stopIndex]
-				if imgFileCounter == 5:
-					startIndex   = line.string.rfind("_M")  + 1
-					stopIndex    = line.string.rfind("_2m") 
-					rightImgFile = line.string[startIndex:stopIndex]			
-					break
-
-		# Find the ASU DEM	
-		demLink = "NOT_FOUND"
-		for line in downloadSection.findAll('a'):
-			if  line.get('href').find(".TIF") >= 0:
-				demLink = line.get('href')
-				break
-
-#TODO: Record image pairs and DEM links in an output file!
-#TODO: Where to get the links for the LRONAC files!
+#TODO: Add GIT login name/email
 
 
         print "Finished"
