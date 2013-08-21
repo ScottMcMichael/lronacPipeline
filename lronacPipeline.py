@@ -20,7 +20,7 @@ import os, glob, optparse, re, shutil, subprocess, sys, string, time, urllib, ur
 from BeautifulSoup import BeautifulSoup
 
 #TODO: Clean this up!
-sys.path.append('/home/smcmich1/mechanize-0.2.5/')
+sys.path.append('/home/smcmich1/programs/mechanize-0.2.5/')
 #sys.path.append('/home/smcmich1/splinter/')
 #sys.path.append('/home/smcmich1/selenium-2.35.0')
 
@@ -357,6 +357,35 @@ def retrieveDataFiles(logPath, outputDir):
                 if not os.path.exists(imgCopyPath):
                     os.system("wget -P " + currentOutputFolder + "  " + imgUrl)
 
+
+
+# Calls caminfo on a mosaic and returns the CenterLatitude value
+def getMosaicCenterLatitude(mosaicPath):
+  
+    # Call caminfo (from ISIS) on the input mosaic to find out the CenterLatitude value
+    outputFolder     = os.path.dirname(mosaicPath)
+    camInfoOuputPath = outputFolder + "/camInfoOutput.txt"
+    if not os.path.exists(camInfoOuputPath):
+        cmd = 'caminfo from=' + mosaicPath + ' to=' + camInfoOuputPath
+        add_job(cmd, 2)    
+        wait_on_all_jobs()
+
+    # Read in the output file to extract the CenterLatitude value
+    centerLatitude = -9999
+    infoFile       = open(camInfoOuputPath, 'r')
+    for line in infoFile:
+        if (line.find('CenterLatitude') >= 0):
+            eqPt   = line.find('=')
+            numStr = line[eqPt+2:]
+            centerLatitude = float(numStr)
+            break
+    # Make sure we found the desired value
+    if (centerLatitude == -9999):          
+        raise Exception("Unable to find CenterLatitude in file " + camInfoOuputPath)
+        
+    return str(centerLatitude) # Convert back to string since it will be used as a cmd line argument
+
+
 # Make a stereo DEM in a single sub folder
 def makeDem(demFolder):
 
@@ -438,16 +467,26 @@ def makeDem(demFolder):
     outputPrefix = demFolder + '/stereo'
 
     # This is the location of the output point cloud from the stereo process
-    outputPath = outputPrefix + '-PC.tif'
+    outputPcPath = outputPrefix + '-PC.tif'
 
     # Now feed the two merged images into the stereo function    
-    if not os.path.exists(outputPath):
+    if not os.path.exists(outputPcPath):
         cmd ='stereo --alignment affineepipolar --subpixel-mode 1 --disable-fill-holes ' + mosaicNameA +' '+ mosaicNameB +' '+ outputPrefix
         add_job(cmd, numThreads)
-    
-    wait_on_all_jobs()
+        wait_on_all_jobs()
+      
+    # Now convert from point cloud to DEM
+    outputDemPrefix = demFolder + '/stereo'
+    outputDemPath   = outputDemPrefix + '-DEM.tif'
+    centerLatitude = getMosaicCenterLatitude(mosaicNameA)
+    if not os.path.exists(outputDemPath):
+      # Find out the center latitude of the mosaic
+      optionsText = ' --t_srs "+proj=eqc +lat_ts='+centerLatitude+' +lat_0=0 +a=1737400 +b=1737400 +units=m" --nodata -32767'
+      cmd         = 'point2dem -r moon -o ' + outputDemPrefix +' '+ outputPcPath + optionsText
+      add_job(cmd, numThreads)
+      wait_on_all_jobs()
 
-    return [outputPath, asuDem, lolaData]
+    return [outputDemPath, asuDem, lolaData, centerLatitude]
 
 # Computes the best transform to align the LRONAC DEM with the ASU and LOLA data
 # - Also writes out the transformed mosaic as a point cloud aligned with the reference input
@@ -458,88 +497,160 @@ def computeDemTransforms(mosaicPath, asuDemPath, lolaDataPath):
         raise Exception("Missing file " + mosaicPath + " , cannot run pc_align.")
 
     # Determine the output locations
-    intputFolder     = os.path.dirname(mosaicPath)
-    outputAsuPrefix  = intputFolder + 'align_ASU_PC'
-    outputLolaPrefix = intputFolder + 'align_LOLA_PC'
+    intputFolder              = os.path.dirname(mosaicPath)
+    outputAsuPrefix           = intputFolder + '/align_ASU_PC'
+    outputLolaPrefix          = intputFolder + '/align_LOLA_PC'
+    asuAlignedPointCloudPath  = intputFolder + '/align_ASU_PCtrans_reference.tif'
+    lolaAlignedPointCloudPath = intputFolder + '/align_LOLA_PCtrans_reference.tif'
 
     # Larger DEM should be the first (reference) input
     numThreads = 2
-    if os.path.exists(asuDemPath):
-        cmd = 'pc_align --max-num-reference-points 25000000 --save-inv-transformed-reference-points -o ' + outputAsuPrefix  + ' ' + mosaicPath + ' ' + asuDemPath
+    if (os.path.exists(asuDemPath)) and (not os.path.exists(asuAlignedPointCloudPath)):
+        cmd = 'pc_align --max-displacement 250 --max-num-reference-points 25000000 --save-inv-transformed-reference-points -o ' + outputAsuPrefix  + ' ' + mosaicPath + ' ' + asuDemPath
         add_job(cmd, numThreads)
-    if os.path.exists(lolaDataPath):
-        cmd = 'pc_align --max-num-reference-points 25000000 --save-inv-transformed-reference-points -o ' + outputLolaPrefix + ' ' + mosaicPath + ' ' + lolaDataPath
+    if (os.path.exists(lolaDataPath)) and (not os.path.exists(lolaAlignedPointCloudPath)):
+        cmd = 'pc_align --max-displacement 250 --max-num-reference-points 25000000 --save-inv-transformed-reference-points -o ' + outputLolaPrefix + ' ' + mosaicPath + ' ' + lolaDataPath
         add_job(cmd, numThreads)
+
+#    # ASU-LOLA sanity check
+#    asuLolaOutputPath = intputFolder + '/test_ASU_LOLA_PC'
+#    cmd = 'pc_align --max-displacement 250 --max-num-reference-points 25000000 --save-inv-transformed-reference-points -o ' + asuLolaOutputPath + ' ' + asuDemPath + ' ' + lolaDataPath
+#    add_job(cmd, numThreads)
 
     wait_on_all_jobs()
 
-
-def rerenderDem(mosaicPath, asuDemPath, lolaDataPath):
+def rerenderDem(mosaicPath, centerLatitude):
 
     # Get paths to aligned point clouds and create output paths
     outputFolder = os.path.dirname(mosaicPath)
-    asuAlignedPointCloudPath  = outputFolder + 'align_ASU_PC-TODO.tif'
-    lolaAlignedPointCloudPath = outputFolder + 'align_LOLA_PC-TODO.tif'
-    asuAlignedDemPrefix       = outputFolder + 'align_ASU_DEM'
-    lolaAlignedDemPrefix      = outputFolder + 'align_LOLA_DEM'
+    asuAlignedPointCloudPath  = outputFolder + '/align_ASU_PCtrans_reference.tif'
+    lolaAlignedPointCloudPath = outputFolder + '/align_LOLA_PCtrans_reference.tif'
+    asuAlignedDemPrefix       = outputFolder + '/align_ASU'
+    lolaAlignedDemPrefix      = outputFolder + '/align_LOLA'
+    asuAlignedDemPath         = outputFolder + '/align_ASU-DEM.tif'
+    lolaAlignedDemPath        = outputFolder + '/align_LOLA-DEM.tif'
     
-    # Call caminfo (from ISIS) on the input mosaic to find out the CenterLatitude value
-    camInfoOuputPath = outputFolder + "camInfoOutput.txt"
-    cmd = 'caminfo from=' + mosaicPath + ' to=' + camInfoOuputPath
-    add_job(cmd, numThreads)    
-    wait_on_all_jobs()
-
-    # Read in the output file to extract the CenterLatitude value
-    centerLatitude = -1000
-    infoFile       = open(camInfoOuputPath, 'r')
-    for line in infoFile:
-        if line.find('CenterLatitude'):
-            eqPt   = line.find('=')
-            numStr = line[eqPt+2:]
-            break
-    # Make sure we found the desired value
-    if (centerLatitude < -999):          
-        raise Exception("Unable to find CenterLatitude in file " + camInfoOuputPath)
-    else:
-        centerLatitude = float(numStr)
-
-
     numThreads = 2
-    optionsText = '--t_srs "+proj=eqc +lat_ts='+centerLatitude+' +lat_0=0 +a=1737400 +b=1737400 +units=m" --nodata -32767'
-    
+    optionsText = ' --t_srs "+proj=eqc +lat_ts='+centerLatitude+' +lat_0=0 +a=1737400 +b=1737400 +units=m" --nodata -32767'
+  
     # ASU registered point cloud to DEM
-    if os.path.exists(asuAlignedPointCloudPath):
-        cmd = 'point2dem -o ' + asuAlignedDemPrefix + asuAlignedPointCloudPath
+    if ( (os.path.exists(asuAlignedPointCloudPath)) and (not os.path.exists(asuAlignedDemPath)) ):
+        cmd = 'point2dem -r moon -o ' + asuAlignedDemPrefix +' '+ asuAlignedPointCloudPath + optionsText
         add_job(cmd, numThreads)
 
     # LOLA registered point cloud to DEM
-    if os.path.exists(lolaAlignedPointCloudPath):
-        cmd = 'point2dem -o ' + lolaAlignedDemPrefix + lolaAlignedPointCloudPath
+    if ( (os.path.exists(lolaAlignedPointCloudPath)) and (not os.path.exists(lolaAlignedDemPath)) ):
+        cmd = 'point2dem -r moon -o ' + lolaAlignedDemPrefix +' '+ lolaAlignedPointCloudPath + optionsText
         add_job(cmd, numThreads)
-    
+
     wait_on_all_jobs()
 
 # Performs comparisons between our aligned dems and the ASU/LOLA data
 def compareDems(demPath, asuDemPath, lolaDataPath):
 
     # Get paths to aligned point clouds and create output paths
-    outputFolder = os.path.dirname(demPath)
-    asuAlignedDemPath  = outputFolder + 'align_ASU_DEM.tif'
-    lolaAlignedDemPath = outputFolder + 'align_LOLA_DEM.tif'
-
-
-    numthreads = 2
+    outputFolder       = os.path.dirname(demPath)
+    asuAlignedDemPath  = outputFolder + '/align_ASU-DEM.tif'
+    lolaAlignedDemPath = outputFolder + '/align_LOLA-DEM.tif'
+    geodiffPrefixOut   = outputFolder + '/geodiff_ASU'
+    geodiffOutputPath  = outputFolder + '/geodiff_ASU-diff.tif'
+    asuDiffStatsPath   = outputFolder + '/ASU_diff_stats.txt'
+    lolaDiffStatsPath  = outputFolder + '/LOLA_diff_stats.txt'
     
-    # The geodiff tool can compare two geotif DEMs
-    cmd = 'geodiff --absolute ' + lolaAlignedDemPath +' '+ asuDemPath
-    add_job(cmd, numThreads)    
-    wait_on_all_jobs()
 
-    #TODO: Open up the difference image to build statistics
+    numThreads = 2
     
-    
-    #TODO: Call script to compare LOLA data with the DEM
+    # The geodiff tool can compare two geotif DEMs and produce a difference image
+    print asuAlignedDemPath
+    print asuDemPath
+    print geodiffOutputPath
+    if ( (os.path.exists(asuAlignedDemPath)) and (os.path.exists(asuDemPath)) and (not os.path.exists(geodiffOutputPath)) ):
+#        cmd = 'geodiff --absolute -o ' + geodiffPrefixOut +' '+ asuAlignedDemPath +' '+ asuDemPath
+        cmd = 'geodiff --absolute -o ' + geodiffPrefixOut +' '+ asuDemPath +' '+ asuAlignedDemPath
+        add_job(cmd, numThreads)    
+        wait_on_all_jobs()
 
+    #TODO: Fix paths!
+    # Open up the difference image to build statistics
+    if (os.path.exists(geodiffOutputPath)) and (not os.path.exists(asuDiffStatsPath)):
+        cmd = '~/repot/visionworkbench/src/vw/tools/imagestats -i ' + geodiffOutputPath + ' -o ' + asuDiffStatsPath
+        add_job(cmd, numThreads)       
+    
+    # Call script to compare LOLA data with the DEM
+    if (os.path.exists(lolaDataPath)) and (os.path.exists(lolaAlignedDemPath)) and (not os.path.exists(lolaDiffStatsPath)):
+        cmd = '~/repot/visionworkbench/src/vw/tools/lola_compare -l ' + lolaDataPath + ' -d ' + lolaAlignedDemPath + ' -o ' + lolaDiffStatsPath
+        add_job(cmd, numThreads)    
+
+    wait_on_all_jobs()        
+ 
+def generateDebugImages(demPath, asuDemPath, lolaDataPath):
+
+    # Get paths to aligned point clouds and create output paths
+    outputFolder       = os.path.dirname(demPath)
+    asuAlignedDemPath  = outputFolder + '/align_ASU-DEM.tif'
+    lolaAlignedDemPath = outputFolder + '/align_LOLA-DEM.tif'
+    geodiffOutputPath  = outputFolder + '/geodiff_ASU-diff.tif'
+
+    ourDemPathColor         = outputFolder + '/stereo-DEM_COLORIZED.tif'
+    asuDemPathColor         = outputFolder + '/ASU-DEM_COLORIZED.tif'    
+    asuAlignedDemPathColor  = outputFolder + '/align_ASU-DEM_COLORIZED.tif'
+    lolaAlignedDemPathColor = outputFolder + '/align_LOLA-DEM_COLORIZED.tif'
+    geodiffOutputPathColor  = outputFolder + '/geodiff_ASU-diff_COLORIZED.tif'
+
+    numThreads = 5
+
+    redoDem            = (os.path.exists(demPath           )) and (not os.path.exists(ourDemPathColor        ))
+    redoAsuDem         = (os.path.exists(asuDemPath        )) and (not os.path.exists(asuDemPathColor        ))
+    redoAsuAlignedDem  = (os.path.exists(asuAlignedDemPath )) and (not os.path.exists(asuAlignedDemPathColor ))
+    redoLolaAlignedDem = (os.path.exists(lolaAlignedDemPath)) and (not os.path.exists(lolaAlignedDemPathColor))
+    redoGeoDiff        = (os.path.exists(geodiffOutputPath )) and (not os.path.exists(geodiffOutputPathColor ))
+
+    # Generate colorized version of all the DEMs
+    print "Building colorized images..."
+    if redoDem:
+        cmd = '~/repot/visionworkbench/src/vw/tools/colormap -o ' + ourDemPathColor +' '+ demPath
+        add_job(cmd, numThreads)    
+
+    if redoAsuDem:
+        cmd = '~/repot/visionworkbench/src/vw/tools/colormap -o ' + asuDemPathColor +' '+ asuDemPath
+        add_job(cmd, numThreads)    
+
+    if redoAsuAlignedDem:
+        cmd = '~/repot/visionworkbench/src/vw/tools/colormap -o ' + asuAlignedDemPathColor +' '+ asuAlignedDemPath
+        add_job(cmd, numThreads)    
+
+    if redoLolaAlignedDem:
+        cmd = '~/repot/visionworkbench/src/vw/tools/colormap -o ' + lolaAlignedDemPathColor +' '+ lolaAlignedDemPath
+        add_job(cmd, numThreads)    
+
+    if redoGeoDiff:
+        cmd = '~/repot/visionworkbench/src/vw/tools/colormap -o ' + geodiffOutputPathColor +' '+ geodiffOutputPath
+        add_job(cmd, numThreads)    
+        
+    wait_on_all_jobs()    
+
+
+#    # Build KML overlays for each map
+#    print "Building KML overlays..."
+#    if redoDem:
+#        cmd = '~/repot/visionworkbench/src/vw/tools/image2qtree -m kml ' + ourDemPathColor
+#        add_job(cmd, numThreads)    
+
+#    if redoAsuDem:
+#        cmd = '~/repot/visionworkbench/src/vw/tools/image2qtree -m kml ' + asuDemPathColor
+#        add_job(cmd, numThreads)    
+        
+#    if redoAsuAlignedDem:
+#        cmd = '~/repot/visionworkbench/src/vw/tools/image2qtree -m kml ' + asuAlignedDemPathColor
+#        add_job(cmd, numThreads)    
+        
+#    if redoLolaAlignedDem:
+#        cmd = '~/repot/visionworkbench/src/vw/tools/image2qtree -m kml ' + lolaAlignedDemPathColor
+#        add_job(cmd, numThreads)    
+#        
+#    if redoGeoDiff:
+#        cmd = '~/repot/visionworkbench/src/vw/tools/image2qtree -m kml ' + geodiffOutputPathColor
+#        add_job(cmd, numThreads)                            
 
 
 
@@ -553,33 +664,29 @@ def makeDems(outputDir):
 		
         try:
     		# Make a DEM out of the IMG files
-            [ourDemPath, asuDemPath, lolaDataPath] = makeDem(folderPath)
+            [ourDemPath, asuDemPath, lolaDataPath, centerLat] = makeDem(folderPath)
 
             # Now compare the DEMs with the reference data sets
             computeDemTransforms(ourDemPath, asuDemPath, lolaDataPath)
             
-            # Determine transforms to align our DEM to the two reference DEMs and output point clouds
-            asuAlignMatrix  = readPcAlignResults(folderPath, 'align_ASU')
-            lolaAlignMatrix = readPcAlignResults(folderPath, 'align_LOLA')
-            
             # Convert the aligned point clouds back into DEMs
-            rerenderDem(ourDemPath, asuAlignMatrix, lolaAlignMatrix)
+            rerenderDem(ourDemPath, centerLat)
+  
+            # Compute the error between the aligned DEMs            
+            compareDems(ourDemPath, asuDemPath, lolaDataPath)
             
-            #TODO: Call script for point-by-point comparison!
+            
+            generateDebugImages(ourDemPath, asuDemPath, lolaDataPath)
             
             #Final reports
             
         
-        except: # Catch any errors, the program will move on to the next folder
-            doNothing = True
-           # print "Unable to process data in folder " + folderPath
+        except Exception,e: # Catch any errors, the program will move on to the next folder
+            print "Caught: ", e
+            print "Unable to process data in folder " + folderPath
 
 
 #--------------------------------------------------------------------------------
-
-#    8:30 - 1:00, = 4.5
-#    3:30 - 
-
 
 #TODO: Support for file based logging of results
 
