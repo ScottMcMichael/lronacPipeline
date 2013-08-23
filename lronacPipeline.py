@@ -347,15 +347,17 @@ def retrieveDataFiles(logPath, outputDir):
             if not os.path.exists(asuDemPath.strip()):
                 os.system("wget -P " + currentOutputFolder + "  " + asuUrl)
 
-            elif (line.find('.IMG') >= 0):
-                # wget image
-                imgUrl	    = line
-                imgFileName = os.path.basename(imgUrl)
-                imgCopyPath = currentOutputFolder + '/' + imgFileName
-                #			print "wget -P " + currentOutputFolder + "  " + imgUrl
-                print imgCopyPath
-                if not os.path.exists(imgCopyPath):
-                    os.system("wget -P " + currentOutputFolder + "  " + imgUrl)
+            #TODO: Download the LOLA data file
+  
+        elif (line.find('.IMG') >= 0):
+            # wget image
+            imgUrl	    = line
+            imgFileName = os.path.basename(imgUrl)
+            imgCopyPath = currentOutputFolder + '/' + imgFileName
+            #			print "wget -P " + currentOutputFolder + "  " + imgUrl
+            print imgCopyPath
+            if not os.path.exists(imgCopyPath):
+                os.system("wget -P " + currentOutputFolder + "  " + imgUrl)
 
 
 
@@ -471,9 +473,13 @@ def makeDem(demFolder):
 
     # Now feed the two merged images into the stereo function    
     if not os.path.exists(outputPcPath):
-        cmd ='stereo --alignment affineepipolar --subpixel-mode 1 --disable-fill-holes ' + mosaicNameA +' '+ mosaicNameB +' '+ outputPrefix
+#        cmd ='stereo --alignment affineepipolar --subpixel-mode 1 --disable-fill-holes ' + mosaicNameA +' '+ mosaicNameB +' '+ outputPrefix
+        cmd ='parallel_stereo --alignment affineepipolar --subpixel-mode 1 --disable-fill-holes ' + mosaicNameA +' '+ mosaicNameB +' '+ outputPrefix
         add_job(cmd, numThreads)
         wait_on_all_jobs()
+#--nodes-list PBS_NODEFILE --processes 4 --threads-multiprocess 16 --threads-singleprocess 32
+
+
       
     # Now convert from point cloud to DEM
     outputDemPrefix = demFolder + '/stereo'
@@ -549,13 +555,14 @@ def rerenderDem(mosaicPath, centerLatitude):
 def compareDems(demPath, asuDemPath, lolaDataPath):
 
     # Get paths to aligned point clouds and create output paths
-    outputFolder       = os.path.dirname(demPath)
-    asuAlignedDemPath  = outputFolder + '/align_ASU-DEM.tif'
-    lolaAlignedDemPath = outputFolder + '/align_LOLA-DEM.tif'
-    geodiffPrefixOut   = outputFolder + '/geodiff_ASU'
-    geodiffOutputPath  = outputFolder + '/geodiff_ASU-diff.tif'
-    asuDiffStatsPath   = outputFolder + '/ASU_diff_stats.txt'
-    lolaDiffStatsPath  = outputFolder + '/LOLA_diff_stats.txt'
+    outputFolder         = os.path.dirname(demPath)
+    asuAlignedDemPath    = outputFolder + '/align_ASU-DEM.tif'
+    lolaAlignedDemPath   = outputFolder + '/align_LOLA-DEM.tif'
+    geodiffPrefixOut     = outputFolder + '/geodiff_ASU'
+    geodiffOutputPath    = outputFolder + '/geodiff_ASU-diff.tif'
+    asuDiffStatsPath     = outputFolder + '/ASU_diff_stats.txt'
+    lolaDiffStatsPath    = outputFolder + '/LOLA_diff_stats.txt'
+    lolaAsuDiffStatsPath = outputFolder + '/LOLA_ASU_diff_stats.txt'
     
 
     numThreads = 2
@@ -573,13 +580,19 @@ def compareDems(demPath, asuDemPath, lolaDataPath):
     #TODO: Fix paths!
     # Open up the difference image to build statistics
     if (os.path.exists(geodiffOutputPath)) and (not os.path.exists(asuDiffStatsPath)):
-        cmd = '~/repot/visionworkbench/src/vw/tools/imagestats -i ' + geodiffOutputPath + ' -o ' + asuDiffStatsPath
+        cmd = '~/repot/visionworkbench/src/vw/tools/imagestats --limit-hist=1 -i ' + geodiffOutputPath + ' -o ' + asuDiffStatsPath
         add_job(cmd, numThreads)       
     
     # Call script to compare LOLA data with the DEM
     if (os.path.exists(lolaDataPath)) and (os.path.exists(lolaAlignedDemPath)) and (not os.path.exists(lolaDiffStatsPath)):
-        cmd = '~/repot/visionworkbench/src/vw/tools/lola_compare -l ' + lolaDataPath + ' -d ' + lolaAlignedDemPath + ' -o ' + lolaDiffStatsPath
+        cmd = '~/repot/visionworkbench/src/vw/tools/lola_compare --limit-hist=2 -l ' + lolaDataPath + ' -d ' + lolaAlignedDemPath + ' -o ' + lolaDiffStatsPath
         add_job(cmd, numThreads)    
+
+    # Call script to compare LOLA data with the ASU DEM
+    if (os.path.exists(lolaDataPath)) and (os.path.exists(asuDemPath)) and (not os.path.exists(lolaAsuDiffStatsPath)):
+        cmd = '~/repot/visionworkbench/src/vw/tools/lola_compare --limit-hist=2 -l ' + lolaDataPath + ' -d ' + asuDemPath + ' -o ' + lolaAsuDiffStatsPath
+        add_job(cmd, numThreads)    
+
 
     wait_on_all_jobs()        
  
@@ -653,6 +666,10 @@ def generateDebugImages(demPath, asuDemPath, lolaDataPath):
 #        add_job(cmd, numThreads)                            
 
 
+# Removes temporary files we are no longer interested in
+#def cleanTempFiles():
+
+
 
 # Makes a stereo DEM in each sub folder
 def makeDems(outputDir):
@@ -713,14 +730,13 @@ def main():
 #        retrieveLolaFile(12.8, 13, 10.8, 11)
 
 
-	
-        dataDirectory = '/home/smcmich1/repot/lronacPipeline/testData/'
+        dataDirectory = '/home/smcmich1/repot/lronacPipeline/testData2/'
 
-#	    getDataList()
+#        getDataList()
 	
         # Download all of the data we need 
         print 'Retrieving data files'
-    	retrieveDataFiles('logFileSingle.txt', dataDirectory)
+#        retrieveDataFiles('logFileSingle.txt', dataDirectory)
 
         # Process all of the data!
         print 'Making DEMs'
