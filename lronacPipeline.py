@@ -16,11 +16,16 @@
 #  limitations under the License.
 # __END_LICENSE__
 
-import os, glob, optparse, re, shutil, subprocess, sys, string, time, urllib, urllib2
+import sys
+
+#sys.path.append('/home/smcmich1/programs/beautifulsoup4-4.3.1/install/lib/python2.7/site-packages/bs4')
 from BeautifulSoup import BeautifulSoup
+
+import os, glob, optparse, re, shutil, subprocess, string, time, urllib, urllib2
 
 #TODO: Clean this up!
 sys.path.append('/home/smcmich1/programs/mechanize-0.2.5/')
+
 #sys.path.append('/home/smcmich1/splinter/')
 #sys.path.append('/home/smcmich1/selenium-2.35.0')
 
@@ -451,11 +456,13 @@ def makeDem(demFolder):
     mosaicNameB = os.path.splitext(leftImgB)[0] + '.lronaccal.lronacecho.noproj.mosaic.norm.cub'
 
     # Merge the two LRONAC pairs 
+#    keepstring = ' --keep' # Keeping temp files
+    keepstring = '' # Not keeping temp files
     if not os.path.exists(mosaicNameA):
-        cmd = 'lronac2mosaic.py ' + leftImgA + ' ' + rightImgA + ' --keep'
+        cmd = 'lronac2mosaic.py ' + leftImgA + ' ' + rightImgA + keepstring
         add_job(cmd, numThreads)
     if not os.path.exists(mosaicNameB):
-        cmd = 'lronac2mosaic.py ' + leftImgB + ' ' + rightImgB + ' --keep'        
+        cmd = 'lronac2mosaic.py ' + leftImgB + ' ' + rightImgB + keepstring
         add_job(cmd, numThreads)
     
     wait_on_all_jobs()
@@ -474,7 +481,7 @@ def makeDem(demFolder):
     # Now feed the two merged images into the stereo function    
     if not os.path.exists(outputPcPath):
 #        cmd ='stereo --alignment affineepipolar --subpixel-mode 1 --disable-fill-holes ' + mosaicNameA +' '+ mosaicNameB +' '+ outputPrefix
-        cmd ='parallel_stereo --alignment affineepipolar --subpixel-mode 1 --disable-fill-holes ' + mosaicNameA +' '+ mosaicNameB +' '+ outputPrefix
+        cmd ='parallel_stereo --alignment affineepipolar --subpixel-mode 1 --disable-fill-holes ' + mosaicNameA +' '+ mosaicNameB +' '+ outputPrefix + ' --processes 8 --threads-multiprocess 4 --threads-singleprocess 32' 
         add_job(cmd, numThreads)
         wait_on_all_jobs()
 #--nodes-list PBS_NODEFILE --processes 4 --threads-multiprocess 16 --threads-singleprocess 32
@@ -514,8 +521,12 @@ def computeDemTransforms(mosaicPath, asuDemPath, lolaDataPath):
     if (os.path.exists(asuDemPath)) and (not os.path.exists(asuAlignedPointCloudPath)):
         cmd = 'pc_align --max-displacement 250 --max-num-reference-points 25000000 --save-inv-transformed-reference-points -o ' + outputAsuPrefix  + ' ' + mosaicPath + ' ' + asuDemPath
         add_job(cmd, numThreads)
+
+    # pc_align needs a lot of memory so only run one instance at once (could run a second on another node)
+    wait_on_all_jobs()
+
     if (os.path.exists(lolaDataPath)) and (not os.path.exists(lolaAlignedPointCloudPath)):
-        cmd = 'pc_align --max-displacement 250 --max-num-reference-points 25000000 --save-inv-transformed-reference-points -o ' + outputLolaPrefix + ' ' + mosaicPath + ' ' + lolaDataPath
+        cmd = 'pc_align --max-displacement 250 --max-num-reference-points 25000000 --save-inv-transformed-reference-points -o ' + outputLolaPrefix + ' ' + mosaicPath + ' "' + lolaDataPath + '"'
         add_job(cmd, numThreads)
 
 #    # ASU-LOLA sanity check
@@ -572,25 +583,23 @@ def compareDems(demPath, asuDemPath, lolaDataPath):
     print asuDemPath
     print geodiffOutputPath
     if ( (os.path.exists(asuAlignedDemPath)) and (os.path.exists(asuDemPath)) and (not os.path.exists(geodiffOutputPath)) ):
-#        cmd = 'geodiff --absolute -o ' + geodiffPrefixOut +' '+ asuAlignedDemPath +' '+ asuDemPath
         cmd = 'geodiff --absolute -o ' + geodiffPrefixOut +' '+ asuDemPath +' '+ asuAlignedDemPath
         add_job(cmd, numThreads)    
         wait_on_all_jobs()
 
-    #TODO: Fix paths!
     # Open up the difference image to build statistics
     if (os.path.exists(geodiffOutputPath)) and (not os.path.exists(asuDiffStatsPath)):
-        cmd = '~/repot/visionworkbench/src/vw/tools/imagestats --limit-hist=1 -i ' + geodiffOutputPath + ' -o ' + asuDiffStatsPath
+        cmd = 'imagestats --limit-hist=1 -i ' + geodiffOutputPath + ' -o ' + asuDiffStatsPath
         add_job(cmd, numThreads)       
     
     # Call script to compare LOLA data with the DEM
     if (os.path.exists(lolaDataPath)) and (os.path.exists(lolaAlignedDemPath)) and (not os.path.exists(lolaDiffStatsPath)):
-        cmd = '~/repot/visionworkbench/src/vw/tools/lola_compare --limit-hist=2 -l ' + lolaDataPath + ' -d ' + lolaAlignedDemPath + ' -o ' + lolaDiffStatsPath
+        cmd = 'lola_compare --limit-hist=2 -l "' + lolaDataPath + '" -d ' + lolaAlignedDemPath + ' -o ' + lolaDiffStatsPath
         add_job(cmd, numThreads)    
 
     # Call script to compare LOLA data with the ASU DEM
     if (os.path.exists(lolaDataPath)) and (os.path.exists(asuDemPath)) and (not os.path.exists(lolaAsuDiffStatsPath)):
-        cmd = '~/repot/visionworkbench/src/vw/tools/lola_compare --limit-hist=2 -l ' + lolaDataPath + ' -d ' + asuDemPath + ' -o ' + lolaAsuDiffStatsPath
+        cmd = 'lola_compare --limit-hist=2 -l "' + lolaDataPath + '" -d ' + asuDemPath + ' -o ' + lolaAsuDiffStatsPath
         add_job(cmd, numThreads)    
 
 
@@ -667,40 +676,80 @@ def generateDebugImages(demPath, asuDemPath, lolaDataPath):
 
 
 # Removes temporary files we are no longer interested in
-#def cleanTempFiles():
+def cleanTempFiles(folder):
 
+    # List of all the temporary files we want deleted
+    fileList = [  'align_ASU-DEM.tif.aux.xml', \
+                  'align_ASU-DEM.tif.aux.xml', \
+#                  'align_ASU_PCtrans_reference.tif', \
+#                  'align_LOLA_PCtrans_reference.tif', \
+#                  'camInfoOutput.txt', \
+                  'geodiff_ASU-diff.tif.aux.xml', \
+                  'stereo-align-L.exr', \
+                  'stereo-align-R.exr', \
+                  'stereo-DEM.tif.aux.xml', \
+                  'stereo-D_sub.tif', \
+                  'stereo-D.tif', \
+                  'stereo-F.tif', \
+                  'stereo-GoodPixelMap.tif', \
+                  'stereo-lMask_sub.tif', \
+                  'stereo-lMask.tif', \
+                  'stereo-L_sub.tif', \
+                  'stereo-L.tif', \
+                  'stereo-RD.tif' ,\
+                  'stereo-rMask_sub.tif', \
+                  'stereo-rMask.tif', \
+                  'stereo-R_sub.tif' ,\
+                  'stereo-R.tif']
 
+    # Delete all of the files
+    print 'Removing temporary files from folder ' + folder
+    for f in fileList:
+        currentFile = folder + '/' + f
+        if os.path.exists(currentFile):
+            os.remove(currentFile)
+
+    # Remove all of the intermediate stereo folders
+    cmd = "rm -rf `ls -1 -d " + folder + "/stereo*/ `"
+    add_job(cmd, 2)    
+        
+    wait_on_all_jobs()    
+  
 
 # Makes a stereo DEM in each sub folder
-def makeDems(outputDir):
+def makeDems(inputFolder):
 
-    # Call subfunction for each folder
-    for f in os.listdir(outputDir):
+#    # Call subfunction for each folder
+#    for f in os.listdir(outputDir):
 	
-        folderPath = os.path.join(outputDir, f)
-		
-        try:
-    		# Make a DEM out of the IMG files
-            [ourDemPath, asuDemPath, lolaDataPath, centerLat] = makeDem(folderPath)
+ #        folderPath = os.path.join(outputDir, f)
 
-            # Now compare the DEMs with the reference data sets
-            computeDemTransforms(ourDemPath, asuDemPath, lolaDataPath)
-            
-            # Convert the aligned point clouds back into DEMs
-            rerenderDem(ourDemPath, centerLat)
-  
-            # Compute the error between the aligned DEMs            
-            compareDems(ourDemPath, asuDemPath, lolaDataPath)
-            
-            
-            generateDebugImages(ourDemPath, asuDemPath, lolaDataPath)
-            
-            #Final reports
-            
+    try:
+        print 'Making DEM in folder ' + inputFolder
+
+		    # Make a DEM out of the IMG files
+        [ourDemPath, asuDemPath, lolaDataPath, centerLat] = makeDem(inputFolder)
+
+        # Now compare the DEMs with the reference data sets
+        computeDemTransforms(ourDemPath, asuDemPath, lolaDataPath)
         
-        except Exception,e: # Catch any errors, the program will move on to the next folder
-            print "Caught: ", e
-            print "Unable to process data in folder " + folderPath
+        # Convert the aligned point clouds back into DEMs
+        rerenderDem(ourDemPath, centerLat)
+
+        # Compute the error between the aligned DEMs            
+        compareDems(ourDemPath, asuDemPath, lolaDataPath)
+        
+        # Generate additional diagnostic images
+        #generateDebugImages(ourDemPath, asuDemPath, lolaDataPath)
+
+        # Remove temporay files to save space
+        cleanTempFiles(inputFolder)
+        
+        #Final reports
+        
+    except Exception,e: # Catch any errors, the program will move on to the next folder
+        print "Caught: ", e
+        print "Unable to process data in folder " + inputFolder
 
 
 #--------------------------------------------------------------------------------
@@ -713,9 +762,11 @@ def main():
         try:
             usage = "usage: lronacPipeline.py [--help][--manual]\n  "
             parser = optparse.OptionParser(usage=usage)
-            parser.set_defaults(delete =True)
-            parser.set_defaults(threads=4)
-            parser.set_defaults(fakePvl=True)
+#            parser.set_defaults(delete =True)
+#            parser.set_defaults(threads=4)
+#            parser.set_defaults(fakePvl=True)
+            parser.add_option("-i", "--input-folder", dest="inputFolder",
+                              help="Specifies the folder to operate on.")
             parser.add_option("--manual", action="callback", callback=man,
                               help="Read the manual.")
             (options, args) = parser.parse_args()
@@ -725,22 +776,35 @@ def main():
         except optparse.OptionError, msg:
             raise Usage(msg)
 
+#TODO: Verify input folder is present!
+
+
+        print'Quitting early with argument ' + options.inputFolder
+        return 0
+
+
         print "Beginning processing....."
 
 #        retrieveLolaFile(12.8, 13, 10.8, 11)
 
 
-        dataDirectory = '/home/smcmich1/repot/lronacPipeline/testData2/'
+
+# TODO: Move these commands in to a seperate file!
+#        dataDirectory = '/nobackupp1/smcmich1/data/lronacPipeline/'
 
 #        getDataList()
 	
         # Download all of the data we need 
         print 'Retrieving data files'
-#        retrieveDataFiles('logFileSingle.txt', dataDirectory)
+        #retrieveDataFiles('logFile.txt', dataDirectory)
+
+#    # Test on a single folder
+#    folderPath = '/nobackupp1/smcmich1/data/lronacPipeline/VITELLO'
+
 
         # Process all of the data!
         print 'Making DEMs'
-        makeDems(dataDirectory)
+        makeDems(options.inputFolder)
 
 
 #TODO: Add GIT login name/email
