@@ -18,10 +18,10 @@
 
 import sys
 
-#sys.path.append('/home/smcmich1/programs/beautifulsoup4-4.3.1/install/lib/python2.7/site-packages/bs4')
+sys.path.append('/home/smcmich1/.local/lib/python2.7/site-packages/')
 from BeautifulSoup import BeautifulSoup
 
-import os, glob, optparse, re, shutil, subprocess, string, time, urllib, urllib2
+import os, glob, optparse, re, shutil, subprocess, string, time, urllib, urllib2, time
 
 #TODO: Clean this up!
 sys.path.append('/home/smcmich1/programs/mechanize-0.2.5/')
@@ -136,36 +136,6 @@ if False:
     #    f.write(page.prettify())
     #    f.close()
     """
-
-#TODO: Probably don't need this!
-# Reads in the results of a DEM alignment operation
-def readPcAlignResults(outputFolder, prefix):
-
-    # Output transform is in this format (excepting whitespace):
-    #  0.9999968710678928    0.002478390929168969 0.0003397540659725261 -1024.133917521918
-    # -0.002477949646550771  0.9999960937499494  -0.001293155207595954   4739.357603680983
-    # -0.0003429576829447021 0.001292309267933415 0.9999991061579924      124.7476123821689
-    #  0                     0                    0                         1
-
-    # File locations (PREFIX = align_ASU and align_LOLA):
-    # outputFolder/PREFIX-transform.txt
-    # outputFolder/PREFIX-beg_errors.txt
-    # outputFolder/PREFIX-end_errors.txt
-
-    # Get the file paths
-    transformPath    = outputFolder + '/' + prefix + '-transform.txt'
-    initialErrorPath = outputFolder + '/' + prefix + '-beg_errors.txt'
-    finalErrorPath   = outputFolder + '/' + prefix + '-end_errors.txt'
-    
-#TODO: Make sure to pull in ASP update which inverts output matrix if needed!
-    # Read in the transform matrix
-    transformMatrix = []
-    transformFile = open(transformPath, 'r')
-    for line in transformFile:
-        transformMatrix.append(float, line.split(' '))
-
-    # For now just return the matrix
-    return transformMatrix
 
 
 # Gets the download links to the LE and RE parts of a given LRONAC ID
@@ -390,7 +360,7 @@ def getMosaicCenterLatitude(mosaicPath):
     if (centerLatitude == -9999):          
         raise Exception("Unable to find CenterLatitude in file " + camInfoOuputPath)
         
-    return str(centerLatitude) # Convert back to string since it will be used as a cmd line argument
+    return str(round(centerLatitude)) # Convert back to (rounded) string since it will be used as a cmd line argument
 
 
 # Make a stereo DEM in a single sub folder
@@ -481,7 +451,7 @@ def makeDem(demFolder):
     # Now feed the two merged images into the stereo function    
     if not os.path.exists(outputPcPath):
 #        cmd ='stereo --alignment affineepipolar --subpixel-mode 1 --disable-fill-holes ' + mosaicNameA +' '+ mosaicNameB +' '+ outputPrefix
-        cmd ='parallel_stereo --alignment affineepipolar --subpixel-mode 1 --disable-fill-holes ' + mosaicNameA +' '+ mosaicNameB +' '+ outputPrefix + ' --processes 8 --threads-multiprocess 4 --threads-singleprocess 32' 
+        cmd ='parallel_stereo --corr-timeout 400 --alignment affineepipolar --subpixel-mode 1 --disable-fill-holes ' + mosaicNameA +' '+ mosaicNameB +' '+ outputPrefix + ' --processes 8 --threads-multiprocess 4 --threads-singleprocess 32' 
         add_job(cmd, numThreads)
         wait_on_all_jobs()
 #--nodes-list PBS_NODEFILE --processes 4 --threads-multiprocess 16 --threads-singleprocess 32
@@ -494,8 +464,8 @@ def makeDem(demFolder):
     centerLatitude = getMosaicCenterLatitude(mosaicNameA)
     if not os.path.exists(outputDemPath):
       # Find out the center latitude of the mosaic
-      optionsText = ' --t_srs "+proj=eqc +lat_ts='+centerLatitude+' +lat_0=0 +a=1737400 +b=1737400 +units=m" --nodata -32767'
-      cmd         = 'point2dem -r moon -o ' + outputDemPrefix +' '+ outputPcPath + optionsText
+      optionsText = ' -r moon --tr 1 --t_srs "+proj=eqc +lat_ts='+centerLatitude+' +lat_0=0 +a=1737400 +b=1737400 +units=m" --nodata -32767'
+      cmd         = 'point2dem -o ' + outputDemPrefix +' '+ outputPcPath + optionsText
       add_job(cmd, numThreads)
       wait_on_all_jobs()
 
@@ -515,18 +485,20 @@ def computeDemTransforms(mosaicPath, asuDemPath, lolaDataPath):
     outputLolaPrefix          = intputFolder + '/align_LOLA_PC'
     asuAlignedPointCloudPath  = intputFolder + '/align_ASU_PCtrans_reference.tif'
     lolaAlignedPointCloudPath = intputFolder + '/align_LOLA_PCtrans_reference.tif'
-
+    asuAlignedTransformPath   = intputFolder + '/align_ASU_PC-transform.txt'
+    lolaAlignedTransformPath  = intputFolder + '/align_LOLA_PC-transform.txt'
+    
     # Larger DEM should be the first (reference) input
     numThreads = 2
-    if (os.path.exists(asuDemPath)) and (not os.path.exists(asuAlignedPointCloudPath)):
-        cmd = 'pc_align --max-displacement 250 --max-num-reference-points 25000000 --save-inv-transformed-reference-points -o ' + outputAsuPrefix  + ' ' + mosaicPath + ' ' + asuDemPath
+    if (os.path.exists(asuDemPath)) and (not os.path.exists(asuAlignedTransformPath)):
+        cmd = 'pc_align --compute-translation-only --max-displacement 250 --max-num-reference-points 25000000 --save-inv-transformed-reference-points -o ' + outputAsuPrefix  + ' ' + mosaicPath + ' ' + asuDemPath
         add_job(cmd, numThreads)
 
     # pc_align needs a lot of memory so only run one instance at once (could run a second on another node)
     wait_on_all_jobs()
 
-    if (os.path.exists(lolaDataPath)) and (not os.path.exists(lolaAlignedPointCloudPath)):
-        cmd = 'pc_align --max-displacement 250 --max-num-reference-points 25000000 --save-inv-transformed-reference-points -o ' + outputLolaPrefix + ' ' + mosaicPath + ' "' + lolaDataPath + '"'
+    if (os.path.exists(lolaDataPath)) and (not os.path.exists(lolaAlignedTransformPath)):
+        cmd = 'pc_align --compute-translation-only --max-displacement 250 --max-num-reference-points 25000000 --save-inv-transformed-reference-points -o ' + outputLolaPrefix + ' ' + mosaicPath + ' "' + lolaDataPath + '"'
         add_job(cmd, numThreads)
 
 #    # ASU-LOLA sanity check
@@ -548,16 +520,16 @@ def rerenderDem(mosaicPath, centerLatitude):
     lolaAlignedDemPath        = outputFolder + '/align_LOLA-DEM.tif'
     
     numThreads = 2
-    optionsText = ' --t_srs "+proj=eqc +lat_ts='+centerLatitude+' +lat_0=0 +a=1737400 +b=1737400 +units=m" --nodata -32767'
+    optionsText = ' -r moon --tr 1 --t_srs "+proj=eqc +lat_ts='+centerLatitude+' +lat_0=0 +a=1737400 +b=1737400 +units=m" --nodata -32767'
   
     # ASU registered point cloud to DEM
     if ( (os.path.exists(asuAlignedPointCloudPath)) and (not os.path.exists(asuAlignedDemPath)) ):
-        cmd = 'point2dem -r moon -o ' + asuAlignedDemPrefix +' '+ asuAlignedPointCloudPath + optionsText
+        cmd = 'point2dem -o ' + asuAlignedDemPrefix +' '+ asuAlignedPointCloudPath + optionsText
         add_job(cmd, numThreads)
 
     # LOLA registered point cloud to DEM
     if ( (os.path.exists(lolaAlignedPointCloudPath)) and (not os.path.exists(lolaAlignedDemPath)) ):
-        cmd = 'point2dem -r moon -o ' + lolaAlignedDemPrefix +' '+ lolaAlignedPointCloudPath + optionsText
+        cmd = 'point2dem -o ' + lolaAlignedDemPrefix +' '+ lolaAlignedPointCloudPath + optionsText
         add_job(cmd, numThreads)
 
     wait_on_all_jobs()
@@ -589,17 +561,17 @@ def compareDems(demPath, asuDemPath, lolaDataPath):
 
     # Open up the difference image to build statistics
     if (os.path.exists(geodiffOutputPath)) and (not os.path.exists(asuDiffStatsPath)):
-        cmd = 'imagestats --limit-hist=1 -i ' + geodiffOutputPath + ' -o ' + asuDiffStatsPath
+        cmd = 'imagestats --limit-hist=2 -i ' + geodiffOutputPath + ' -o ' + asuDiffStatsPath
         add_job(cmd, numThreads)       
     
-    # Call script to compare LOLA data with the DEM
+    #bsolute  Call script to compare LOLA data with the DEM
     if (os.path.exists(lolaDataPath)) and (os.path.exists(lolaAlignedDemPath)) and (not os.path.exists(lolaDiffStatsPath)):
-        cmd = 'lola_compare --limit-hist=2 -l "' + lolaDataPath + '" -d ' + lolaAlignedDemPath + ' -o ' + lolaDiffStatsPath
+        cmd = 'lola_compare --absolute --limit-hist=2 -l "' + lolaDataPath + '" -d ' + lolaAlignedDemPath + ' -o ' + lolaDiffStatsPath
         add_job(cmd, numThreads)    
 
     # Call script to compare LOLA data with the ASU DEM
     if (os.path.exists(lolaDataPath)) and (os.path.exists(asuDemPath)) and (not os.path.exists(lolaAsuDiffStatsPath)):
-        cmd = 'lola_compare --limit-hist=2 -l "' + lolaDataPath + '" -d ' + asuDemPath + ' -o ' + lolaAsuDiffStatsPath
+        cmd = 'lola_compare --absolute --limit-hist=2 -l "' + lolaDataPath + '" -d ' + asuDemPath + ' -o ' + lolaAsuDiffStatsPath
         add_job(cmd, numThreads)    
 
 
@@ -681,8 +653,8 @@ def cleanTempFiles(folder):
     # List of all the temporary files we want deleted
     fileList = [  'align_ASU-DEM.tif.aux.xml', \
                   'align_ASU-DEM.tif.aux.xml', \
-#                  'align_ASU_PCtrans_reference.tif', \
-#                  'align_LOLA_PCtrans_reference.tif', \
+                  'align_ASU_PCtrans_reference.tif', \
+                  'align_LOLA_PCtrans_reference.tif', \
 #                  'camInfoOutput.txt', \
                   'geodiff_ASU-diff.tif.aux.xml', \
                   'stereo-align-L.exr', \
@@ -717,7 +689,7 @@ def cleanTempFiles(folder):
   
 
 # Makes a stereo DEM in each sub folder
-def makeDems(inputFolder):
+def makeDems(inputFolder, lowMem):
 
 #    # Call subfunction for each folder
 #    for f in os.listdir(outputDir):
@@ -730,9 +702,14 @@ def makeDems(inputFolder):
 		    # Make a DEM out of the IMG files
         [ourDemPath, asuDemPath, lolaDataPath, centerLat] = makeDem(inputFolder)
 
+        if lowMem: # Quit here before doing the memory intensive steps
+            print "Finished creating the DEM, stopping before high-memory pc_align step."
+            return 0
+
         # Now compare the DEMs with the reference data sets
         computeDemTransforms(ourDemPath, asuDemPath, lolaDataPath)
         
+
         # Convert the aligned point clouds back into DEMs
         rerenderDem(ourDemPath, centerLat)
 
@@ -758,17 +735,22 @@ def makeDems(inputFolder):
 
 def main():
 
+    print "Started lronacPipeline.py"
+
     try:
         try:
             usage = "usage: lronacPipeline.py [--help][--manual]\n  "
             parser = optparse.OptionParser(usage=usage)
-#            parser.set_defaults(delete =True)
+            parser.set_defaults(lowMem =False)
 #            parser.set_defaults(threads=4)
 #            parser.set_defaults(fakePvl=True)
             parser.add_option("-i", "--input-folder", dest="inputFolder",
                               help="Specifies the folder to operate on.")
             parser.add_option("--manual", action="callback", callback=man,
                               help="Read the manual.")
+            parser.add_option("--low-mem", action="store_true",
+                              dest="lowMem",
+                              help="Stops before the memory intensive pc_align step.")
             (options, args) = parser.parse_args()
 
 #            if not args: parser.error("need .IMG files")
@@ -778,15 +760,11 @@ def main():
 
 #TODO: Verify input folder is present!
 
-
-        print'Quitting early with argument ' + options.inputFolder
-        return 0
-
-
         print "Beginning processing....."
 
-#        retrieveLolaFile(12.8, 13, 10.8, 11)
+        startTime = time.time()
 
+#        retrieveLolaFile(12.8, 13, 10.8, 11)
 
 
 # TODO: Move these commands in to a seperate file!
@@ -802,15 +780,14 @@ def main():
 #    folderPath = '/nobackupp1/smcmich1/data/lronacPipeline/VITELLO'
 
 
+
         # Process all of the data!
         print 'Making DEMs'
-        makeDems(options.inputFolder)
+        makeDems(options.inputFolder, options.lowMem)
 
+        endTime = time.time()
 
-#TODO: Add GIT login name/email
-
-
-        print "Finished"
+        print "Finished in " + str(endTime - startTime) + " seconds."
         return 0
 
     except Usage, err:
