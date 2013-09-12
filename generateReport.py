@@ -16,7 +16,7 @@
 #  limitations under the License.
 # __END_LICENSE__
 
-import os, glob, optparse, re, shutil, subprocess, sys, string, time, urllib, urllib2
+import os, glob, optparse, re, shutil, subprocess, sys, string, time, urllib, urllib2, simplekml
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -44,7 +44,7 @@ def add_job( cmd, num_working_threads=4 ):
     job_pool.append( subprocess.Popen(cmd, shell=True) );
 
 def wait_on_all_jobs():
-    print "Waiting for jobs to finish";
+    #print "Waiting for jobs to finish";
     while len(job_pool) > 0:
         job_pool[0].wait();
         job_pool.pop(0);
@@ -81,6 +81,7 @@ def readPcAlignResults(outputFolder, prefix):
     # For now just return the matrix
     return transformMatrix
 
+
 # Copies one file from the supercomputer - Caller needs to wait for the job to finish!
 def grabFile(supercomputerPath, localPath):
 
@@ -90,9 +91,59 @@ def grabFile(supercomputerPath, localPath):
 #    print cmd #TESTING
     add_job(cmd, numThreads)
 
+#def backupData(localFolder):
+
+#    #TODO: Don't duplicate these!
+#    supercomputerSourceFolder = '/nobackupp1/smcmich1/data/lronacPipeline'
+
+#    demFolderList = [ \
+#                      'ARISTARCHU2',  'FEOKTISTOV',   'HORTENSIUS1',  'KINGCRATER2',   'LICHTENBER7',  'MRECRISIUM2',  'ORIENTALE2',    'SEISMCLAND',\
+#                      'ARISTARCHU3',  'FRESH1',       'HORTENSIUS2',  'KINGCRATER3',   'LICHTENBER8',  'MRECRISIUM3',  'ORIENTALE3',    'SLIPHER1',\
+#                      'ARISTARCHU4',  'FRESH3',       'HORTENSIUS3',  'KINGCRATER4',   'LICHTENBER9',  'MRINGENII1',   'PLANCKFLOOR',   'SOSIRILLE',\
+#                      'ARISTARCHU5',  'FRESHMELT1',   'HORTENSIUS5',  'KUGLERRIDGE',   'LINNECRATER',  'MRINGENII2',   'PYTHAGORAS1',   'SPARIM1',\
+#                      'BHABHAPLAIN',  'FRESHMELT2',   'HORTENSIUS6',  'LICHTENBER1',   'LUNA16',       'MRINGENII3',   'RANGER',        'SPARIM2',\
+#                      'CMPTNBELK2',   'FRSHCRATER4',  'HORTENSIUS7',  'LICHTENBER10',  'LUNA20',       'MRINGENII4',   'REINER1',       'SPARIM3',\
+#                      'CMPTNBELK3',   'FRSHCRATER5',  'IMBRIUM',      'LICHTENBER11',  'LUNA24',       'NEARLENTS1',   'REINER2',       'SPARIM4',\
+#                      'COMPTONBELK',  'FRSHCRATER8',  'IMBRIUM2',     'LICHTENBER12',  'MARIUS1',      'NRTHCRTRI1',   'REINER3',       'SULPICIUS1',\
+#                      'EIMMARTA',     'GRUITHUISE1',  'IMPACTMELT1',  'LICHTENBER13',  'MARIUS2',      'NRTHCRTRI2',   'REINER4',       'SULPICIUS2',\
+#                      'ENDYMION',     'GRUITHUISE2',  'IMPACTMELT2',  'LICHTENBER2',   'MARIUS3',      'NRTHCRTRII',   'RUMKERDOME1',   'SULPICIUS3',\
+#                      'ERATOSTHNS1',  'GRUITHUISE3',  'IMPACTMELT3',  'LICHTENBER3',   'MARIUS4',      'NRTHCRTRIII',  'RUMKERDOME2',   'VIRTANEN1',\
+#                      'ESALL_CR1',    'GRUITHUISE4',  'INACALDERA1',  'LICHTENBER4',   'MOOREF1',      'OBLIVIONIS1',  'RUMKERDOME3',   'VIRTANEN2',\
+#                      'ESALL_MP1',    'GRUITHUISE5',  'INACALDERA3',  'LICHTENBER5',   'MOOREF2',      'OPENHIMERF',   'RUMKERDOME4',   'VIRTANEN3',\
+#                      'ESALL_SR12',   'HIGHESTPOIN',  'ISISOSIRIS',   'LICHTENBER6',   'MRECRISIUM1',  'ORIENTALE1',   'RUMKERDOMES5',  'VITELLO']
+
+#    try:
+  
+#        if not os.path.exists(localFolder):
+#            os.makedirs(localFolder)
+
+#        # Operate on each folder
+#        for f in demFolderList:
+	
+#            # Get folders
+#            folderPath              = os.path.join(localFolder,               f)
+#            supercomputerFolderPath = os.path.join(supercomputerSourceFolder, f)
+
+#            if not os.path.exists(folderPath):
+#                os.makedirs(folderPath)
+
+#            # Build file request
+#            inputFile = '*.lronaccal.lronacecho.noproj.mosaic.norm.cub'
+#            supercomputerFilePath = '"' + os.path.join(supercomputerFolderPath, inputFile) + '"'
+
+#            # Check if we have both input files
+#            cubCounter = len(glob.glob1(folderPath,"*.cub"))
+#            if cubCounter < 2: # If we don't, request file copy
+#                grabFile(supercomputerFilePath, folderPath)            
+    
+#        wait_on_all_jobs() # Wait on all file grab requests
+        
+#    except Exception,e: # Catch any errors, the program will move on to the next folder
+#        print "Caught: ", e
+
 
 # Grabs the output files from the supercomputer
-def grabResultFiles(outputFolder):
+def grabResultFiles(localFolder):
 
     supercomputerSourceFolder = '/nobackupp1/smcmich1/data/lronacPipeline'
 
@@ -113,7 +164,7 @@ def grabResultFiles(outputFolder):
                       'ESALL_SR12',   'HIGHESTPOIN',  'ISISOSIRIS',   'LICHTENBER6',   'MRECRISIUM1',  'ORIENTALE1',   'RUMKERDOMES5',  'VITELLO']
 
 
-    # List of all the temporary files we want deleted
+    # List of all the temporary files we want copied
     fileList = [  'ASU_diff_stats.txt', \
                   'LOLA_ASU_diff_stats.txt' ,\
                   'LOLA_diff_stats.txt' ,\
@@ -127,14 +178,14 @@ def grabResultFiles(outputFolder):
 
     try:
   
-        if not os.path.exists(outputFolder):
-            os.makedirs(outputFolder)
+        if not os.path.exists(localFolder):
+            os.makedirs(localFolder)
 
         # Operate on each folder
         for f in demFolderList:
 	
             # Get folders
-            folderPath              = os.path.join(outputFolder,              f)
+            folderPath              = os.path.join(localFolder ,              f)
             supercomputerFolderPath = os.path.join(supercomputerSourceFolder, f)
 
             if not os.path.exists(folderPath):
@@ -207,7 +258,7 @@ def accumulateStatistics(prefix, filePath, meanList, stdDevList, meanHistogram, 
         #print "Unable to process data in file " + filePath
         return False
 
-    print 'Read data from ' + filePath
+#    print 'Read data from ' + filePath
 
     meanList.append(meanValue)
     stdDevList.append(stdDev)
@@ -222,6 +273,98 @@ def accumulateStatistics(prefix, filePath, meanList, stdDevList, meanHistogram, 
             o = o + n
 
     return True # We successfully added data
+
+def readShiftAmounts(path, prefix, shiftDict):
+
+    # Make sure the file exists
+    if not os.path.exists(path):
+        return False
+
+    # Read the three numbers from the file
+    shiftFile = open(path, 'r')
+    line      = shiftFile.readline()
+    parts     = line.split(' ')
+    transform = (float(parts[0]), float(parts[1]), float(parts[2]))
+    shiftDict[prefix] = transform
+    
+    return True
+
+# Obtains the bounding box (as specified by ASU) for each DTM
+def parseBoundingBoxes(filePath, storage):
+        
+    logFile = open(filePath, 'r')
+    currentDtm = ''
+    for line in logFile:
+        if (line.find('ASU DTM') >= 0):         # Started a new DTM
+            eqPos       = line.find('=')
+            asuUrl	    = line[eqPos+2:]
+            asuFileName = os.path.basename(asuUrl)
+            noExt       = os.path.splitext(asuFileName)[0]
+            currentDtm  = noExt[8:]
+            print currentDtm
+        elif (line.find('Min lat') >= 0):
+            eqPos          = line.find('=')
+            numberText     = line[eqPos+2:]
+            value          = float(numberText)
+            index          = currentDtm + '_minLat'
+            storage[index] = value
+        elif (line.find('Min lon') >= 0):
+            eqPos          = line.find('=')
+            numberText     = line[eqPos+2:]
+            value          = float(numberText)
+            index          = currentDtm + '_minLon'
+            storage[index] = value
+        elif (line.find('Max lat') >= 0):
+            eqPos          = line.find('=')
+            numberText     = line[eqPos+2:]
+            value          = float(numberText)
+            index          = currentDtm + '_maxLat'
+            storage[index] = value
+        elif (line.find('Max lon') >= 0):
+            eqPos          = line.find('=')
+            numberText     = line[eqPos+2:]
+            value          = float(numberText)
+            index          = currentDtm + '_maxLon'
+            storage[index] = value
+
+def generateKml(dataFolder, usedFolderList, bbStorage, asuMeanList):
+    
+    # Initialize kml document
+    kml = simplekml.Kml()
+    kml.document.name = 'test'
+    kml.hint = 'target=moon'
+    
+    minError = min(asuMeanList)
+    maxError = max(asuMeanList)
+    errorRange = maxError - minError
+    
+    # Try to set up bounding box for each used folder
+    i = 0
+    for f in usedFolderList:
+        minLat = bbStorage[f+'_minLat']
+        maxLat = bbStorage[f+'_maxLat']
+        minLon = bbStorage[f+'_minLon']
+        maxLon = bbStorage[f+'_maxLon']
+        
+        poly = kml.newpolygon(name=f, outerboundaryis=[(maxLat,minLon), (maxLat,maxLon), (minLat, maxLon), (minLat,minLon), (maxLat,minLon)])
+#        poly.style.polystyle.color   = simplekml.Color.red # Why is polygon not working?
+#        poly.style.polystyle.fill    = 1
+#        poly.style.polystyle.outline = 1
+        poly.style.linestyle.width   = 5
+        
+        # Generate a color based on the error value:  white (low error) <--> red (high error)
+        colorVal = 255 - 255*(asuMeanList[i] - minError)/errorRange
+        poly.style.linestyle.color   = simplekml.Color.rgb(255,colorVal,colorVal,255)
+        
+        i = i + 1
+
+      
+    
+    # Save kml document
+    outputPath = dataFolder + '/bbList.kml'
+    kml.save(outputPath)
+    
+
 
 # Generates a set of plots describing the results
 def generatePlots(dataFolder):
@@ -243,7 +386,14 @@ def generatePlots(dataFolder):
     lolaAsuMeanPercentile = []
     lolaAsuMeanHistogram  = []
     
-    dataStorage = dict()
+    dataStorage      = dict()
+    shiftAmountsAsu  = dict()
+    shiftAmountsLola = dict()
+
+    # Parse bounding boxes
+    logPath = dataFolder + '/logFile.txt'
+    bbStorage = dict()
+    parseBoundingBoxes(logPath, bbStorage)
 
     usedFolderList = []
     for f in os.listdir(dataFolder):
@@ -251,23 +401,109 @@ def generatePlots(dataFolder):
         folderPath = os.path.join(dataFolder, f)
 	
         # Get the file paths for this folder
-        asuDiffPath     = folderPath + '/ASU_diff_stats.txt'
-        lolaDiffPath    = folderPath + '/LOLA_diff_stats.txt'
-        lolaAsuDiffPath = folderPath + '/LOLA_ASU_diff_stats.txt'
+        asuDiffPath         = folderPath + '/ASU_diff_stats.txt'
+        lolaDiffPath        = folderPath + '/LOLA_diff_stats.txt'
+        lolaAsuDiffPath     = folderPath + '/LOLA_ASU_diff_stats.txt'
+        asuTransformPath    = folderPath + '/align_ASU_PC-transform.txt'
+        lolaTransformPath   = folderPath + '/align_LOLA_PC-transform.txt'
+        stereoDemPath       = folderPath + '/stereo-DEM.tif'
+        
+        # Create output file paths for this folder
+        asuTransformLogPath  = folderPath + '/asuLocalShift.txt'
+        lolaTransformLogPath = folderPath + '/lolaLocalShift.txt'
+               
+        # Compute the shift amount in local coordinates for ASU and LOLA
+        if (not os.path.exists(asuTransformLogPath)  and os.path.exists(asuTransformPath) ):
+            cmd = '~/repot/StereoPipeline/src/asp/Tools/transformConvert --output-log ' + asuTransformLogPath  + ' ' + asuTransformPath  + ' ' + stereoDemPath
+            add_job(cmd, 2)
+        if (not os.path.exists(lolaTransformLogPath) and os.path.exists(lolaTransformPath) ):
+            cmd = '~/repot/StereoPipeline/src/asp/Tools/transformConvert --output-log ' + lolaTransformLogPath + ' ' + lolaTransformPath + ' ' + stereoDemPath
+            add_job(cmd, 2)
+        wait_on_all_jobs()
+        
+        readAsuTransform  = readShiftAmounts(asuTransformLogPath,  f, shiftAmountsAsu)
+        readLolaTransform = readShiftAmounts(lolaTransformLogPath, f, shiftAmountsLola)
+         
                
         # Accumulate the statistics
         readAsu     = accumulateStatistics(f+'_asu',  asuDiffPath,     asuMeanList,     asuStdDevList,     asuMeanHistogram,     dataStorage)
         readLola    = accumulateStatistics(f+'_lola', lolaDiffPath,    lolaMeanList,    lolaStdDevList,    lolaMeanHistogram,    dataStorage )
         readLolaAsu = accumulateStatistics(f+'_comp', lolaAsuDiffPath, lolaAsuMeanList, lolaAsuStdDevList, lolaAsuMeanHistogram, dataStorage )
 
-        if readAsu and readLola and readLolaAsu:
+        if readAsu and readLola and readLolaAsu and readAsuTransform and readLolaTransform:
             usedFolderList.append(f) # Keep track of the folders we read data from
         else:
+            # Remove list entries from partial successes
+            if readAsu:
+                asuMeanList.pop()
+            if readLola:
+                lolaMeanList.pop()
+            if readLolaAsu:
+                lolaAsuMeanList.pop()
+                
+                
             if readAsu or readLola or readLolaAsu:
                 print 'Partial success for folder ' + f
-    
 
-    #TODO: Back out local vertical/horizontal offset, put on scatter plot
+    # Generate some google earth KML output
+    generateKml(dataFolder, usedFolderList, bbStorage, asuMeanList)
+    
+    return True
+
+
+    # Scatter plot of the local coordinate x/y offsets
+    sScaling = 1.0
+    xAsu  = []
+    yAsu  = []
+    sAsu  = []
+    xLola = []
+    yLola = []
+    sLola = []
+    meanAsuX  = 0
+    meanAsuY  = 0
+    meanAsuS  = 0
+    meanLolaX = 0
+    meanLolaY = 0
+    meanLolaS = 0
+    for f in usedFolderList:
+        xAsu.append(shiftAmountsAsu[f][0])
+        yAsu.append(shiftAmountsAsu[f][1])       
+        meanAsuX = meanAsuX + shiftAmountsAsu[f][0]
+        meanAsuY = meanAsuY + shiftAmountsAsu[f][1]
+        
+        s = abs(shiftAmountsAsu[f][2]) * sScaling
+        sAsu.append(s)
+        meanAsuS = meanAsuS + s
+
+        xLola.append(shiftAmountsLola[f][0])
+        yLola.append(shiftAmountsLola[f][1])
+        sLola.append(abs(shiftAmountsLola[f][2]))
+        meanLolaX = meanLolaX + shiftAmountsLola[f][0]
+        meanLolaY = meanLolaY + shiftAmountsLola[f][1]        
+
+        s = abs(shiftAmountsLola[f][2]) * sScaling
+        sLola.append(s)
+        meanLolaS = meanLolaS + s
+
+    meanAsuX  = meanAsuX  / len(usedFolderList)
+    meanAsuY  = meanAsuY  / len(usedFolderList)
+    meanAsuS  = meanAsuS  / len(usedFolderList)                
+    meanLolaX = meanLolaX / len(usedFolderList)
+    meanLolaY = meanLolaY / len(usedFolderList)
+    meanLolaS = meanLolaS / len(usedFolderList)
+
+    plt.scatter(xAsu,      yAsu,      sAsu,      c='r', marker='o', label='ASU offsets')
+    plt.scatter(xLola,     yLola,     sLola,     c='b', marker='o', label='LOLA offsets')
+    plt.scatter(meanAsuX,  meanAsuY,  meanAsuS,  c='g', marker=(5,1), label='mean ASU offset')
+    plt.scatter(meanLolaX, meanLolaY, meanLolaS, c='y', marker=(5,1), label='mean LOLA offset')
+    plt.grid(color='gray', linestyle='dashed')
+    plt.xlabel('X shift in meters')
+    plt.ylabel('Y shift in meters')
+    plt.title('Alignment offsets in NED frame')
+    lgd = plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    plt.savefig(dataFolder + '/localShift.png', bbox_extra_artists=[lgd], bbox_inches='tight')
+    plt.clf()
+       
 
     # We now have a list of means/stds and sums of percentiles and histograms
     # - Get means for all of them
@@ -290,8 +526,6 @@ def generatePlots(dataFolder):
 
     # Now generate plots
 
-#TODO: Different version of this plot for large data sets
-   
     # Three more plots with all data points
 
     numEls = 20 # Number of elements in percentile plots (leaving off last one containing error values)
@@ -323,8 +557,8 @@ def generatePlots(dataFolder):
     plt.ylabel('Difference in meters')
     plt.xlabel('Percent of pixels less than difference')
     plt.title('Us vs ASU pixel percentages for all samples')
-#    plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-    plt.savefig(dataFolder + '/allPercentilesASU.png')
+    lgd = plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    plt.savefig(dataFolder + '/allPercentilesASU.png', bbox_extra_artists=[lgd], bbox_inches='tight')
     plt.clf()
 
 
@@ -349,8 +583,8 @@ def generatePlots(dataFolder):
     plt.ylabel('Difference in meters')
     plt.xlabel('Percent of pixels less than difference')
     plt.title('Us vs LOLA pixel percentages for all samples')
-#    plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-    plt.savefig(dataFolder + '/allPercentilesLOLA.png')
+    lgd = plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    plt.savefig(dataFolder + '/allPercentilesLOLA.png', bbox_extra_artists=[lgd], bbox_inches='tight')
     plt.clf()
     
     
@@ -375,8 +609,8 @@ def generatePlots(dataFolder):
     plt.ylabel('Difference in meters')
     plt.xlabel('Percent of pixels less than difference')
     plt.title('LOLA vs ASU pixel percentages for all samples')
-#    plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-    plt.savefig(dataFolder + '/allPercentilesLolaASU.png')
+    lgd = plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    plt.savefig(dataFolder + '/allPercentilesLolaASU.png', bbox_extra_artists=[lgd], bbox_inches='tight')
     plt.clf()    
     
     
@@ -398,16 +632,16 @@ def generatePlots(dataFolder):
     yMin = 0
     yMax = 6
     xAxis = np.arange(len(asuMeanList))
-    barwidth = 0.3
+    barwidth = 0.2
     plt.bar(xAxis,            asuMeanList,     barwidth, color='r', label='us vs ASU')
     plt.bar(xAxis+1*barwidth, lolaMeanList,    barwidth, color='g', label='us vs LOLA')
     plt.bar(xAxis+2*barwidth, lolaAsuMeanList, barwidth, color='b', label='ASU vs LOLA')
     plt.xticks(xAxis+.5, usedFolderList, size='small', rotation='vertical')
     plt.ylim(yMin, yMax)
     plt.ylabel('Difference in meters')
-    plt.legend(loc='upper right')
+    lgd = plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
     plt.title('Mean difference between DEMs')
-    plt.savefig(dataFolder + '/means.png')
+    plt.savefig(dataFolder + '/means.png', bbox_extra_artists=[lgd], bbox_inches='tight')
     plt.clf()
 
 
@@ -459,8 +693,9 @@ def main():
 
         print "Beginning processing....."
 
-        dataFolder = '/home/smcmich1/data/lronacResults'
-        grabResultFiles(dataFolder)
+        dataFolder = '/byss/moon/lronacPipeline'
+#        grabResultFiles(dataFolder)
+        backupData(dataFolder)
 #        generatePlots(dataFolder)
 
 

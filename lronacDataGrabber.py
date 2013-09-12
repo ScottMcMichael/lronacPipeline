@@ -26,13 +26,7 @@ import os, glob, optparse, re, shutil, subprocess, string, time, urllib, urllib2
 #TODO: Clean this up!
 sys.path.append('/home/smcmich1/programs/mechanize-0.2.5/')
 
-#sys.path.append('/home/smcmich1/splinter/')
-#sys.path.append('/home/smcmich1/selenium-2.35.0')
-
-
 import mechanize
-#import selenium
-#import splinter
 
 job_pool = [];
 
@@ -63,76 +57,28 @@ def wait_on_all_jobs():
 #--------------------------------------------------------------------------------
 
 
-#TODO: Get an automated way to do this
-if False:
-    """
-    def retrieveLolaFile(minLat, maxLat, minLon, maxLon):
 
-        lolaUrl = 'http://ode.rsl.wustl.edu/moon/lrololadataPointSearch.aspx'
+# Retrieves LOLA data from the WUSTL REST web interface
+def retrieveLolaFile(minLat, maxLat, minLon, maxLon, outputFolder):
 
+    # Build a query to the WUSTL REST interface for LOLA data
+    lolaUrl        = 'http://oderest.rsl.wustl.edu/test/'
+    baseQuery      = '?query=lolardr&results=v&'
+    locationParams = 'maxlat='+str(maxLat)+'&minlat='+str(minLat)+'&westernlon='+str(minLon)+'&easternlon='+str(maxLon)
 
-        browser = Browser()
-        browser.visit(lolaUrl)
-        
-        browser.find_by_name('txtMaxLatitude'  ).fill(str(maxLat))
-        browser.find_by_name('txtMinLatitude'  ).fill(str(minLat))
-        browser.find_by_name('txtWestLongitude').fill(str(minLon))
-        browser.find_by_name('txtEastLongitude').fill(str(maxLon))
-        
-        browser.find_by_id('btnPreviewCountPoints').click()
+    queryUrl = lolaUrl + baseQuery + locationParams
 
-
-        time.sleep(4) #TODO: Wait until form is ready
-
-        browser.find_by_id('btnGenerateCSV').click()
-
-        time.sleep(30) #TODO: Wait until form is ready
-
-        fileRef = browser.find_by_id('hlPointPerRowCsvCsv')
-        print fileRef
-
-
-    #    data= {'txtMaxLatitude':str(maxLat), 'txtMinLatitude':str(minLat), 'txtWestLongitude':str(minLon), 'txtEastLongitude':str(maxLon)}
-    #    request = urllib2.Request(lolaUrl, urllib.urlencode(data))
-    #    response = urllib2.urlopen(request)
-
-
-        # Open browser object to ASU data search page 
-     #   br = mechanize.Browser()
-     #   br.open(lolaUrl)
-
-    #    for form in br.forms():
-    #      print '--------------'
-    #       print form
-
-    #	# Get unnamed form handle, set product ID filter
-    #	br.form = list(br.forms())[0]
-    #	control = br.form.find_control("txtMaxLatitude")
-    #	control.value = str(maxLat)
-    #	control = br.form.find_control("txtMinLatitude")
-    #	control.value = str(minLat)
-    #	control = br.form.find_control("txtWestLongitude")
-    #	control.value = str(minLon)
-    #	control = br.form.find_control("txtEastLongitude")
-    #	control.value = str(maxLon)
-    #
-    #	control = br.form.find_control("txtEastLongitude")
-    #	control.value = str(maxLon)
-
-	    # Submit the form, then parse the response of the form submission
-    #	response = br.submit()
-        parsedResponse = BeautifulSoup(response.read())
-
-        f = open('response.txt', 'w')
-        f.write(parsedResponse.prettify())
-        f.close()
-
-
-    #    page = BeautifulSoup(urllib2.urlopen((lolaUrl)).read())
-    #    f = open('debug.txt', 'w')
-    #    f.write(page.prettify())
-    #    f.close()
-    """
+    # Parse the response
+    parsedPage = BeautifulSoup(urllib2.urlopen((queryUrl)).read())
+    
+    # Find the link containing '_pts_csv.csv' and download it
+    found = False
+    for url in parsedPage.findAll('url'):
+        if (url.string.find('_pts_csv.csv') >= 0):
+            os.system("wget -P " + outputFolder + "  " + url.string)
+            found = True
+            
+    return found
 
 
 # Gets the download links to the LE and RE parts of a given LRONAC ID
@@ -301,6 +247,10 @@ def retrieveDataFiles(logPath, outputDir):
         os.makedirs(outputDir)
 
     currentOutputFolder = outputDir
+    minLat = 0
+    maxLat = 0
+    minLon = 0
+    maxLon = 0
     for line in open(logPath, 'r'):
         if (line.find('ASU') >= 0):
             # Create new folder for this DEM
@@ -318,9 +268,7 @@ def retrieveDataFiles(logPath, outputDir):
             #			print "wget --directory-prefix=" + currentOutputFolder + "  " + asuUrl
             if not os.path.exists(asuDemPath.strip()):
                 os.system("wget -P " + currentOutputFolder + "  " + asuUrl)
-
-            #TODO: Download the LOLA data file
-  
+ 
         elif (line.find('.IMG') >= 0):
             # wget image
             imgUrl	    = line
@@ -330,6 +278,20 @@ def retrieveDataFiles(logPath, outputDir):
             print imgCopyPath
             if not os.path.exists(imgCopyPath):
                 os.system("wget -P " + currentOutputFolder + "  " + imgUrl)
+
+        # Read bounding box
+        elif (line.find('Min lat') >= 0):
+            minLat = float(line[10:])
+        elif (line.find('Max lat') >= 0):
+            maxLat = float(line[10:])
+        elif (line.find('Min lon') >= 0):
+            minLon = float(line[10:])
+        elif (line.find('Max lon') >= 0): # The last BB entry, download the LOLA data file
+            maxLon = float(line[10:])            
+            TODO: Verify this!
+            retrieveLolaFile(minLat, maxLat, minLon, maxLon, currentOutputFolder):
+
+
 
 
 #--------------------------------------------------------------------------------
@@ -363,10 +325,10 @@ def main():
 
         startTime = time.time()
 
-#        retrieveLolaFile(12.8, 13, 10.8, 11)
+        retrieveLolaFile(12.0, 12.1, 10.0, 10.1, '~/repot/lronacPipeline')
 
 
-        getDataList()
+#        getDataList()
 	
         # Download all of the data we need 
         print 'Retrieving data files'
