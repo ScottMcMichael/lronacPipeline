@@ -119,7 +119,7 @@ def parseHeadOutput(textPath):
 
 def main():
 
-    print "Started lronacPipeline.py"
+    print "Started positionCorrector.py"
 
     try:
         try:
@@ -188,9 +188,17 @@ def main():
           kernelStringList = kernelStringList + ' ' + str(i)
 #        print kernelStringList
         
+        # Determine if the input file is LE or RE
+        lePos = options.inputPath.rfind('LE')
+        rePos = options.inputPath.rfind('RE')
+        if (lePos > rePos):
+            sideCode = '0' # LE
+        else: 
+            sideCode = '1' # RE
+        
         # Call lronacSpkParser to generate modified text file
         modifiedDataPath = os.path.join(outputFolder, "newSpkData.txt")
-        cmd = '/home/smcmich1/repot/StereoPipeline/src/asp/Tools/spkParser --outputPath ' + modifiedDataPath + ' --kernels ' + kernelStringList
+        cmd = '/home/smcmich1/repot/StereoPipeline/src/asp/Tools/spkParser --offsetCode ' + sideCode + ' --outputPath ' + modifiedDataPath + ' --kernels ' + kernelStringList
         print cmd
         os.system(cmd)
         if not os.path.exists(modifiedDataPath):
