@@ -42,7 +42,7 @@
 #include <vw/Stereo/StereoModel.h>
 #include <asp/IsisIO/IsisCameraModel.h> //::point_to_pixel>
 #include <vw/Math/LevenbergMarquardt.h>
-
+#include <vw/Math/EulerAngles.h>
 
 using namespace vw;
 using namespace vw::stereo;
@@ -129,9 +129,9 @@ private: // Variables
   vw::camera::IsisCameraModel     _leftCameraModel;
   vw::camera::IsisCameraModel     _rightCameraModel;
   
-  mutable vw::camera::AdjustedCameraModel _rightCameraRotatedModel;
+  //mutable vw::camera::AdjustedCameraModel _rightCameraRotatedModel;
   
-  vw::stereo::StereoModel         _stereoModel;
+  //vw::stereo::StereoModel         _stereoModel;
   
   // Observation records
   Vector<double> _leftRows;
@@ -143,14 +143,13 @@ public: // Functions
   
   /// Constructor performs initialization
   LrocPairModel(const std::string &leftCubePath, const std::string &rightCubePath)
-    : _leftCameraModel(leftCubePath), _rightCameraModel(rightCubePath), 
-      _rightCameraRotatedModel(boost::shared_ptr<vw::camera::IsisCameraModel>(&_rightCameraModel, boost::serialization::null_deleter())),
-      _stereoModel(&_leftCameraModel, &_rightCameraRotatedModel) // Only the right camera is rotated
+    : _leftCameraModel(leftCubePath), _rightCameraModel(rightCubePath)//, 
+      //_rightCameraRotatedModel(boost::shared_ptr<vw::camera::IsisCameraModel>(&_rightCameraModel, boost::serialization::null_deleter())),
+      //_stereoModel(&_leftCameraModel, &_rightCameraRotatedModel) // Only the right camera is rotated
   {
     // Both camera models are loaded from file on initialization
     printf("Done constructing LROC model\n");
   }
-  
   
   /// Given the pixel pair observations, compute the initial state estimate.
   /// - This also loads the observation vectors and returns a packed version of them.
@@ -193,18 +192,17 @@ public: // Functions
     for (size_t i=0; i<numPoints; ++i)
     {
       // Set up point pair
-      Vector2 leftPixel (leftCols[i],  leftRows[i]);
+      Vector2 leftPixel (leftCols [i], leftRows [i]);
       Vector2 rightPixel(rightCols[i], rightRows[i]);
       
       // Compute the intersection location
       Vector3 zeroRotVec(0, 0, 0);
-      _rightCameraRotatedModel.set_axis_angle_rotation(zeroRotVec);
+      //_rightCameraRotatedModel.set_axis_angle_rotation(zeroRotVec);
       double triangulationError;
 //      pointLoc = _stereoModel(leftPixel, rightPixel, triangulationError); // Not working!
       
       Vector3 leftCamCenter  = _leftCameraModel.camera_center(leftPixel);
       Vector3 rightCamCenter = _rightCameraModel.camera_center(rightPixel);
-      Vector2 testPixel(2532, 0);
       
       Quaternion<double> leftCamPose  = vw::math::normalize(_leftCameraModel.camera_pose (leftPixel));
       Quaternion<double> rightCamPose = vw::math::normalize(_rightCameraModel.camera_pose(rightPixel));
@@ -227,11 +225,9 @@ public: // Functions
       //std::cout << "invLeftPose "    << invLeftPose  << std::endl;
       //std::cout << "rotDiff "        << rotDiff      << std::endl;
       
-      //std::cout << "parallel check " << 1-vw::math::dot_prod(leftVec, rightVec) << std::endl;
-      
   Vector3 v12 = cross_prod(leftVec, rightVec);
-  Vector3 v1 = cross_prod(v12, leftVec);
-  Vector3 v2 = cross_prod(v12, rightVec);
+  Vector3 v1  = cross_prod(v12,     leftVec);
+  Vector3 v2  = cross_prod(v12,     rightVec);
 
   Vector3 closestPoint1 = leftCamCenter  + dot_prod(v2, rightCamCenter-leftCamCenter )/dot_prod(v2, leftVec )*leftVec;
   Vector3 closestPoint2 = rightCamCenter + dot_prod(v1, leftCamCenter -rightCamCenter)/dot_prod(v1, rightVec)*rightVec;
@@ -241,25 +237,26 @@ public: // Functions
   Vector3 errorVec = closestPoint1 - closestPoint2;
   triangulationError = vw::math::norm_2(errorVec);
       
+  printf("\n");
   //std::cout << "closestPoint1   = " << closestPoint1 <<", radius = " << vw::math::norm_2(closestPoint1)/1000.0 << std::endl;
   //std::cout << "closestPoint2   = " << closestPoint2 <<", radius = " << vw::math::norm_2(closestPoint2)/1000.0 << std::endl;
-  //std::cout << "errorVec        = " << errorVec      << std::endl;
-  //std::cout << "projection dist = " << vw::math::norm_2(closestPoint1 - leftCamCenter)/1000.0 << std::endl;
+  std::cout << "errorVec        = " << errorVec      << std::endl;
+  std::cout << "projection dist = " << vw::math::norm_2(closestPoint1 - leftCamCenter)/1000.0 << std::endl;
       
       
-      std::cout.precision(16);
+      //std::cout.precision(16);
       //std::cout << "Left  camera center = " << leftCamCenter [0] <<", "<< leftCamCenter [1] <<", "<< leftCamCenter [2]<<", radius = " << vw::math::norm_2(leftCamCenter)/1000.0 << std::endl;
       //std::cout << "Right camera center = " << rightCamCenter[0] <<", "<< rightCamCenter[1] <<", "<< rightCamCenter[2]<<", radius = " << vw::math::norm_2(rightCamCenter)/1000.0 << std::endl;
-      //std::cout << "Center diff         = " << leftCamCenter[0]-rightCamCenter[0] <<", "<< leftCamCenter[1]-rightCamCenter[1] <<", "<< leftCamCenter[2]-rightCamCenter[2] << std::endl;
+      std::cout << "Center diff         = " << leftCamCenter[0]-rightCamCenter[0] <<", "<< leftCamCenter[1]-rightCamCenter[1] <<", "<< leftCamCenter[2]-rightCamCenter[2] << std::endl;
       //printf("Angle between cameras = %lf\n", angle);
-      //printf("Center abs diff = %lf\n", sqrt( pow(leftCamCenter[0]-rightCamCenter[0], 2) + pow(leftCamCenter[1]-rightCamCenter[1], 2) + pow(leftCamCenter[2]-rightCamCenter[2], 2) ));
+      printf("Center abs diff = %lf\n", sqrt( pow(leftCamCenter[0]-rightCamCenter[0], 2) + pow(leftCamCenter[1]-rightCamCenter[1], 2) + pow(leftCamCenter[2]-rightCamCenter[2], 2) ));
       
       //printf("Desired abs diff = %lf\n", sqrt( pow(134.62-101.60, 2) + pow(88.90-88.90, 2) + pow(-17.78 - -17.78, 2) ));
       // = 0.33 meters, from the kernel definition file
       // Angular difference on start should be over 2.5 degrees
       
-      //std::cout << "Left pixel  = " << leftPixel << " Right pixel = " << rightPixel << std::endl;
-      //std::cout << "Initial point " << i << " = " << pointLoc << " Triangulation error = " << triangulationError << std::endl;
+      std::cout << "Left pixel  = " << leftPixel << " Right pixel = " << rightPixel << std::endl;
+      std::cout << "Initial point " << i << " = " << pointLoc << " Triangulation error = " << triangulationError << std::endl;
       
       // Sanity check
       const double intersectionRadius = vw::math::norm_2(midPoint);
@@ -267,11 +264,14 @@ public: // Functions
       if (camRadius < intersectionRadius)
       {
         printf("Warning: Point %d, reverse intersection!  Using previous point location as an estimate.\n", i);
-        if (i == 0)
-          return false; //TODO: Handle this
-        pointLoc = lastPointLoc; // For now our best guess to a failed projection is the previous point projection (at least it is in front of the camera!)
-      }
-        else lastPointLoc = pointLoc;
+        printf("%lf < %lf\n", camRadius, intersectionRadius);
+        if (i == 0) // No previous point to copy
+          pointLoc = leftCamCenter + (leftVec*37000); // Extend 37km from left camera
+        else
+          pointLoc = lastPointLoc; // For now our best guess to a failed projection is the previous point projection (at least it is in front of the camera!)
+      } 
+      else // Point estimated successfully
+        lastPointLoc = pointLoc;
       
       // Record the x/y/z value for this point
       stateEstimate[3 + i*3 + 0] = pointLoc[0];
@@ -293,11 +293,44 @@ public: // Functions
   /// Generates a vector containing the stereo intersection distance for each pixel pair
   /// - This gives a good indication of how accurate the current correction is
   std::vector<double> computeError(domain_type const& x)
-  { 
+  {    
     // Determine the number of state elements
     const size_t numPoints = _leftRows.size();
     std::vector<double> errorVector(numPoints);
-   
+  
+    Vector3 rotVec(x[0], x[1], x[2]);
+    
+        // For each input point pair
+    Vector3 pointLoc, lastPointLoc;
+    for (size_t i=0; i<numPoints; ++i)
+    {
+      // Create a point object
+      Vector3 thisPoint(x[3 + i*3 + 0],
+                        x[3 + i*3 + 1],
+                        x[3 + i*3 + 2]);      
+      
+      // Project to pixel locations                  
+      Vector2 leftProjection  = _leftCameraModel.point_to_pixel(thisPoint);
+      Vector2 rightProjection = _rightCameraModel.point_to_pixel_rotated(thisPoint, rotVec);
+                        
+      // Compare to observed pixel locations
+      Vector2 leftObsPoint (_leftCols [i], _leftRows [i]);
+      Vector2 rightObsPoint(_rightCols[i], _rightRows[i]);
+      
+      Vector2 leftDiff  = leftProjection  - leftObsPoint;
+      Vector2 rightDiff = rightProjection - rightObsPoint;
+      
+      double leftError  = vw::math::norm_2(leftDiff );
+      double rightError = vw::math::norm_2(rightDiff);
+      
+      // Returned value is average of left and right position error
+      errorVector[i] = (leftError + rightError) / 2.0;
+    } // End loop through points
+    
+    return errorVector;
+      
+/*   
+    
     // For each input point pair
     Vector3 pointLoc, lastPointLoc;
     for (size_t i=0; i<numPoints; ++i)
@@ -306,9 +339,10 @@ public: // Functions
       Vector2 leftPixel (_leftCols[i],  _leftRows[i]);
       Vector2 rightPixel(_rightCols[i], _rightRows[i]);
       
-      // Apply the current camera rotation
-      Vector3 currentRotVec(x[0], x[1], x[2]);
-      _rightCameraRotatedModel.set_axis_angle_rotation(currentRotVec);
+      //// Apply the current camera rotation
+      //Vector3 currentRotVec(x[0], x[1], x[2]);
+      //_rightCameraRotatedModel.set_axis_angle_rotation(currentRotVec);
+      
       double triangulationError;
 //      pointLoc = _stereoModel(leftPixel, rightPixel, triangulationError); // Not working!
 
@@ -356,7 +390,8 @@ public: // Functions
     } // End loop through points
     
     return errorVector;
-  } // end getInitialStateEstimate()
+    */
+  } // end computeError()
   
 
 
@@ -369,9 +404,9 @@ public: // Functions
     //TODO: Verify all rotation orders etc!
     // Apply the rotations from the state vector to the right LROC camera model
     Vector3 rotVec(x[0], x[1], x[2]);
-    _rightCameraRotatedModel.set_axis_angle_rotation(rotVec);
+    //_rightCameraRotatedModel.set_axis_angle_rotation(rotVec);
     
-    printf("Trying rotation %lf, %lf, %lf\n", x[0], x[1], x[2]);
+    //printf("Trying rotation %lf, %lf, %lf\n", x[0], x[1], x[2]);
     
     //std::cout << "Left  camera center = " << _leftCameraModel.camera_center()  << std::endl;
     //std::cout << "Right camera center = " << _rightCameraModel.camera_center() << std::endl;
@@ -395,7 +430,8 @@ public: // Functions
       try
       {
         leftProjection  = _leftCameraModel.point_to_pixel(thisPoint);
-        rightProjection = _rightCameraRotatedModel.point_to_pixel(thisPoint);
+        //rightProjection = _rightCameraRotatedModel.point_to_pixel(thisPoint);
+        rightProjection = _rightCameraModel.point_to_pixel_rotated(thisPoint, rotVec);
       }
       catch(...)
       {
@@ -476,13 +512,13 @@ bool optimizeRotations(Parameters & params)
   const int imageHeight     = std::min(left_disk_image.rows(), right_disk_image.rows());
   const int imageTopRow     = 0;
   const int imageMidPointX  = imageWidth / 2;
-  const int cropStartX      = imageMidPointX - (params.cropWidth/2);
+  //const int cropStartX      = imageMidPointX - (params.cropWidth/2);
 
   // Restrict processing to the border of the images
   // - Since both images were nproj'd the overlap areas should be in about the same spots.
   const int leftStartX = left_disk_image.cols()-params.cropWidth;
   const BBox2i leftRoi (leftStartX, imageTopRow, params.cropWidth, imageHeight);
-  const BBox2i rightRoi(0,                                       imageTopRow, params.cropWidth, imageHeight);
+  const BBox2i rightRoi(0,          imageTopRow, params.cropWidth, imageHeight);
   std::cout << "Left  overlap ROI = " << leftRoi  << std::endl;
   std::cout << "Right overlap ROI = " << rightRoi << std::endl;
 
@@ -522,11 +558,11 @@ bool optimizeRotations(Parameters & params)
   printf("Filtering points with RANSAC...\n");
   // Filter interest point matches
   int    numIterations       = 100;
-  double inlierThreshold     = 4.0; // Want to be somewhat generous here
+  double inlierThreshold     = 5.0; // Want to be somewhat generous here
   int    minNumOutputInliers = 100;
   math::RandomSampleConsensus<math::SimilarityFittingFunctor, math::InterestPointErrorMetric> ransac( math::SimilarityFittingFunctor(),
                           math::InterestPointErrorMetric(),
-                          numIterations, inlierThreshold, minNumOutputInliers, true );
+                          numIterations, inlierThreshold, minNumOutputInliers, false );
   std::vector<Vector3> ransac_ip1 = ip::iplist_to_vectorlist(matched_ip1);
   std::vector<Vector3> ransac_ip2 = ip::iplist_to_vectorlist(matched_ip2);
 
@@ -538,18 +574,22 @@ bool optimizeRotations(Parameters & params)
     std::cout << "ipfind based similarity: " << H << std::endl;
 
     // Get list of interest points consistent with the transform
-    inlierIndices = ransac.inlier_indices(H, ransac_ip1, ransac_ip2);
-    size_t numInliers = inlierIndices.size();
+    std::vector<size_t> inlierIndicesF = ransac.inlier_indices(H, ransac_ip1, ransac_ip2); //TODO: Why is this failing?
+    size_t numInliers = inlierIndicesF.size(); 
     printf("Found %d inliers\n", numInliers);
     
-    std::vector<Vector3> temp(numInliers);
+    math::InterestPointErrorMetric metric;
+    
+    std::vector<Vector3> tempL(numInliers), tempR(numInliers);
     for (size_t i=0; i<numInliers; ++i)  // Replace contents of ransac_ip1 with inliers only
-      temp[i] = ransac_ip1[inlierIndices[i]];
-    ransac_ip1 = temp;
-    for (size_t i=0; i<numInliers; ++i)  // Do the same thing with ransac_ip2
-      temp[i] = ransac_ip2[inlierIndices[i]];
-    ransac_ip2 = temp;    
-
+    {
+      size_t index = inlierIndicesF[i];
+      tempL[i] = ransac_ip1[index];
+      tempR[i] = ransac_ip2[index];
+    }
+    
+    ransac_ip1 = tempL;
+    ransac_ip2 = tempR;        
   }
   catch(...) // Handle a RANSAC failure
   {
@@ -557,22 +597,21 @@ bool optimizeRotations(Parameters & params)
     return false;
   }
 
-
   // Now that we have correspondence points, feed them into an angular solver.
 
   // Convert the matching points into the correct format!
-  const int    pointSkip     = 600;
+  const int    pointSkip     = 200;
   const size_t numMatchedPts = matched_ip1.size() / pointSkip;
   printf("Num sampled points = %d\n", numMatchedPts);
   Vector<double> leftRow(numMatchedPts), leftCol(numMatchedPts), rightRow(numMatchedPts), rightCol(numMatchedPts);
   int i = 0;
   for (size_t p=0; p<numMatchedPts; ++p)
   {
-    leftCol [p] = matched_ip1[i].x + leftStartX;
-    leftRow [p] = matched_ip1[i].y;
-    rightCol[p] = matched_ip2[i].x;
-    rightRow[p] = matched_ip2[i].y;
-    //printf("p: %d, i: %d --> %lf, %lf, %lf, %lf\n", p, i, leftCol[p], leftRow[p], rightCol[p], rightRow[p]);
+    leftCol [p] = ransac_ip1[i][0] + leftStartX;
+    leftRow [p] = ransac_ip1[i][1];
+    rightCol[p] = ransac_ip2[i][0];
+    rightRow[p] = ransac_ip2[i][1];
+    printf("p: %d, i: %d --> %lf, %lf, %lf, %lf\n", p, i, leftCol[p], leftRow[p], rightCol[p], rightRow[p]);
     i+= pointSkip;
   }
 
@@ -582,7 +621,10 @@ bool optimizeRotations(Parameters & params)
   LrocPairModel lrocClass(params.leftFilePath, params.rightFilePath);
   Vector<double> initialState, packedObservations;
   if (!lrocClass.getInitialStateEstimate(leftRow, leftCol, rightRow, rightCol, initialState, packedObservations))
+  {
+    printf("Failed to get initial state!\n");
     return false;
+  }
 
   //TODO: Move these
   std::string initialErrorPath = "/home/smcmich1/initialAngleError.txt";
@@ -623,6 +665,7 @@ bool optimizeRotations(Parameters & params)
 //                                                   double max_iterations = VW_MATH_LM_MAX_ITER)
   std::cout << "Status = " << status << std::endl;
 
+  /*
   printf("Real observations - Computed observations(I) = error term\n");
   for (size_t i=0; i<initialComputedObservations.size(); ++i)
     printf("%lf - %lf = %lf\n", packedObservations[i], initialComputedObservations[i], packedObservations[i]-initialComputedObservations[i]);
@@ -632,7 +675,6 @@ bool optimizeRotations(Parameters & params)
   for (size_t i=0; i<computedObservations.size(); ++i)
     printf("%lf - %lf = %lf\n", packedObservations[i], computedObservations[i], packedObservations[i]-computedObservations[i]);
 
-  
   Vector<double> finalRotationsOnly = finalParams;
   for (size_t i=3; i<finalParams.size(); ++i)
     finalRotationsOnly[i] = initialState[i];
@@ -640,8 +682,9 @@ bool optimizeRotations(Parameters & params)
   printf("Real observations - Computed observations(FR) = error term\n");
   for (size_t i=0; i<computedObservations.size(); ++i)
     printf("%lf - %lf = %lf\n", packedObservations[i], computedObservations[i], packedObservations[i]-computedObservations[i]);
-    
+  */
   
+  /*
   // DEBUG: Check output Jacobian
   Matrix<double> finalJac = lrocClass.jacobian(finalParams);
   std::ofstream finalJacFile("/home/smcmich1/finalJac.txt");
@@ -654,6 +697,7 @@ bool optimizeRotations(Parameters & params)
     finalJacFile << std::endl;
   }
   finalJacFile.close();
+  */
   
   //printf("Writing final state log to %s\n", finalStatePath.c_str());
   std::ofstream finalStateFile(finalStatePath.c_str()); 
