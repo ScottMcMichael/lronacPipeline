@@ -123,7 +123,7 @@ def main():
 
     try:
         try:
-            usage = "usage: lronacPipeline.py [--input <cube file>][--output <path>][--manual]\n  "
+            usage = "usage: positionCorrector.py [--input <cube file>][--output <path>][--manual]\n  "
             parser = optparse.OptionParser(usage=usage)
             parser.add_option("-i", "--input", dest="inputPath",
                               help="Path to the input file.")
@@ -134,6 +134,7 @@ def main():
             parser.add_option("--keep", action="store_true",
                               dest="keep",
                               help="Do not delete the temporary files.")
+            parser.add_option("--spk", dest="spkPath", help='Output SPK path (always keep)')
             (options, args) = parser.parse_args()
 
             if not options.inputPath:  parser.error("Need input path")
@@ -198,7 +199,7 @@ def main():
         
         # Call lronacSpkParser to generate modified text file
         modifiedDataPath = os.path.join(outputFolder, "newSpkData.txt")
-        cmd = '/home/smcmich1/repot/StereoPipeline/src/asp/Tools/spkParser --offsetCode ' + sideCode + ' --outputPath ' + modifiedDataPath + ' --kernels ' + kernelStringList
+        cmd = '/home/smcmich1/repo/StereoPipeline/src/asp/Tools/spiceEditor --offsetCode ' + sideCode + ' --outputPath ' + modifiedDataPath + ' --kernels ' + kernelStringList
         print cmd
         os.system(cmd)
         if not os.path.exists(modifiedDataPath):
@@ -208,15 +209,19 @@ def main():
         # Write the config file needed for the mkspk function
         print 'Writing mkspk config file...'
         mkspkConfigPath = os.path.join(outputFolder, "spkConfig.txt")
-        makeSpkSetupFile('/byss/packages/isis-3.4.4-x86_64_linux_RHEL6/data/base/kernels/lsk/naif0010.tls', mkspkConfigPath)
+        makeSpkSetupFile('/home/smcmich1/programs/isis/isis3data/base/kernels/lsk/naif0010.tls', mkspkConfigPath)
 
         # If the file already exists, delete it and rewrite it.
-        tempSpkPath = os.path.join(outputFolder, "modifiedLrocSpk.bsp")
+        if options.spkPath:
+          tempSpkPath = options.spkPath
+          print 'Storing modified SPK file ' + tempSpkPath
+        else:
+          tempSpkPath = os.path.join(outputFolder, "modifiedLrocSpk.bsp")
         if os.path.exists(tempSpkPath):
             os.remove(tempSpkPath)
 
         # Create new SPK file using modified data
-        cmd = '/home/smcmich1/repot/StereoPipeline/src/asp/Tools/mkspk -setup ' + mkspkConfigPath + ' -input ' + modifiedDataPath + ' -output ' + tempSpkPath
+        cmd = '/home/smcmich1/repo/StereoPipeline/src/asp/Tools/mkspk -setup ' + mkspkConfigPath + ' -input ' + modifiedDataPath + ' -output ' + tempSpkPath
         print cmd
         os.system(cmd)
         if not os.path.exists(tempSpkPath):
@@ -238,7 +243,8 @@ def main():
             os.remove(tempTextPath)
             os.remove(modifiedDataPath)
             os.remove(mkspkConfigPath)
-            os.remove(tempSpkPath)
+            if not options.spkPath:
+                os.remove(tempSpkPath)
       
 
         endTime = time.time()

@@ -57,15 +57,8 @@ struct Parameters : asp::BaseOptions
   // Input paths
   std::string leftFilePath;
   std::string rightFilePath;
-  //std::string rowLogFilePath;
+  std::string outputPath;
 
-  // Settings
-  //float log;
-  //int   h_corr_min, h_corr_max;
-  //int   v_corr_min, v_corr_max;
-  //Vector2i kernel;
-  //int   lrthresh;
-  //int   correlator_type;
   int   cropWidth;  
 };
 
@@ -76,7 +69,8 @@ bool handle_arguments(int argc, char* argv[],
 { 
   po::options_description general_options("Options");
   general_options.add_options()
-    ("crop-width",       po::value(&opt.cropWidth )->default_value(200), "Crop images to this width before disparity search");
+    ("outputPath", po::value(&opt.outputPath)->default_value(""),  "Write angles to this path (in degrees)")
+    ("crop-width", po::value(&opt.cropWidth )->default_value(200), "Crop images to this width before disparity search");
   
   general_options.add( asp::BaseOptionsDescription(opt) );
     
@@ -236,18 +230,18 @@ public: // Functions
       
   Vector3 errorVec = closestPoint1 - closestPoint2;
   triangulationError = vw::math::norm_2(errorVec);
-      
-  printf("\n");
-  //std::cout << "closestPoint1   = " << closestPoint1 <<", radius = " << vw::math::norm_2(closestPoint1)/1000.0 << std::endl;
-  //std::cout << "closestPoint2   = " << closestPoint2 <<", radius = " << vw::math::norm_2(closestPoint2)/1000.0 << std::endl;
-  std::cout << "errorVec        = " << errorVec      << std::endl;
-  std::cout << "projection dist = " << vw::math::norm_2(closestPoint1 - leftCamCenter)/1000.0 << std::endl;
-      
+          
+      //printf("\n");
+      //std::cout << "closestPoint1   = " << closestPoint1 <<", radius = " << vw::math::norm_2(closestPoint1)/1000.0 << std::endl;
+      //std::cout << "closestPoint2   = " << closestPoint2 <<", radius = " << vw::math::norm_2(closestPoint2)/1000.0 << std::endl;
+      //std::cout << "errorVec        = " << errorVec      << std::endl;
+      std::cout << "projection dist = " << vw::math::norm_2(closestPoint1 - leftCamCenter)/1000.0 << std::endl;
+          
       
       //std::cout.precision(16);
       //std::cout << "Left  camera center = " << leftCamCenter [0] <<", "<< leftCamCenter [1] <<", "<< leftCamCenter [2]<<", radius = " << vw::math::norm_2(leftCamCenter)/1000.0 << std::endl;
       //std::cout << "Right camera center = " << rightCamCenter[0] <<", "<< rightCamCenter[1] <<", "<< rightCamCenter[2]<<", radius = " << vw::math::norm_2(rightCamCenter)/1000.0 << std::endl;
-      std::cout << "Center diff         = " << leftCamCenter[0]-rightCamCenter[0] <<", "<< leftCamCenter[1]-rightCamCenter[1] <<", "<< leftCamCenter[2]-rightCamCenter[2] << std::endl;
+      //std::cout << "Center diff         = " << leftCamCenter[0]-rightCamCenter[0] <<", "<< leftCamCenter[1]-rightCamCenter[1] <<", "<< leftCamCenter[2]-rightCamCenter[2] << std::endl;
       //printf("Angle between cameras = %lf\n", angle);
       printf("Center abs diff = %lf\n", sqrt( pow(leftCamCenter[0]-rightCamCenter[0], 2) + pow(leftCamCenter[1]-rightCamCenter[1], 2) + pow(leftCamCenter[2]-rightCamCenter[2], 2) ));
       
@@ -256,7 +250,7 @@ public: // Functions
       // Angular difference on start should be over 2.5 degrees
       
       std::cout << "Left pixel  = " << leftPixel << " Right pixel = " << rightPixel << std::endl;
-      std::cout << "Initial point " << i << " = " << pointLoc << " Triangulation error = " << triangulationError << std::endl;
+      //std::cout << "Initial point " << i << " = " << pointLoc << " Triangulation error = " << triangulationError << std::endl;
       
       // Sanity check
       const double intersectionRadius = vw::math::norm_2(midPoint);
@@ -600,8 +594,8 @@ bool optimizeRotations(Parameters & params)
   // Now that we have correspondence points, feed them into an angular solver.
 
   // Convert the matching points into the correct format!
-  const int    pointSkip     = 200;
-  const size_t numMatchedPts = matched_ip1.size() / pointSkip;
+  const int    pointSkip     = 160; // Why does this fail at 150?  17 vs 15 points?
+  const size_t numMatchedPts = ransac_ip1.size() / pointSkip;
   printf("Num sampled points = %d\n", numMatchedPts);
   Vector<double> leftRow(numMatchedPts), leftCol(numMatchedPts), rightRow(numMatchedPts), rightCol(numMatchedPts);
   int i = 0;
@@ -611,7 +605,7 @@ bool optimizeRotations(Parameters & params)
     leftRow [p] = ransac_ip1[i][1];
     rightCol[p] = ransac_ip2[i][0];
     rightRow[p] = ransac_ip2[i][1];
-    printf("p: %d, i: %d --> %lf, %lf, %lf, %lf\n", p, i, leftCol[p], leftRow[p], rightCol[p], rightRow[p]);
+    //printf("p: %d, i: %d --> %lf, %lf, %lf, %lf\n", p, i, leftCol[p], leftRow[p], rightCol[p], rightRow[p]);
     i+= pointSkip;
   }
 
@@ -720,9 +714,18 @@ bool optimizeRotations(Parameters & params)
   printf("Mean error change = %lf\n", meanFinalError - meanInitialError);
   
   const double rad2deg = 180.0 / 3.14159; // TODO: Where is this value in the codebase?
-  printf("Output rotation angles (radians): %lf, %lf, %lf\n", finalParams[0], finalParams[1], finalParams[2]);
-  printf("Output rotation angles (degrees): %lf, %lf, %lf\n", finalParams[0]*rad2deg, finalParams[1]*rad2deg, finalParams[2]*rad2deg);
+  printf("Output rotation angles (degrees): %lf, %lf, %lf\n", finalParams[0], finalParams[1], finalParams[2]);
+  //printf("Output rotation angles (degrees): %lf, %lf, %lf\n", finalParams[0]*rad2deg, finalParams[1]*rad2deg, finalParams[2]*rad2deg);
 
+  if (!params.outputPath.empty()) // Dump rotation angles to a simple text file (in degrees)
+  {
+    printf("Writing output file %s\n", params.outputPath.c_str()); 
+    std::ofstream outputFile(params.outputPath.c_str());
+    outputFile << finalParams[0] << std::endl;
+    outputFile << finalParams[1] << std::endl;
+    outputFile << finalParams[2] << std::endl;
+    outputFile.close();
+  }
 
 
   return true;
