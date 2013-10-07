@@ -44,13 +44,15 @@
 #include <vw/Math/LevenbergMarquardt.h>
 #include <vw/Math/EulerAngles.h>
 
+#include <asp/IsisIO/IsisInterfaceLineScan.h>
+
 using namespace vw;
 using namespace vw::stereo;
+using namespace asp::isis;
 using namespace asp;
 using std::endl;
 using std::setprecision;
 using std::setw;
-
 
 struct Parameters : asp::BaseOptions 
 {
@@ -235,7 +237,7 @@ public: // Functions
       //std::cout << "closestPoint1   = " << closestPoint1 <<", radius = " << vw::math::norm_2(closestPoint1)/1000.0 << std::endl;
       //std::cout << "closestPoint2   = " << closestPoint2 <<", radius = " << vw::math::norm_2(closestPoint2)/1000.0 << std::endl;
       //std::cout << "errorVec        = " << errorVec      << std::endl;
-      std::cout << "projection dist = " << vw::math::norm_2(closestPoint1 - leftCamCenter)/1000.0 << std::endl;
+      //std::cout << "projection dist = " << vw::math::norm_2(closestPoint1 - leftCamCenter)/1000.0 << std::endl;
           
       
       //std::cout.precision(16);
@@ -243,13 +245,13 @@ public: // Functions
       //std::cout << "Right camera center = " << rightCamCenter[0] <<", "<< rightCamCenter[1] <<", "<< rightCamCenter[2]<<", radius = " << vw::math::norm_2(rightCamCenter)/1000.0 << std::endl;
       //std::cout << "Center diff         = " << leftCamCenter[0]-rightCamCenter[0] <<", "<< leftCamCenter[1]-rightCamCenter[1] <<", "<< leftCamCenter[2]-rightCamCenter[2] << std::endl;
       //printf("Angle between cameras = %lf\n", angle);
-      printf("Center abs diff = %lf\n", sqrt( pow(leftCamCenter[0]-rightCamCenter[0], 2) + pow(leftCamCenter[1]-rightCamCenter[1], 2) + pow(leftCamCenter[2]-rightCamCenter[2], 2) ));
+      //printf("Center abs diff = %lf\n", sqrt( pow(leftCamCenter[0]-rightCamCenter[0], 2) + pow(leftCamCenter[1]-rightCamCenter[1], 2) + pow(leftCamCenter[2]-rightCamCenter[2], 2) ));
       
       //printf("Desired abs diff = %lf\n", sqrt( pow(134.62-101.60, 2) + pow(88.90-88.90, 2) + pow(-17.78 - -17.78, 2) ));
       // = 0.33 meters, from the kernel definition file
       // Angular difference on start should be over 2.5 degrees
       
-      std::cout << "Left pixel  = " << leftPixel << " Right pixel = " << rightPixel << std::endl;
+      //std::cout << "Left pixel  = " << leftPixel << " Right pixel = " << rightPixel << std::endl;
       //std::cout << "Initial point " << i << " = " << pointLoc << " Triangulation error = " << triangulationError << std::endl;
       
       // Sanity check
@@ -399,8 +401,9 @@ public: // Functions
     // Apply the rotations from the state vector to the right LROC camera model
     Vector3 rotVec(x[0], x[1], x[2]);
     //_rightCameraRotatedModel.set_axis_angle_rotation(rotVec);
-    
-    //printf("Trying rotation %lf, %lf, %lf\n", x[0], x[1], x[2]);
+  
+    const double rad2deg = 180.0 / M_PI;
+    printf("Trying rotation %lf, %lf, %lf\n", x[0]*rad2deg, x[1]*rad2deg, x[2]*rad2deg);
     
     //std::cout << "Left  camera center = " << _leftCameraModel.camera_center()  << std::endl;
     //std::cout << "Right camera center = " << _rightCameraModel.camera_center() << std::endl;
@@ -594,7 +597,7 @@ bool optimizeRotations(Parameters & params)
   // Now that we have correspondence points, feed them into an angular solver.
 
   // Convert the matching points into the correct format!
-  const int    pointSkip     = 160; // Why does this fail at 150?  17 vs 15 points?
+  const int    pointSkip     = 400; // Why does this fail at > 15 points? This is true over multiple images.
   const size_t numMatchedPts = ransac_ip1.size() / pointSkip;
   printf("Num sampled points = %d\n", numMatchedPts);
   Vector<double> leftRow(numMatchedPts), leftCol(numMatchedPts), rightRow(numMatchedPts), rightCol(numMatchedPts);
@@ -605,7 +608,7 @@ bool optimizeRotations(Parameters & params)
     leftRow [p] = ransac_ip1[i][1];
     rightCol[p] = ransac_ip2[i][0];
     rightRow[p] = ransac_ip2[i][1];
-    //printf("p: %d, i: %d --> %lf, %lf, %lf, %lf\n", p, i, leftCol[p], leftRow[p], rightCol[p], rightRow[p]);
+    printf("p: %d, i: %d --> %lf, %lf, %lf, %lf\n", p, i, leftCol[p], leftRow[p], rightCol[p], rightRow[p]);
     i+= pointSkip;
   }
 
@@ -625,6 +628,7 @@ bool optimizeRotations(Parameters & params)
   std::string finalErrorPath   = "/home/smcmich1/finalAngleError.txt";
   std::string initialStatePath = "/home/smcmich1/initialAngleState.txt";
   std::string finalStatePath   = "/home/smcmich1/finalAngleState.txt";
+  std::string finalStateDiffPath   = "/home/smcmich1/finalAngleStateDiff.txt";
   
 
   //printf("Writing initial state log to %s\n", initialStatePath.c_str());
@@ -699,6 +703,11 @@ bool optimizeRotations(Parameters & params)
     finalStateFile << finalParams[i] << std::endl;
   finalStateFile.close();
 
+  std::ofstream finalStateDiffFile(finalStateDiffPath.c_str()); 
+  for (size_t i=0; i<finalParams.size(); ++i)
+    finalStateDiffFile << finalParams[i] - initialState[i] << std::endl;
+  finalStateDiffFile.close();
+  
   //printf("Writing final error log to %s\n", finalErrorPath.c_str());
   std::ofstream finalErrorFile(finalErrorPath.c_str()); 
   double meanFinalError = 0;
@@ -713,17 +722,60 @@ bool optimizeRotations(Parameters & params)
   printf("Mean point error after optimization = %lf\n", meanFinalError);
   printf("Mean error change = %lf\n", meanFinalError - meanInitialError);
   
-  const double rad2deg = 180.0 / 3.14159; // TODO: Where is this value in the codebase?
-  printf("Output rotation angles (degrees): %lf, %lf, %lf\n", finalParams[0], finalParams[1], finalParams[2]);
+  const double rad2deg = 180.0 / M_PI;
+  const double deg2rad = M_PI / 180.0;
+  printf("Adjustment rotation angles (degrees): %lf, %lf, %lf\n", finalParams[0]*rad2deg, finalParams[1]*rad2deg, finalParams[2]*rad2deg);
   //printf("Output rotation angles (degrees): %lf, %lf, %lf\n", finalParams[0]*rad2deg, finalParams[1]*rad2deg, finalParams[2]*rad2deg);
 
+  //TODO: Experiment with this until it works!
+  
+  // These are instrument rotations from the frame file - rotation order is R = Rx(1.29)*Ry(-0.079)*Rz(180)
+  // ( 1.129, -0.079, 180.0 ) [units in degrees]
+  
+  // vw::math::euler_to_rotation_matrix(a, b, c, 'order') --> R(c)*R(b)*R(a), order specifies which rotation axes
+  
+  vw::math::Matrix<double,3,3> frameRotation = vw::math::euler_to_rotation_matrix(180.0*deg2rad, -0.079*deg2rad, 1.129*deg2rad, "zyx");
+   std:: cout << "Base rotation angles (degrees) = Rx(1.129) * Ry(-0.079) * Rz(180.0)"  << std::endl;
+
+  // Existing offset matrix (from the fk file) = instrument(bad)_from_sc
+  // New offset matrix (from input params) = instrument(good)_from_instrument(bad)   
+  
+  // This is the rotation matrix we solved for (matches code in IsisInterfaceLineScan.cc)
+  vw::math::Matrix<double,3,3> solvedRotation = vw::math::euler_to_rotation_matrix(finalParams[0], finalParams[1], finalParams[2], "xyz");
+  // Multiply them to get the net rotation
+
+  //vw::math::Matrix<double,3,3> outputRotation = frameRotation; //TEST: Make sure original rotations kept intact!
+  //vw::math::Matrix<double,3,3> outputRotation = frameRotation * solvedRotation; // trial 1 = fail (seperated)
+  //vw::math::Matrix<double,3,3> outputRotation = solvedRotation * frameRotation; // trial 2
+  //vw::math::Matrix<double,3,3> outputRotation = frameRotation * solvedRotation; // trial 4 - missing
+  //vw::math::Matrix<double,3,3> outputRotation = solvedRotation * frameRotation; // trial 5 - missing
+  //vw::math::Matrix<double,3,3> outputRotation = solvedRotation * frameRotation; // trial 6 - seperated
+  //vw::math::Matrix<double,3,3> outputRotation = frameRotation * solvedRotation; // trial 7 - shifted
+  //vw::math::Matrix<double,3,3> outputRotation = frameRotation * solvedRotation; // trial 8 - seperated
+  // vw::math::Matrix<double,3,3> outputRotation = solvedRotation * frameRotation; // trial 9
+  //vw::math::Matrix<double,3,3> outputRotation = frameRotation * solvedRotation; // trial 10 - shifted, close
+  //vw::math::Matrix<double,3,3> outputRotation = solvedRotation * frameRotation; // trial 11 - seperated
+  //vw::math::Matrix<double,3,3> outputRotation = solvedRotation * frameRotation; // trial 12 - too far up
+  
+  // Trial 13 - too far left
+  vw::math::Matrix<double,3,3> fixed_from_sc  = solvedRotation * transpose(frameRotation);
+  vw::math::Matrix<double,3,3> outputRotation = transpose(fixed_from_sc); // == sc_from_fixed
+  
+  
+  // Extract rotation angles --> Returns Rz(c)*Ry(b)*Rx(a)
+  // -- Angle order needs to be 3, 2, 1
+  Vector3 outputAngles = vw::math::rotation_matrix_to_euler_xyz(outputRotation);
+  // Output angles (rX, rY, rZ)
+  
+  printf("Combined rotation angles (degrees): %lf, %lf, %lf\n", outputAngles[0]*rad2deg, outputAngles[1]*rad2deg, outputAngles[2]*rad2deg);
+  
   if (!params.outputPath.empty()) // Dump rotation angles to a simple text file (in degrees)
   {
     printf("Writing output file %s\n", params.outputPath.c_str()); 
     std::ofstream outputFile(params.outputPath.c_str());
-    outputFile << finalParams[0] << std::endl;
-    outputFile << finalParams[1] << std::endl;
-    outputFile << finalParams[2] << std::endl;
+    outputFile << outputAngles[2]*rad2deg << std::endl; // Z rotation
+    outputFile << outputAngles[1]*rad2deg << std::endl; // Y rotation
+    outputFile << outputAngles[0]*rad2deg << std::endl; // X rotation
     outputFile.close();
   }
 
@@ -732,7 +784,8 @@ bool optimizeRotations(Parameters & params)
 }
 
 int main(int argc, char* argv[]) 
-{
+{ 
+  
   try 
   {
     // Parse the input parameters
