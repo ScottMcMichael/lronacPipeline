@@ -54,6 +54,207 @@ using std::endl;
 using std::setprecision;
 using std::setw;
 
+
+
+
+namespace vw{
+namespace math{
+
+  template <class ImplT>
+  typename ImplT::domain_type levenberg_marquardt_V( LeastSquaresModelBase<ImplT> const& least_squares_model,
+                                                   typename ImplT::domain_type const& seed,
+                                                   typename ImplT::result_type const& observation,
+                                                   int &status,
+                                                   double abs_tolerance = VW_MATH_LM_ABS_TOL,
+                                                   double rel_tolerance = VW_MATH_LM_REL_TOL,
+                                                   double max_iterations = 100) {
+
+    status = optimization::eDidNotConverge;
+
+    const ImplT& model = least_squares_model.impl();
+    bool done = false;
+    double Rinv = 10;
+    double lambda = 0.1;
+
+    typename ImplT::domain_type x_try, x = seed;
+    typename ImplT::result_type h = model(x);
+    typename ImplT::result_type error = model.difference(observation, h);
+    double norm_start = norm_2(error);
+
+    VW_OUT(DebugMessage, "math") << "LM: initial guess for the model is " << seed << std::endl;
+    VW_OUT(VerboseDebugMessage, "math") << "LM: starting error " << error << std::endl;
+    std::cout << "LM: starting error " << error << std::endl;
+    VW_OUT(DebugMessage, "math") << "LM: starting norm is: " << norm_start << std::endl;
+
+    // Solution may already be good enough
+    if (norm_start < abs_tolerance) {
+      status = optimization::eConvergedAbsTolerance;
+      VW_OUT(DebugMessage, "math") << "CONVERGED TO ABSOLUTE TOLERANCE\n";
+      done = true;
+    }
+
+    int outer_iter = 0;
+    while (!done){
+
+      bool shortCircuit = false;
+      outer_iter++;
+      VW_OUT(DebugMessage, "math") << "LM: outer iteration " << outer_iter << "   x = " << x << std::endl;
+      std::cout << "LM: outer iteration " << outer_iter << "   x = " << x << std::endl;
+
+      // Compute the value, derivative, and hessian of the cost function
+      // at the current point.  These remain valid until the parameter
+      // vector changes.
+
+      // expected measurement with new x
+      h = model(x);
+
+      // Difference between observed and predicted and error (2-norm of difference)
+      error = model.difference(observation, h);
+      norm_start = norm_2(error);
+      //VW_OUT(DebugMessage, "math") << "LM: outer iteration starting robust norm: " << norm_start << std::endl;
+
+      // Measurement Jacobian
+      typename ImplT::jacobian_type J = model.jacobian(x);
+
+      Vector<double> del_J = -1.0 * Rinv * (transpose(J) * error);
+
+      std::ofstream delJFile("/home/smcmich1/del_J.csv"); 
+      for (size_t i=0; i<del_J.size(); ++i)
+        delJFile << del_J[i] << std::endl;
+      delJFile.close();
+      
+      // Hessian of cost function (using Gauss-Newton approximation)
+      Matrix<double> hessian = Rinv * (transpose(J) * J);
+
+      int iterations = 0;
+      double norm_try = norm_start+1.0;
+      while (norm_try > norm_start){
+
+        // Increase diagonal elements to dynamically mix gradient
+        // descent and Gauss-Newton.
+        Matrix<double> hessian_lm = hessian;
+        for ( unsigned i=0; i < hessian_lm.rows(); ++i ){
+          hessian_lm(i,i) += hessian_lm(i,i)*lambda + lambda;
+        }
+
+        // Solve for update
+        typename ImplT::domain_type delta_x;
+        if (hessian_lm.rows() <= 2 && det(hessian_lm) > 0.0){
+          // Direct method is more efficient for small matrices, also
+          // here we avoid calling LAPACK which we've seen misbehave
+          // in this situation in a multi-threaded environment.
+          delta_x = inverse(hessian_lm)*del_J;
+        }else{
+          try{
+            // By construction, hessian_lm is symmetric and
+            // positive-definite.
+            delta_x = solve_symmetric(hessian_lm, del_J);
+          }catch ( const ArgumentErr& e ) {
+            // If lambda is very small, the matrix becomes numerically
+            // singular. In that case use the more general
+            // least_squares solver.
+            delta_x = least_squares(hessian_lm, del_J);
+          }
+
+        }
+
+        // update parameter vector
+        x_try = x - delta_x;
+
+        typename ImplT::result_type h_try = model(x_try);
+
+        typename ImplT::result_type error_try = model.difference(observation, h_try);
+        norm_try = norm_2(error_try);
+
+        //VW_OUT(VerboseDebugMessage, "math") << "LM: inner iteration " << iterations << " error is " << error_try << std::endl;
+        //VW_OUT(DebugMessage, "math") << "\tLM: inner iteration " << iterations << " norm is " << norm_try << std::endl;
+        std::cout << "\tLM: inner iteration " << iterations << " norm is " << norm_try << std::endl;
+
+        if (norm_try > norm_start)
+          // Increase lambda and try again
+          lambda *= 10;
+
+        ++iterations; // Sanity check on iterations in this loop
+        if (iterations > 20) {
+          //VW_OUT(DebugMessage, "math") << "\n****LM: too many inner iterations - short circuiting\n" << std::endl;
+          std::cout << "\n****LM: too many inner iterations - short circuiting\n" << std::endl;
+          shortCircuit = true;
+          norm_try = norm_start;
+        }
+        //VW_OUT(DebugMessage, "math") << "\tlambda = " << lambda << std::endl;
+        std::cout << "\tlambda = " << lambda << std::endl;
+        
+        std::ofstream deltaXFile("/home/smcmich1/deltaX.csv"); 
+        for (size_t i=0; i<delta_x.size(); ++i)
+          deltaXFile << delta_x[i] << std::endl;
+        deltaXFile.close();
+
+        std::ofstream finalHessianFile("/home/smcmich1/hessian.csv");
+        finalHessianFile.precision(3);
+        for (int r=0; r<hessian_lm.rows(); ++r)
+        {
+          for (int c=0; c<hessian_lm.cols(); ++c)
+          {
+            finalHessianFile << hessian_lm(r,c) << ", ";
+          }
+          finalHessianFile << std::endl;
+        }
+        finalHessianFile.close();
+        
+      } // End inner loop
+
+      // Percentage change convergence criterion
+      if (((norm_start-norm_try)/norm_start) < rel_tolerance) {
+        status = optimization::eConvergedRelTolerance;
+        VW_OUT(DebugMessage, "math") << "CONVERGED TO RELATIVE TOLERANCE\n";
+        std::cout << "CONVERGED TO RELATIVE TOLERANCE\n";
+        done = true;
+      }
+
+      // Absolute error convergence criterion
+      if (norm_try < abs_tolerance) {
+        status = optimization::eConvergedAbsTolerance;
+        VW_OUT(DebugMessage, "math") << "CONVERGED TO ABSOLUTE TOLERANCE\n";
+        std::cout << "CONVERGED TO ABSOLUTE TOLERANCE\n";
+        done = true;
+      }
+
+      // Max iterations convergence criterion
+      if (outer_iter >= max_iterations) {
+        VW_OUT(DebugMessage, "math") << "REACHED MAX ITERATIONS!";
+        std::cout << "REACHED MAX ITERATIONS!";
+        done = true;
+      }
+
+      // Take trial parameters as new parameters
+      // If we short-circuited the inner loop, then we didn't actually find a
+      // better p, so don't update it.
+      if (!shortCircuit)
+        x = x_try;
+
+      // Take trial error as new error
+      norm_start = norm_try;
+
+      // Decrease lambda
+      lambda /= 10;
+      //VW_OUT(DebugMessage, "math") << "lambda = " << lambda << std::endl;
+      //VW_OUT(DebugMessage, "math") << "LM: end of outer iteration " << outer_iter << " with error " << norm_try << std::endl;
+    
+    } // End outer loop
+    
+    
+    VW_OUT(DebugMessage, "math") << "LM: finished with: " << outer_iter << "\n";
+    std::cout << "LM: finished with: " << outer_iter << "\n";
+    return x;
+  }
+
+}} // end vw::math
+
+
+
+
+
+
 struct Parameters : asp::BaseOptions 
 {
   // Input paths
@@ -147,6 +348,12 @@ public: // Functions
     printf("Done constructing LROC model\n");
   }
   
+  /// Test functions to get a single pixel vector
+  Vector3 getLeftVector (const Vector2& pixel) {return vw::math::normalize(_leftCameraModel.pixel_to_vector (pixel));}
+  Vector3 getRightVector(const Vector2& pixel) {return vw::math::normalize(_rightCameraModel.pixel_to_vector(pixel));}
+
+  Vector2 getRightPixelRot(const Vector3& point, const Vector3& rot) {return vw::math::normalize(_rightCameraModel.point_to_pixel_rotated(point, rot));}
+
   /// Given the pixel pair observations, compute the initial state estimate.
   /// - This also loads the observation vectors and returns a packed version of them.
   bool getInitialStateEstimate(const Vector<double> &leftRows,  const Vector<double> &leftCols,
@@ -181,6 +388,11 @@ public: // Functions
     stateEstimate[1] = 0;
     stateEstimate[2] = 0;
 
+    //DEBUG
+    // Set up georeference class with default moon datum
+    vw::cartography::Datum datum("D_MOON");
+  
+  
     printf("Setting up state estimate\n");
 
     // For each input point pair
@@ -212,9 +424,9 @@ public: // Functions
       rotDiff.axis_angle(axis, angle);
 
       //std::cout << "leftCamVector "  << leftVec      << std::endl;
-      //std::cout << "rightCamVector " << rightVec     << std::endl;      
+      std::cout << "rightCamVector " << rightVec     << std::endl;      
       //std::cout << "camVectorDiff "  << leftVec-rightVec << std::endl;  
-      //std::cout << "vectorAngle (degrees) "    << vectorAngle*180/3.15159  << std::endl;
+      std::cout << "vectorAngle (degrees) "    << vectorAngle*180/3.15159  << std::endl;
       //std::cout << "leftCamPose "    << leftCamPose  << std::endl;
       //std::cout << "rightCamPose "   << rightCamPose << std::endl;
       //std::cout << "conjLeftPose "   << conjLeftPose << std::endl;
@@ -255,8 +467,19 @@ public: // Functions
       //std::cout << "Initial point " << i << " = " << pointLoc << " Triangulation error = " << triangulationError << std::endl;
       
       // Sanity check
-      const double intersectionRadius = vw::math::norm_2(midPoint);
+      const double intersectionRadius = vw::math::norm_2(pointLoc);
       const double camRadius          = vw::math::norm_2(rightCamCenter);
+      //std::cout << "intersection radius = " << intersectionRadius << std::endl;
+      
+      // Convert from GCC to GDC
+      Vector3 gdcCoord = datum.cartesian_to_geodetic(midPoint);
+      
+      //std::cout << "elevation above ellipsoid = " << gdcCoord[2] << std::endl;
+      
+      // Try dropping the elevation down to the datum level
+      gdcCoord[2] = 0.0;
+      pointLoc = datum.geodetic_to_cartesian(gdcCoord);
+      
       if (camRadius < intersectionRadius)
       {
         printf("Warning: Point %d, reverse intersection!  Using previous point location as an estimate.\n", i);
@@ -397,13 +620,12 @@ public: // Functions
   {
     // This function returns an error vector for a given set of parameters
 
-    //TODO: Verify all rotation orders etc!
     // Apply the rotations from the state vector to the right LROC camera model
     Vector3 rotVec(x[0], x[1], x[2]);
     //_rightCameraRotatedModel.set_axis_angle_rotation(rotVec);
   
     const double rad2deg = 180.0 / M_PI;
-    printf("Trying rotation %lf, %lf, %lf\n", x[0]*rad2deg, x[1]*rad2deg, x[2]*rad2deg);
+    //printf("Trying rotation %lf, %lf, %lf\n", x[0]*rad2deg, x[1]*rad2deg, x[2]*rad2deg);
     
     //std::cout << "Left  camera center = " << _leftCameraModel.camera_center()  << std::endl;
     //std::cout << "Right camera center = " << _rightCameraModel.camera_center() << std::endl;
@@ -442,7 +664,7 @@ public: // Functions
         obsVec[4*i + 2] = obsVec[4*(i-1) + 2];
         obsVec[4*i + 3] = obsVec[4*(i-1) + 3];
       }
-//      std::cout << "leftProjection  = " << leftProjection << " rightProjection = " << rightProjection << std::endl;
+      //std::cout << "leftProjection  = " << leftProjection << " rightProjection = " << rightProjection << std::endl;
       
       // Load the projected pixels into the output obseration vector
       obsVec[4*i + 0] = leftProjection [0]; // x
@@ -493,7 +715,18 @@ bool optimizeRotations(Parameters & params)
     printf("Error: input file %s is missing!\n", params.rightFilePath.c_str());
     return false;
   }
+
+  printf("Constructing geometry class\n");
+
+  // Initialize the geometry/solver class for the two input cubes
+  LrocPairModel lrocClass(params.leftFilePath, params.rightFilePath);
   
+  //DEBUG - call functions with fixed points to print some pixel info (no rotation)
+  lrocClass.getRightPixelRot(Vector3(-1.09977e+06, 387050, 1.29165e+06), Vector3());
+  lrocClass.getRightPixelRot(Vector3(-1.09272e+06, 384682, 1.29613e+06), Vector3());
+  lrocClass.getRightPixelRot(Vector3(-1.08521e+06, 382190, 1.2999e+06 ), Vector3());
+  lrocClass.getRightPixelRot(Vector3(-1.07943e+06, 380243, 1.30479e+06), Vector3());
+
   
   // Load both images  
   printf("Loading images left=%s and right=%s...\n",
@@ -597,7 +830,7 @@ bool optimizeRotations(Parameters & params)
   // Now that we have correspondence points, feed them into an angular solver.
 
   // Convert the matching points into the correct format!
-  const int    pointSkip     = 400; // Why does this fail at > 15 points? This is true over multiple images.
+  const int    pointSkip     = 700; 
   const size_t numMatchedPts = ransac_ip1.size() / pointSkip;
   printf("Num sampled points = %d\n", numMatchedPts);
   Vector<double> leftRow(numMatchedPts), leftCol(numMatchedPts), rightRow(numMatchedPts), rightCol(numMatchedPts);
@@ -612,10 +845,8 @@ bool optimizeRotations(Parameters & params)
     i+= pointSkip;
   }
 
-  printf("Constructing geometry class\n");
-
-  // Initialize the geometry/solver class for the two input cubes
-  LrocPairModel lrocClass(params.leftFilePath, params.rightFilePath);
+  // Load the inital points into the solver
+  printf("Initializing solver state...\n");
   Vector<double> initialState, packedObservations;
   if (!lrocClass.getInitialStateEstimate(leftRow, leftCol, rightRow, rightCol, initialState, packedObservations))
   {
@@ -623,19 +854,53 @@ bool optimizeRotations(Parameters & params)
     return false;
   }
 
-  //TODO: Move these
-  std::string initialErrorPath = "/home/smcmich1/initialAngleError.txt";
-  std::string finalErrorPath   = "/home/smcmich1/finalAngleError.txt";
-  std::string initialStatePath = "/home/smcmich1/initialAngleState.txt";
-  std::string finalStatePath   = "/home/smcmich1/finalAngleState.txt";
-  std::string finalStateDiffPath   = "/home/smcmich1/finalAngleStateDiff.txt";
-  
 
+  //TODO: Move these
+  std::string initialErrorPath    = "/home/smcmich1/initialAngleError.csv";
+  std::string finalErrorPath      = "/home/smcmich1/finalAngleError.csv";
+  std::string initialStatePath    = "/home/smcmich1/initialAngleState.csv";
+  std::string finalStatePath      = "/home/smcmich1/finalAngleState.csv";
+  std::string finalStateDiffPath  = "/home/smcmich1/finalAngleStateDiff.csv";
+  std::string initialGdcCoordPath = "/home/smcmich1/initialGdcPoints.csv";
+  std::string finalGdcCoordPath   = "/home/smcmich1/finalGdcPoints.csv";
+  
+  // Set up georeference class with default moon datum
+  vw::cartography::Datum datum("D_MOON");
+  
+  //printf("Writing initial state log to %s\n", initialStatePath.c_str());
+  std::ofstream initialObsFile("/home/smcmich1/initialObsVector.csv"); 
+  for (size_t i=0; i<packedObservations.size(); ++i)
+    initialObsFile << packedObservations[i] << std::endl;
+  initialObsFile.close();
+  
+  //return false;
+  
+  Vector<double> initialPredictions = lrocClass(initialState);
+  std::ofstream initialPredFile("/home/smcmich1/initialObsPrediction.csv"); 
+  for (size_t i=0; i<initialPredictions.size(); ++i)
+    initialPredFile << initialPredictions[i] << std::endl;
+  initialPredFile.close();
+   
+  
   //printf("Writing initial state log to %s\n", initialStatePath.c_str());
   std::ofstream initialStateFile(initialStatePath.c_str()); 
   for (size_t i=0; i<initialState.size(); ++i)
     initialStateFile << initialState[i] << std::endl;
   initialStateFile.close();
+  
+  // Write initial points as GDC coordinates for google earth
+  std::ofstream initialGdcCoordFile(initialGdcCoordPath.c_str());
+  for (size_t i=0; i<numMatchedPts; ++i)
+  {
+    // Convert from GCC to GDC
+    Vector3 gccPoint(initialState[3+ 3*i], initialState[3+ 3*i+1], initialState[3+ 3*i+2]);
+    Vector3 gdcCoord = datum.cartesian_to_geodetic(gccPoint);
+    initialGdcCoordFile.precision(12);
+    initialGdcCoordFile << gdcCoord[0] << std::endl;
+    initialGdcCoordFile << gdcCoord[1] << std::endl;
+    initialGdcCoordFile << gdcCoord[2] << std::endl;
+  }
+  initialGdcCoordFile.close();
   
   // Compute the initial error - euclidean point distance
   //printf("Writing initial error log to %s\n", initialErrorPath.c_str());
@@ -653,6 +918,21 @@ bool optimizeRotations(Parameters & params)
   
   Vector<double> initialComputedObservations = lrocClass(initialState);
 
+// DEBUG: Check output Jacobian
+  Matrix<double> initialJac = lrocClass.jacobian(initialState);
+  std::ofstream initialJacFile("/home/smcmich1/initialJac.csv");
+  initialJacFile.precision(3);
+  for (int r=0; r<initialJac.rows(); ++r)
+  {
+    for (int c=0; c<initialJac.cols(); ++c)
+    {
+      initialJacFile << initialJac(r,c) << " ";
+    }
+    initialJacFile << std::endl;
+  }
+  initialJacFile.close();
+  
+  
   printf("Running solver...\n");
 
   // Now pass geometry class into the solver function
@@ -663,29 +943,34 @@ bool optimizeRotations(Parameters & params)
 //                                                   double max_iterations = VW_MATH_LM_MAX_ITER)
   std::cout << "Status = " << status << std::endl;
 
-  /*
-  printf("Real observations - Computed observations(I) = error term\n");
-  for (size_t i=0; i<initialComputedObservations.size(); ++i)
-    printf("%lf - %lf = %lf\n", packedObservations[i], initialComputedObservations[i], packedObservations[i]-initialComputedObservations[i]);
   
-  Vector<double> computedObservations = lrocClass(finalParams);
-  printf("Real observations - Computed observations(F) = error term\n");
-  for (size_t i=0; i<computedObservations.size(); ++i)
-    printf("%lf - %lf = %lf\n", packedObservations[i], computedObservations[i], packedObservations[i]-computedObservations[i]);
-
-  Vector<double> finalRotationsOnly = finalParams;
-  for (size_t i=3; i<finalParams.size(); ++i)
-    finalRotationsOnly[i] = initialState[i];
-  computedObservations = lrocClass(finalRotationsOnly);
-  printf("Real observations - Computed observations(FR) = error term\n");
-  for (size_t i=0; i<computedObservations.size(); ++i)
-    printf("%lf - %lf = %lf\n", packedObservations[i], computedObservations[i], packedObservations[i]-computedObservations[i]);
-  */
   
-  /*
-  // DEBUG: Check output Jacobian
+  //printf("Writing final error log to %s\n", finalErrorPath.c_str());
+  std::ofstream finalErrorFile(finalErrorPath.c_str()); 
+  double meanFinalError = 0;
+  std::vector<double> finalError = lrocClass.computeError(finalParams);
+  Vector<double> finalPredictions = lrocClass(finalParams);
+  Vector<double> rawError(finalPredictions.size());
+  std::ofstream predictionFile("/home/smcmich1/finalPredictions.csv");
+  for (size_t i=0; i<finalPredictions.size(); ++i)
+  {
+    predictionFile << finalPredictions[i] << std::endl;
+    rawError[i] = packedObservations[i] - finalPredictions[i];
+    finalErrorFile << packedObservations[i] - finalPredictions[i] << std::endl;
+    if (i % 4 == 0)
+      meanFinalError += finalError[i/4];
+  }
+  predictionFile.close();
+  finalErrorFile.close();
+  meanFinalError = meanFinalError / currentError.size();
+  printf("Mean point error after optimization = %lf\n", meanFinalError);
+  printf("Mean error change = %lf\n", meanFinalError - meanInitialError);
+  
+  
+  // DEBUG: Check output Jacobian -------------------------------------------
   Matrix<double> finalJac = lrocClass.jacobian(finalParams);
-  std::ofstream finalJacFile("/home/smcmich1/finalJac.txt");
+  std::ofstream finalJacFile("/home/smcmich1/finalJac.csv");
+  finalJacFile.precision(3);
   for (int r=0; r<finalJac.rows(); ++r)
   {
     for (int c=0; c<finalJac.cols(); ++c)
@@ -695,7 +980,8 @@ bool optimizeRotations(Parameters & params)
     finalJacFile << std::endl;
   }
   finalJacFile.close();
-  */
+  
+  
   
   //printf("Writing final state log to %s\n", finalStatePath.c_str());
   std::ofstream finalStateFile(finalStatePath.c_str()); 
@@ -703,24 +989,24 @@ bool optimizeRotations(Parameters & params)
     finalStateFile << finalParams[i] << std::endl;
   finalStateFile.close();
 
+  // Write initial points as GDC coordinates for google earth
+  std::ofstream finalGdcCoordFile(finalGdcCoordPath.c_str());
+  for (size_t i=0; i<numMatchedPts; ++i)
+  {
+    // Convert from GCC to GDC
+    Vector3 gccPoint(finalParams[3+ 3*i], finalParams[3+ 3*i+1], finalParams[3+ 3*i+2]);
+    Vector3 gdcCoord = datum.cartesian_to_geodetic(gccPoint);
+    finalGdcCoordFile.precision(12);
+    finalGdcCoordFile << gdcCoord[0] << std::endl;
+    finalGdcCoordFile << gdcCoord[1] << std::endl;
+    finalGdcCoordFile << gdcCoord[2] << std::endl;
+  }
+  finalGdcCoordFile.close();
+  
   std::ofstream finalStateDiffFile(finalStateDiffPath.c_str()); 
   for (size_t i=0; i<finalParams.size(); ++i)
     finalStateDiffFile << finalParams[i] - initialState[i] << std::endl;
   finalStateDiffFile.close();
-  
-  //printf("Writing final error log to %s\n", finalErrorPath.c_str());
-  std::ofstream finalErrorFile(finalErrorPath.c_str()); 
-  double meanFinalError = 0;
-  std::vector<double> finalError = lrocClass.computeError(finalParams);
-  for (size_t i=0; i<finalError.size(); ++i)
-  {
-    finalErrorFile << finalError[i] << std::endl;
-    meanFinalError += finalError[i];
-  }
-  finalErrorFile.close();
-  meanFinalError = meanFinalError / currentError.size();
-  printf("Mean point error after optimization = %lf\n", meanFinalError);
-  printf("Mean error change = %lf\n", meanFinalError - meanInitialError);
   
   const double rad2deg = 180.0 / M_PI;
   const double deg2rad = M_PI / 180.0;
@@ -730,62 +1016,68 @@ bool optimizeRotations(Parameters & params)
   //TODO: Experiment with this until it works!
   
   // These are instrument rotations from the frame file - rotation order is R = Rx(1.29)*Ry(-0.079)*Rz(180)
-  // ( 1.129, -0.079, 180.0 ) [units in degrees]
+  // sc_from_instrument,  ( 1.129, -0.079, 180.0 ) [units in degrees]
   
   // vw::math::euler_to_rotation_matrix(a, b, c, 'order') --> R(c)*R(b)*R(a), order specifies which rotation axes
   
-  vw::math::Matrix<double,3,3> frameRotation = vw::math::euler_to_rotation_matrix(180.0*deg2rad, -0.079*deg2rad, 1.129*deg2rad, "zyx");
+  //vw::math::Matrix<double,3,3> frameRotation = vw::math::euler_to_rotation_matrix(180.0*deg2rad, -0.079*deg2rad, 1.129*deg2rad, "zyx");
+  vw::math::Matrix<double,3,3> frameRotation = vw::math::euler_to_rotation_matrix(1.129*deg2rad, -0.079*deg2rad, 180.0*deg2rad, "xyz");
    std:: cout << "Base rotation angles (degrees) = Rx(1.129) * Ry(-0.079) * Rz(180.0)"  << std::endl;
 
-  // Existing offset matrix (from the fk file) = instrument(bad)_from_sc
-  // New offset matrix (from input params) = instrument(good)_from_instrument(bad)   
+  // Existing offset matrix (from the fk file) = sc_from_instrument
   
   // This is the rotation matrix we solved for (matches code in IsisInterfaceLineScan.cc)
+  // solvedRotation = instrument(good)_from_instrument
   vw::math::Matrix<double,3,3> solvedRotation = vw::math::euler_to_rotation_matrix(finalParams[0], finalParams[1], finalParams[2], "xyz");
   // Multiply them to get the net rotation
 
   //vw::math::Matrix<double,3,3> outputRotation = frameRotation; //TEST: Make sure original rotations kept intact!
-  //vw::math::Matrix<double,3,3> outputRotation = frameRotation * solvedRotation; // trial 1 = fail (seperated)
-  //vw::math::Matrix<double,3,3> outputRotation = solvedRotation * frameRotation; // trial 2
-  //vw::math::Matrix<double,3,3> outputRotation = frameRotation * solvedRotation; // trial 4 - missing
-  //vw::math::Matrix<double,3,3> outputRotation = solvedRotation * frameRotation; // trial 5 - missing
-  //vw::math::Matrix<double,3,3> outputRotation = solvedRotation * frameRotation; // trial 6 - seperated
-  //vw::math::Matrix<double,3,3> outputRotation = frameRotation * solvedRotation; // trial 7 - shifted
-  //vw::math::Matrix<double,3,3> outputRotation = frameRotation * solvedRotation; // trial 8 - seperated
-  // vw::math::Matrix<double,3,3> outputRotation = solvedRotation * frameRotation; // trial 9
-  //vw::math::Matrix<double,3,3> outputRotation = frameRotation * solvedRotation; // trial 10 - shifted, close
-  //vw::math::Matrix<double,3,3> outputRotation = solvedRotation * frameRotation; // trial 11 - seperated
-  //vw::math::Matrix<double,3,3> outputRotation = solvedRotation * frameRotation; // trial 12 - too far up
+  //vw::math::Matrix<double,3,3> fixed_from_sc  = transpose(solvedRotation) * frameRotation;
+  //vw::math::Matrix<double,3,3> outputRotation = transpose(fixed_from_sc); // == sc_from_fixed
   
-  // Trial 13 - too far left
-  vw::math::Matrix<double,3,3> fixed_from_sc  = solvedRotation * transpose(frameRotation);
-  vw::math::Matrix<double,3,3> outputRotation = transpose(fixed_from_sc); // == sc_from_fixed
+  vw::math::Matrix<double,3,3> outputRotation = frameRotation * transpose(solvedRotation); // == sc_from_instrument(good)
   
   
-  // Extract rotation angles --> Returns Rz(c)*Ry(b)*Rx(a)
-  // -- Angle order needs to be 3, 2, 1
+  // Extract rotation angles --> Returns Rx(a)*Ry(b)*Rz(c)
+  // -- Angle order needs to be  1, 2, 3
+  //Vector3 outputAngles = vw::math::rotation_matrix_to_euler_zyx(outputRotation);
   Vector3 outputAngles = vw::math::rotation_matrix_to_euler_xyz(outputRotation);
-  // Output angles (rX, rY, rZ)
+  // Output angles (rZ, rY, rX)
   
-  printf("Combined rotation angles (degrees): %lf, %lf, %lf\n", outputAngles[0]*rad2deg, outputAngles[1]*rad2deg, outputAngles[2]*rad2deg);
+  printf("Combined rotation angles (degrees): %lf, %lf, %lf\n", outputAngles[2]*rad2deg, outputAngles[1]*rad2deg, outputAngles[0]*rad2deg);
   
   if (!params.outputPath.empty()) // Dump rotation angles to a simple text file (in degrees)
   {
     printf("Writing output file %s\n", params.outputPath.c_str()); 
     std::ofstream outputFile(params.outputPath.c_str());
-    outputFile << outputAngles[2]*rad2deg << std::endl; // Z rotation
-    outputFile << outputAngles[1]*rad2deg << std::endl; // Y rotation
     outputFile << outputAngles[0]*rad2deg << std::endl; // X rotation
+    outputFile << outputAngles[1]*rad2deg << std::endl; // Y rotation
+    outputFile << outputAngles[2]*rad2deg << std::endl; // Z rotation
     outputFile.close();
   }
 
+  //DEBUG - call functions with fixed points to print some pixel info (solved rotation)
+  lrocClass.getRightPixelRot(Vector3(-1.09977e+06, 387050, 1.29165e+06), Vector3(finalParams[0], finalParams[1], finalParams[2]));
+  lrocClass.getRightPixelRot(Vector3(-1.09272e+06, 384682, 1.29613e+06), Vector3(finalParams[0], finalParams[1], finalParams[2]));
+  lrocClass.getRightPixelRot(Vector3(-1.08521e+06, 382190, 1.2999e+06 ), Vector3(finalParams[0], finalParams[1], finalParams[2]));
+  lrocClass.getRightPixelRot(Vector3(-1.07943e+06, 380243, 1.30479e+06), Vector3(finalParams[0], finalParams[1], finalParams[2]));
 
   return true;
 }
 
 int main(int argc, char* argv[]) 
 { 
+/*
+  const double rad2deg = 180.0 / M_PI;
+  const double deg2rad = M_PI / 180.0;
+  vw::math::Matrix<double,3,3> frameRotation = vw::math::euler_to_rotation_matrix(180.0*deg2rad, -0.079*deg2rad, 1.129*deg2rad, "zyx");
+  std::cout << "zyx" << frameRotation << std::endl;
   
+  frameRotation = vw::math::euler_to_rotation_matrix(1.129*deg2rad, -0.079*deg2rad, 180.0*deg2rad, "xyz");
+  std::cout << "xyz" << frameRotation << std::endl;
+  
+  return 0;
+*/  
   try 
   {
     // Parse the input parameters
