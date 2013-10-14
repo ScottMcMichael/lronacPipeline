@@ -424,9 +424,9 @@ public: // Functions
       rotDiff.axis_angle(axis, angle);
 
       //std::cout << "leftCamVector "  << leftVec      << std::endl;
-      std::cout << "rightCamVector " << rightVec     << std::endl;      
+      //std::cout << "rightCamVector " << rightVec     << std::endl;      
       //std::cout << "camVectorDiff "  << leftVec-rightVec << std::endl;  
-      std::cout << "vectorAngle (degrees) "    << vectorAngle*180/3.15159  << std::endl;
+      //std::cout << "vectorAngle (degrees) "    << vectorAngle*180/3.15159  << std::endl;
       //std::cout << "leftCamPose "    << leftCamPose  << std::endl;
       //std::cout << "rightCamPose "   << rightCamPose << std::endl;
       //std::cout << "conjLeftPose "   << conjLeftPose << std::endl;
@@ -476,9 +476,9 @@ public: // Functions
       
       //std::cout << "elevation above ellipsoid = " << gdcCoord[2] << std::endl;
       
-      // Try dropping the elevation down to the datum level
-      gdcCoord[2] = 0.0;
-      pointLoc = datum.geodetic_to_cartesian(gdcCoord);
+      //// Try dropping the elevation down to the datum level
+      //gdcCoord[2] = 0.0;
+      //pointLoc = datum.geodetic_to_cartesian(gdcCoord);
       
       if (camRadius < intersectionRadius)
       {
@@ -830,7 +830,7 @@ bool optimizeRotations(Parameters & params)
   // Now that we have correspondence points, feed them into an angular solver.
 
   // Convert the matching points into the correct format!
-  const int    pointSkip     = 700; 
+  const int    pointSkip     = 100; 
   const size_t numMatchedPts = ransac_ip1.size() / pointSkip;
   printf("Num sampled points = %d\n", numMatchedPts);
   Vector<double> leftRow(numMatchedPts), leftCol(numMatchedPts), rightRow(numMatchedPts), rightCol(numMatchedPts);
@@ -841,7 +841,7 @@ bool optimizeRotations(Parameters & params)
     leftRow [p] = ransac_ip1[i][1];
     rightCol[p] = ransac_ip2[i][0];
     rightRow[p] = ransac_ip2[i][1];
-    printf("p: %d, i: %d --> %lf, %lf, %lf, %lf\n", p, i, leftCol[p], leftRow[p], rightCol[p], rightRow[p]);
+    //printf("p: %d, i: %d --> %lf, %lf, %lf, %lf\n", p, i, leftCol[p], leftRow[p], rightCol[p], rightRow[p]);
     i+= pointSkip;
   }
 
@@ -962,10 +962,7 @@ bool optimizeRotations(Parameters & params)
   }
   predictionFile.close();
   finalErrorFile.close();
-  meanFinalError = meanFinalError / currentError.size();
-  printf("Mean point error after optimization = %lf\n", meanFinalError);
-  printf("Mean error change = %lf\n", meanFinalError - meanInitialError);
-  
+  meanFinalError = meanFinalError / currentError.size(); 
   
   // DEBUG: Check output Jacobian -------------------------------------------
   Matrix<double> finalJac = lrocClass.jacobian(finalParams);
@@ -1008,6 +1005,9 @@ bool optimizeRotations(Parameters & params)
     finalStateDiffFile << finalParams[i] - initialState[i] << std::endl;
   finalStateDiffFile.close();
   
+  printf("Mean point error after optimization = %lf\n", meanFinalError);
+  printf("Mean error change = %lf\n", meanFinalError - meanInitialError);
+  
   const double rad2deg = 180.0 / M_PI;
   const double deg2rad = M_PI / 180.0;
   printf("Adjustment rotation angles (degrees): %lf, %lf, %lf\n", finalParams[0]*rad2deg, finalParams[1]*rad2deg, finalParams[2]*rad2deg);
@@ -1029,19 +1029,23 @@ bool optimizeRotations(Parameters & params)
   // This is the rotation matrix we solved for (matches code in IsisInterfaceLineScan.cc)
   // solvedRotation = instrument(good)_from_instrument
   vw::math::Matrix<double,3,3> solvedRotation = vw::math::euler_to_rotation_matrix(finalParams[0], finalParams[1], finalParams[2], "xyz");
+  std::cout << "Solved rotation: " << solvedRotation << std::endl;
   // Multiply them to get the net rotation
 
   //vw::math::Matrix<double,3,3> outputRotation = frameRotation; //TEST: Make sure original rotations kept intact!
   //vw::math::Matrix<double,3,3> fixed_from_sc  = transpose(solvedRotation) * frameRotation;
   //vw::math::Matrix<double,3,3> outputRotation = transpose(fixed_from_sc); // == sc_from_fixed
   
-  vw::math::Matrix<double,3,3> outputRotation = frameRotation * transpose(solvedRotation); // == sc_from_instrument(good)
+  vw::math::Matrix<double,3,3> outputRotation = transpose(frameRotation * transpose(solvedRotation)); // == sc_from_instrument(good)
+  std::cout << "Output rotation: " << outputRotation << std::endl;
   
+  //vw::math::Matrix<double,3,3> outputRotationT = transpose(frameRotation * transpose(solvedRotation));
+  //std::cout << "Output rotation TRANS: " << outputRotationT << std::endl;
   
   // Extract rotation angles --> Returns Rx(a)*Ry(b)*Rz(c)
   // -- Angle order needs to be  1, 2, 3
-  //Vector3 outputAngles = vw::math::rotation_matrix_to_euler_zyx(outputRotation);
-  Vector3 outputAngles = vw::math::rotation_matrix_to_euler_xyz(outputRotation);
+  //Vector3 outputAngles = vw::math::rotation_matrix_to_euler_zyx(outputRotation); //bad
+  Vector3 outputAngles = vw::math::rotation_matrix_to_euler_xyz(outputRotation); // good?
   // Output angles (rZ, rY, rX)
   
   printf("Combined rotation angles (degrees): %lf, %lf, %lf\n", outputAngles[2]*rad2deg, outputAngles[1]*rad2deg, outputAngles[0]*rad2deg);
@@ -1050,9 +1054,19 @@ bool optimizeRotations(Parameters & params)
   {
     printf("Writing output file %s\n", params.outputPath.c_str()); 
     std::ofstream outputFile(params.outputPath.c_str());
-    outputFile << outputAngles[0]*rad2deg << std::endl; // X rotation
-    outputFile << outputAngles[1]*rad2deg << std::endl; // Y rotation
-    outputFile << outputAngles[2]*rad2deg << std::endl; // Z rotation
+    //outputFile << outputAngles[0]*rad2deg << std::endl; // X rotation
+    //outputFile << outputAngles[1]*rad2deg << std::endl; // Y rotation
+    //outputFile << outputAngles[2]*rad2deg << std::endl; // Z rotation
+
+    // Write out rotation matrix
+    for (int r=0; r<outputRotation.rows(); ++r)
+    {
+      for (int c=0; c<outputRotation.cols(); ++c)
+      {
+        outputFile << outputRotation(r,c) << std::endl;
+      }
+    }
+    
     outputFile.close();
   }
 
@@ -1077,7 +1091,162 @@ int main(int argc, char* argv[])
   std::cout << "xyz" << frameRotation << std::endl;
   
   return 0;
-*/  
+
+
+  vw::math::Matrix<double,3,3> scRot(-0.725978, -0.36853, 0.580639,-0.143581,  0.906914,  0.396095,-0.672562,  0.204188, -0.711314);
+  std::cout << "scRot = " << scRot << std::endl;
+  
+  const double rad2deg = 180.0 / M_PI;
+  const double deg2rad = M_PI / 180.0;
+  
+  double rX = 1.15506;
+  double rY = -0.0847975;
+  double rZ = -179.86;
+  printf("---\n");
+  
+  vw::math::Matrix<double,3,3> frameRotation = vw::math::euler_to_rotation_matrix(rX*deg2rad, rY*deg2rad, rZ*deg2rad, "xyz");
+  std::cout << "xyz'*scRot" << transpose(frameRotation) * scRot << std::endl;
+  
+  frameRotation = vw::math::euler_to_rotation_matrix(rX*deg2rad, rZ*deg2rad, rY*deg2rad, "xzy");
+  std::cout << "xzy'*scRot" << transpose(frameRotation) * scRot << std::endl;
+
+  frameRotation = vw::math::euler_to_rotation_matrix(rZ*deg2rad, rX*deg2rad, rY*deg2rad, "zxy");
+  std::cout << "zxy'*scRot" << transpose(frameRotation) * scRot << std::endl;
+
+  frameRotation = vw::math::euler_to_rotation_matrix(rZ*deg2rad, rY*deg2rad, rX*deg2rad, "zyx");
+  std::cout << "zyx'*scRot" << transpose(frameRotation) * scRot << std::endl;
+
+  frameRotation = vw::math::euler_to_rotation_matrix(rY*deg2rad, rZ*deg2rad, rX*deg2rad, "yzx");
+  std::cout << "yzx'*scRot" << transpose(frameRotation) * scRot << std::endl;
+
+  frameRotation = vw::math::euler_to_rotation_matrix(rY*deg2rad, rX*deg2rad, rZ*deg2rad, "yxz");
+  std::cout << "yxz'*scRot" << transpose(frameRotation) * scRot << std::endl;
+  
+  
+  rX = 1.15506;
+  rZ = -0.0847975;
+  rY = -179.86;
+  printf("---\n");
+  
+   frameRotation = vw::math::euler_to_rotation_matrix(rX*deg2rad, rY*deg2rad, rZ*deg2rad, "xyz");
+  std::cout << "xyz'*scRot" << transpose(frameRotation) * scRot << std::endl;
+  
+  frameRotation = vw::math::euler_to_rotation_matrix(rX*deg2rad, rZ*deg2rad, rY*deg2rad, "xzy");
+  std::cout << "xzy'*scRot" << transpose(frameRotation) * scRot << std::endl;
+
+  frameRotation = vw::math::euler_to_rotation_matrix(rZ*deg2rad, rX*deg2rad, rY*deg2rad, "zxy");
+  std::cout << "zxy'*scRot" << transpose(frameRotation) * scRot << std::endl;
+
+  frameRotation = vw::math::euler_to_rotation_matrix(rZ*deg2rad, rY*deg2rad, rX*deg2rad, "zyx");
+  std::cout << "zyx'*scRot" << transpose(frameRotation) * scRot << std::endl;
+
+  frameRotation = vw::math::euler_to_rotation_matrix(rY*deg2rad, rZ*deg2rad, rX*deg2rad, "yzx");
+  std::cout << "yzx'*scRot" << transpose(frameRotation) * scRot << std::endl;
+
+  frameRotation = vw::math::euler_to_rotation_matrix(rY*deg2rad, rX*deg2rad, rZ*deg2rad, "yxz");
+  std::cout << "yxz'*scRot" << transpose(frameRotation) * scRot << std::endl;
+  
+  
+  rY = 1.15506;
+  rX = -0.0847975;
+  rZ = -179.86;
+  printf("---\n");
+  
+  frameRotation = vw::math::euler_to_rotation_matrix(rX*deg2rad, rY*deg2rad, rZ*deg2rad, "xyz");
+  std::cout << "xyz'*scRot" << transpose(frameRotation) * scRot << std::endl;
+  
+  frameRotation = vw::math::euler_to_rotation_matrix(rX*deg2rad, rZ*deg2rad, rY*deg2rad, "xzy");
+  std::cout << "xzy'*scRot" << transpose(frameRotation) * scRot << std::endl;
+
+  frameRotation = vw::math::euler_to_rotation_matrix(rZ*deg2rad, rX*deg2rad, rY*deg2rad, "zxy");
+  std::cout << "zxy'*scRot" << transpose(frameRotation) * scRot << std::endl;
+
+  frameRotation = vw::math::euler_to_rotation_matrix(rZ*deg2rad, rY*deg2rad, rX*deg2rad, "zyx");
+  std::cout << "zyx'*scRot" << transpose(frameRotation) * scRot << std::endl;
+
+  frameRotation = vw::math::euler_to_rotation_matrix(rY*deg2rad, rZ*deg2rad, rX*deg2rad, "yzx");
+  std::cout << "yzx'*scRot" << transpose(frameRotation) * scRot << std::endl;
+
+  frameRotation = vw::math::euler_to_rotation_matrix(rY*deg2rad, rX*deg2rad, rZ*deg2rad, "yxz");
+  std::cout << "yxz'*scRot" << transpose(frameRotation) * scRot << std::endl;
+  
+  
+  
+  rY = 1.15506;
+  rZ = -0.0847975;
+  rX = -179.86;
+  printf("---\n");
+  
+  frameRotation = vw::math::euler_to_rotation_matrix(rX*deg2rad, rY*deg2rad, rZ*deg2rad, "xyz");
+  std::cout << "xyz'*scRot" << transpose(frameRotation) * scRot << std::endl;
+  
+  frameRotation = vw::math::euler_to_rotation_matrix(rX*deg2rad, rZ*deg2rad, rY*deg2rad, "xzy");
+  std::cout << "xzy'*scRot" << transpose(frameRotation) * scRot << std::endl;
+
+  frameRotation = vw::math::euler_to_rotation_matrix(rZ*deg2rad, rX*deg2rad, rY*deg2rad, "zxy");
+  std::cout << "zxy'*scRot" << transpose(frameRotation) * scRot << std::endl;
+
+  frameRotation = vw::math::euler_to_rotation_matrix(rZ*deg2rad, rY*deg2rad, rX*deg2rad, "zyx");
+  std::cout << "zyx'*scRot" << transpose(frameRotation) * scRot << std::endl;
+
+  frameRotation = vw::math::euler_to_rotation_matrix(rY*deg2rad, rZ*deg2rad, rX*deg2rad, "yzx");
+  std::cout << "yzx'*scRot" << transpose(frameRotation) * scRot << std::endl;
+
+  frameRotation = vw::math::euler_to_rotation_matrix(rY*deg2rad, rX*deg2rad, rZ*deg2rad, "yxz");
+  std::cout << "yxz'*scRot" << transpose(frameRotation) * scRot << std::endl;
+  
+  
+  rZ = 1.15506;
+  rX = -0.0847975;
+  rY = -179.86;
+  printf("---\n");
+  
+  frameRotation = vw::math::euler_to_rotation_matrix(rX*deg2rad, rY*deg2rad, rZ*deg2rad, "xyz");
+  std::cout << "xyz'*scRot" << transpose(frameRotation) * scRot << std::endl;
+  
+  frameRotation = vw::math::euler_to_rotation_matrix(rX*deg2rad, rZ*deg2rad, rY*deg2rad, "xzy");
+  std::cout << "xzy'*scRot" << transpose(frameRotation) * scRot << std::endl;
+
+  frameRotation = vw::math::euler_to_rotation_matrix(rZ*deg2rad, rX*deg2rad, rY*deg2rad, "zxy");
+  std::cout << "zxy'*scRot" << transpose(frameRotation) * scRot << std::endl;
+
+  frameRotation = vw::math::euler_to_rotation_matrix(rZ*deg2rad, rY*deg2rad, rX*deg2rad, "zyx");
+  std::cout << "zyx'*scRot" << transpose(frameRotation) * scRot << std::endl;
+
+  frameRotation = vw::math::euler_to_rotation_matrix(rY*deg2rad, rZ*deg2rad, rX*deg2rad, "yzx");
+  std::cout << "yzx'*scRot" << transpose(frameRotation) * scRot << std::endl;
+
+  frameRotation = vw::math::euler_to_rotation_matrix(rY*deg2rad, rX*deg2rad, rZ*deg2rad, "yxz");
+  std::cout << "yxz'*scRot" << transpose(frameRotation) * scRot << std::endl;
+  
+  
+  rZ = 1.15506;
+  rY = -0.0847975;
+  rX = -179.86;
+  printf("---\n");
+  
+  frameRotation = vw::math::euler_to_rotation_matrix(rX*deg2rad, rY*deg2rad, rZ*deg2rad, "xyz");
+  std::cout << "xyz'*scRot" << transpose(frameRotation) * scRot << std::endl;
+  
+  frameRotation = vw::math::euler_to_rotation_matrix(rX*deg2rad, rZ*deg2rad, rY*deg2rad, "xzy");
+  std::cout << "xzy'*scRot" << transpose(frameRotation) * scRot << std::endl;
+
+  frameRotation = vw::math::euler_to_rotation_matrix(rZ*deg2rad, rX*deg2rad, rY*deg2rad, "zxy");
+  std::cout << "zxy'*scRot" << transpose(frameRotation) * scRot << std::endl;
+
+  frameRotation = vw::math::euler_to_rotation_matrix(rZ*deg2rad, rY*deg2rad, rX*deg2rad, "zyx");
+  std::cout << "zyx'*scRot" << transpose(frameRotation) * scRot << std::endl;
+
+  frameRotation = vw::math::euler_to_rotation_matrix(rY*deg2rad, rZ*deg2rad, rX*deg2rad, "yzx");
+  std::cout << "yzx'*scRot" << transpose(frameRotation) * scRot << std::endl;
+
+  frameRotation = vw::math::euler_to_rotation_matrix(rY*deg2rad, rX*deg2rad, rZ*deg2rad, "yxz");
+  std::cout << "yxz'*scRot" << transpose(frameRotation) * scRot << std::endl;
+  
+   
+  return 0;
+  */
+
   try 
   {
     // Parse the input parameters
