@@ -147,7 +147,11 @@ def main():
 
         startTime = time.time()
 
-        outputFolder = os.path.dirname(options.outputPath)
+        outputFolder  = os.path.dirname(options.outputPath)
+        inputBaseName = os.path.basename(options.inputPath)
+        tempFolder    = outputFolder + '/' + inputBaseName + '_posCorrectTemp/'
+        if not os.path.exists(tempFolder):
+            os.mkdir(tempFolder) 
 
         # Copy the input file to the output location
         cmd = "cp " + options.inputPath + " " + options.outputPath
@@ -160,35 +164,34 @@ def main():
         os.system(cmd)
 
         #DEBUG
-        campPath = os.path.join(outputFolder, "campt_orig.txt") 
-        cmd = "campt from=" + options.outputPath + " > "+campPath
-        print cmd
-        os.system(cmd)
+        #campPath = os.path.join(outputFolder, "campt_orig.txt") 
+        #cmd = "campt from=" + options.outputPath + " > "+campPath
+        #print cmd
+        #os.system(cmd)
 
-        
         # Call head -120 on file
-        tempTextPath = os.path.join(outputFolder, "headOutput.txt")
+        tempTextPath = os.path.join(tempFolder, "headOutput.txt")
         cmd = "head -120 "+options.outputPath+" > "+tempTextPath
         print cmd
         os.system(cmd)
         if not os.path.exists(tempTextPath):
             print 'Error! Failed to extract cube kernel data!'
-            return 0
-        
+            return 1
+
         # Parse output
         print 'Parsing cube metadata for kernel locations...'
         kernelList = parseHeadOutput(tempTextPath)
         if not kernelList:
             print 'Error! Unable to find any kernel files in ' + tempTextPath
-            return 0
+            return 1
 #        print 'Found ' + str(len(kernelList)) + ' kernel files'
-        
+
         # Convert the kernels into a space delimited string to pass as arguments
         kernelStringList = ""
         for i in kernelList:
           kernelStringList = kernelStringList + ' ' + str(i)
 #        print kernelStringList
-        
+
         # Determine if the input file is LE or RE
         lePos = options.inputPath.rfind('LE')
         rePos = options.inputPath.rfind('RE')
@@ -196,19 +199,19 @@ def main():
             sideCode = '0' # LE
         else: 
             sideCode = '1' # RE
-        
+
         # Call lronacSpkParser to generate modified text file
-        modifiedDataPath = os.path.join(outputFolder, "newSpkData.txt")
+        modifiedDataPath = os.path.join(tempFolder, "newSpkData.txt")
         cmd = '/home/smcmich1/repo/StereoPipeline/src/asp/Tools/spiceEditor --offsetCode ' + sideCode + ' --outputPath ' + modifiedDataPath + ' --kernels ' + kernelStringList
         print cmd
         os.system(cmd)
         if not os.path.exists(modifiedDataPath):
             print 'Error! Failed to create modified SPK data!'
-            return 0
-        
+            return 1
+
         # Write the config file needed for the mkspk function
         print 'Writing mkspk config file...'
-        mkspkConfigPath = os.path.join(outputFolder, "spkConfig.txt")
+        mkspkConfigPath = os.path.join(tempFolder, "spkConfig.txt")
         makeSpkSetupFile('/home/smcmich1/programs/isis/isis3data/base/kernels/lsk/naif0010.tls', mkspkConfigPath)
 
         # If the file already exists, delete it and rewrite it.
@@ -216,7 +219,7 @@ def main():
           tempSpkPath = options.spkPath
           print 'Storing modified SPK file ' + tempSpkPath
         else:
-          tempSpkPath = os.path.join(outputFolder, "modifiedLrocSpk.bsp")
+          tempSpkPath = os.path.join(tempFolder, "modifiedLrocSpk.bsp")
         if os.path.exists(tempSpkPath):
             os.remove(tempSpkPath)
 
@@ -226,17 +229,17 @@ def main():
         os.system(cmd)
         if not os.path.exists(tempSpkPath):
             print 'Error! Failed to create modified SPK file!'
-            return 0        
-        
+            return 1
+
         # Re-run spiceinit using the new SPK file
         os.system("spiceinit from=" + options.outputPath + " spk=" + tempSpkPath)
 
 
         #DEBUG
-        campPath = os.path.join(outputFolder, "campt_modified.txt") 
-        cmd = "campt from=" + options.outputPath + " > "+campPath
-        print cmd
-        os.system(cmd)
+        #campPath = os.path.join(outputFolder, "campt_modified.txt") 
+        #cmd = "campt from=" + options.outputPath + " > "+campPath
+        #print cmd
+        #os.system(cmd)
 
         # Clean up temporary files
         if not options.keep:

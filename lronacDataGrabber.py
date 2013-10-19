@@ -18,13 +18,13 @@
 
 import sys
 
-sys.path.append('/home/smcmich1/.local/lib/python2.7/site-packages/')
+#sys.path.append('/home/smcmich1/.local/lib/python2.7/site-packages/')
 from BeautifulSoup import BeautifulSoup
 
 import os, glob, optparse, re, shutil, subprocess, string, time, urllib, urllib2
 
 #TODO: Clean this up!
-sys.path.append('/home/smcmich1/programs/mechanize-0.2.5/')
+#sys.path.append('/home/smcmich1/programs/mechanize-0.2.5/')
 
 import mechanize
 
@@ -57,6 +57,55 @@ def wait_on_all_jobs():
 #--------------------------------------------------------------------------------
 
 
+# Gets the download links to the LE and RE parts of a given LRONAC ID
+def getLinksForImgFile(productId):
+
+  pdsUrl = 'http://wms.lroc.asu.edu/lroc/search'
+
+  # Open browser object to ASU data search page 
+  br = mechanize.Browser()
+  br.open(pdsUrl)
+
+  # Get unnamed form handle, set product ID filter
+  br.form = list(br.forms())[0]
+  control = br.form.find_control("filter[product_id]")
+  control.value = productId #'M112646261'
+
+  # Submit the form, then parse the response of the form submission
+  response       = br.submit()
+  parsedResponse = BeautifulSoup(response.read()); 
+
+  # Get the links to the LE and RE file pages
+  resultsNode = parsedResponse.find(id="table")
+
+  leftRegex  = "M[0-9]*LE$"
+  rightRegex = "M[0-9]*RE$"
+  leftLink  = 'NOT_FOUND'
+  rightLink = 'NOT_FOUND'
+  for line in resultsNode.findAll('a'):
+    if re.search( leftRegex, line.get('href')):
+      leftLink = 'http://wms.lroc.asu.edu' + line.get('href')
+    if re.search( rightRegex, line.get('href')):
+      rightLink = 'http://wms.lroc.asu.edu' + line.get('href')
+
+  # Extract the left and right EDR paths
+  leftEdrPath  = 'NOT_FOUND'
+  rightEdrPath = 'NOT_FOUND'
+  if (leftLink != 'NOT_FOUND'):
+    leftPage  = BeautifulSoup(urllib2.urlopen(leftLink).read())
+    for link in leftPage.findAll('a'):
+      if link.string == 'Download EDR':
+        leftEdrPath = link.get('href')
+  if (rightLink != 'NOT_FOUND'):
+    rightPage = BeautifulSoup(urllib2.urlopen(rightLink).read())
+    for link in rightPage.findAll('a'):
+      if link.string == 'Download EDR':
+        rightEdrPath = link.get('href')
+
+  # Return the output
+  results = (leftEdrPath, rightEdrPath)
+#  print results
+  return results
 
 # Retrieves LOLA data from the WUSTL REST web interface
 def retrieveLolaFile(minLat, maxLat, minLon, maxLon, outputFolder):
@@ -67,10 +116,12 @@ def retrieveLolaFile(minLat, maxLat, minLon, maxLon, outputFolder):
     locationParams = 'maxlat='+str(maxLat)+'&minlat='+str(minLat)+'&westernlon='+str(minLon)+'&easternlon='+str(maxLon)
 
     queryUrl = lolaUrl + baseQuery + locationParams
+    print queryUrl
 
     # Parse the response
     parsedPage = BeautifulSoup(urllib2.urlopen((queryUrl)).read())
-    
+    print parsedPage.prettify()
+
     # Find the link containing '_pts_csv.csv' and download it
     found = False
     for url in parsedPage.findAll('url'):
@@ -81,60 +132,9 @@ def retrieveLolaFile(minLat, maxLat, minLon, maxLon, outputFolder):
     return found
 
 
-# Gets the download links to the LE and RE parts of a given LRONAC ID
-def getLinksForImgFile(productId):
-
-	pdsUrl = 'http://wms.lroc.asu.edu/lroc/search'
-
-	# Open browser object to ASU data search page 
-	br = mechanize.Browser()
-	br.open(pdsUrl)
- 
-	# Get unnamed form handle, set product ID filter
-	br.form = list(br.forms())[0]
-	control = br.form.find_control("filter[product_id]")
-	control.value = productId #'M112646261'
-
-	# Submit the form, then parse the response of the form submission
-	response = br.submit()
-	parsedResponse = BeautifulSoup(response.read())
-
-
-	# Get the links to the LE and RE file pages
-	resultsNode = parsedResponse.find(id="table")
-
-	leftRegex  = "M[0-9]*LE$"
-	rightRegex = "M[0-9]*RE$"
-	leftLink  = 'NOT_FOUND'
-	rightLink = 'NOT_FOUND'
-	for line in resultsNode.findAll('a'):
-		if re.search( leftRegex, line.get('href')):
-			leftLink = 'http://wms.lroc.asu.edu' + line.get('href')
-		if re.search( rightRegex, line.get('href')):
-			rightLink = 'http://wms.lroc.asu.edu' + line.get('href')
-
-	# Extract the left and right EDR paths
-	leftEdrPath  = 'NOT_FOUND'
-	rightEdrPath = 'NOT_FOUND'
-	if (leftLink != 'NOT_FOUND'):
-		leftPage  = BeautifulSoup(urllib2.urlopen(leftLink).read())
-		for link in leftPage.findAll('a'):
-			if link.string == 'Download EDR':
-				leftEdrPath = link.get('href')
-	if (rightLink != 'NOT_FOUND'):
-		rightPage = BeautifulSoup(urllib2.urlopen(rightLink).read())
-		for link in rightPage.findAll('a'):
-			if link.string == 'Download EDR':
-				rightEdrPath = link.get('href')
-
-	# Return the output
-	results = (leftEdrPath, rightEdrPath)
-	return results
-
-
 # Obtains the full list of files required to replicate ASU's DEMs from their webpage
-def getDataList():
-    baseUrl     = "http://wms.lroc.asu.edu/lroc/dtm_select?page="
+def getDataList(outputFilePath):
+    baseUrl     = "http://wms.lroc.asu.edu/lroc/rdr_product_select?page="
     currentPage = 1
 
     # Get URL to current page
@@ -143,11 +143,12 @@ def getDataList():
     # Parse the current page
     parsedIndexPage = BeautifulSoup(urllib2.urlopen((currentPageUrl)).read())
 
+    #print parsedIndexPage.prettify()
 
     # Figure out how many pages in total
     largestPage = 1
-    pageNavNode = parsedIndexPage.find(id="dtm_select_pagenav")
-    for line in pageNavNode.findAll('a'):
+    #pageNavNode = parsedIndexPage.find(id="dtm_select_pagenav")
+    for line in parsedIndexPage.findAll('a'):
         index = line.get('href').find("page=")
         if ( index >= 0 ):  
             if (line.string.find("Next") < 0):
@@ -158,70 +159,112 @@ def getDataList():
 
 	# Loop through all index pages and collect DEM pages
     dtmPageList = []
-    for currentPage in range(1,largestPage+1):
-        currentPageUrl  = baseUrl + str(currentPage)
-        parsedIndexPage = BeautifulSoup(urllib2.urlopen((currentPageUrl)).read())
-        tableNode       = parsedIndexPage.find(id="dtm_select_selectiontable")
-        for line in tableNode.findAll('a'):	
-            if (line.get('href').find("dtm_detail")	> 0):
-                dtmPageList.append('http://wms.lroc.asu.edu/' + line.get('href'))
-		
+    for currentPage in range(4,largestPage+1):
+        currentPageUrl  = baseUrl + str(currentPage) + '&sort=time_reverse'
+        parsedIndexPage = BeautifulSoup(urllib2.urlopen(currentPageUrl).read())
+        #tableNode       = parsedIndexPage.find(id="dtm_select_selectiontable")
+        for line in parsedIndexPage.findAll('a'):	
+            if (line.get('href').find("view_rdr")	> 0):
+                dtmPageList.append('http://wms.lroc.asu.edu' + line.get('href'))
+
     print "Found " + str(len(dtmPageList)) + " DEM pages"
 
-    outputFilePath = 'logFile.txt'
     outputFile = open(outputFilePath, 'w')
 
 	# Loop through all individual pages and get download links
     for p in dtmPageList:
 
 #		print p
-        thisPage        = BeautifulSoup(urllib2.urlopen((p)).read())
-        downloadSection = thisPage.find(id="dtm_downloads")	
+        thisPage = BeautifulSoup(urllib2.urlopen(p).read())
+
+        downloadSections = thisPage.findAll(attrs={"class": "download_container"})
+        if len(downloadSections) > 1:
+            downloadSection  = downloadSections[1] # Want the second of two instances of this
+        else:
+            downloadSection = thisPage # Probably going to fail later
 
         # Find the two input files (the links are not here but we can get the names)
         firstImgFile  = "NOT_FOUND"
         secondImgFile = "NOT_FOUND"
-        imgFileRegex  = "_M[0-9]*_[a-zA-Z0-9]*.IMG$"
+        #imgFileRegex  = "_M[0-9]*_[a-zA-Z0-9]*$"
+        imgFileRegex  = "_M[0-9]*_[0-9C]*M$" 
         for line in downloadSection.findAll('a'):
-
             matchObj = re.search( imgFileRegex, line.get('href'))
             if matchObj:
-                    startIndex = line.string.rfind("_M")  + 1
-                    stopIndex  = line.string.find("_", startIndex) 
-                    imgFile    = line.string[startIndex:stopIndex]
-                    if (firstImgFile  == "NOT_FOUND"):
-                        firstImgFile = imgFile
-                    else:
-                        if imgFile != firstImgFile:
-                            secondImgFile = imgFile
-                            break
+                #startIndex = line.string.rfind("_M")  + 1
+                #stopIndex  = line.string.find("_", startIndex) 
+                #imgFile    = line.string[startIndex:stopIndex]
+                if (firstImgFile  == "NOT_FOUND"):
+                    firstImgFile = line.get('href')
+                else:
+                    if line.get('href') != firstImgFile:
+                        secondImgFile = line.get('href')
+                        break
+
+#        print firstImgFile
+#        print secondImgFile
 
 		# Find the ASU DEM	
         demLink = "NOT_FOUND"
         for line in downloadSection.findAll('a'):
-            if  line.get('href').find(".TIF") >= 0:
+            #if  line.get('href').find(".TIF") >= 0:
+            if line.string and line.string.find("(32-bit GeoTIFF)") >= 0:
                 demLink = line.get('href')
                 break
 
-        # Get the lat/lon boundaries
-        positionNode = thisPage.find(id="detailtable")
-        rows         = positionNode.findAll('tr')
-   		
-        cols   = rows[0].findAll('td')
-        minLat = cols[1].string
-        maxLat = cols[3].string
-   		
-        cols   = rows[1].findAll('td')
-        minLon = cols[1].string
-        maxLon = cols[3].string
+#        print demLink
 
-		# Track down the links to the input files
+        if (demLink!= "NOT_FOUND"): # Get real DEM link and boundaries
+            url     = 'http://wms.lroc.asu.edu' + demLink
+            demPage = BeautifulSoup(urllib2.urlopen(url).read())
+
+            # Get the full download link
+            pos          = demLink.rfind('/')
+            demName      = demLink[pos+1:]
+            demLinkFound = False
+            searchText   = demName+'.TIF'
+            print searchText
+            for line in demPage.findAll('a'):
+                if line.get('href').find(searchText) > 0:
+                    demLink = line.get('href')
+                    demLinkFound = True
+                    break
+            if not demLinkFound: # Note if we failed to find the entire DEM link
+                for line in demPage.findAll('a'):
+                    print line
+                demLink = 'NOT_FOUND'
+
+            # Get the lat/lon boundaries
+            tableTop     = demPage.find(attrs={"class": "presentable_data"})
+            positionNode = tableTop.contents[1]   
+            rows         = positionNode.findAll('tr')
+
+            cols   = rows[0].findAll('td')
+            maxLon = cols[1].string
+            maxLat = cols[3].string
+
+            cols   = rows[1].findAll('td')
+            minLat = cols[1].string
+            minLon = cols[3].string
+
+        else:
+            demLink = p # Record the full URL so it is easier to check why we failed to find the DEM
+
+
+        # Track down the links to the input files
         if (firstImgFile != "NOT_FOUND"):
-        	print 'Finding links for image ' + firstImgFile
-        	firstImgDownloadPaths  = getLinksForImgFile(firstImgFile)
+          startIndex = firstImgFile.rfind("_M")  + 1
+          stopIndex  = firstImgFile.find("_", startIndex) 
+          productId  = firstImgFile[startIndex:stopIndex]          
+          print 'Finding links for image ' + productId
+          firstImgDownloadPaths  = getLinksForImgFile(productId)
         if (secondImgFile != "NOT_FOUND"):
-        	print 'Finding links for image ' + secondImgFile
-        	secondImgDownloadPaths = getLinksForImgFile(secondImgFile)
+          startIndex = secondImgFile.rfind("_M")  + 1
+          stopIndex  = secondImgFile.find("_", startIndex) 
+          productId  = secondImgFile[startIndex:stopIndex]          
+          print 'Finding links for image ' + productId
+          secondImgDownloadPaths  = getLinksForImgFile(productId)
+
 
         # Log the results
         outputFile.write('----------------------------------------------\n')
@@ -266,8 +309,8 @@ def retrieveDataFiles(logPath, outputDir):
 
             # wget DEM
             #			print "wget --directory-prefix=" + currentOutputFolder + "  " + asuUrl
-            if not os.path.exists(asuDemPath.strip()):
-                os.system("wget -P " + currentOutputFolder + "  " + asuUrl)
+#            if not os.path.exists(asuDemPath.strip()):
+#                os.system("wget -P " + currentOutputFolder + "  " + asuUrl)
  
         elif (line.find('.IMG') >= 0):
             # wget image
@@ -276,8 +319,8 @@ def retrieveDataFiles(logPath, outputDir):
             imgCopyPath = currentOutputFolder + '/' + imgFileName
             #			print "wget -P " + currentOutputFolder + "  " + imgUrl
             print imgCopyPath
-            if not os.path.exists(imgCopyPath):
-                os.system("wget -P " + currentOutputFolder + "  " + imgUrl)
+#            if not os.path.exists(imgCopyPath):
+#                os.system("wget -P " + currentOutputFolder + "  " + imgUrl)
 
         # Read bounding box
         elif (line.find('Min lat') >= 0):
@@ -288,8 +331,7 @@ def retrieveDataFiles(logPath, outputDir):
             minLon = float(line[10:])
         elif (line.find('Max lon') >= 0): # The last BB entry, download the LOLA data file
             maxLon = float(line[10:])            
-            TODO: Verify this!
-            retrieveLolaFile(minLat, maxLat, minLon, maxLon, currentOutputFolder):
+            retrieveLolaFile(minLat, maxLat, minLon, maxLon, currentOutputFolder)
 
 
 
@@ -325,14 +367,14 @@ def main():
 
         startTime = time.time()
 
-        retrieveLolaFile(12.0, 12.1, 10.0, 10.1, '~/repot/lronacPipeline')
+#        retrieveLolaFile(12.0, 12.1, 10.0, 10.1, '~/repot/lronacPipeline')
 
 
-#        getDataList()
+        getDataList('/home/smcmich1/repo/lronacPipeline/logFile.txt')
 	
         # Download all of the data we need 
         print 'Retrieving data files'
-        #retrieveDataFiles('logFile.txt', options.inputFolder)
+        #retrieveDataFiles('/home/smcmich1/repo/lronacPipeline/logFile_small.txt', options.inputFolder)
 
         endTime = time.time()
 

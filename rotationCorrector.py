@@ -177,6 +177,10 @@ def main():
         startTime = time.time()
 
         outputFolder = os.path.dirname(options.outputPath)
+        inputBaseName = os.path.basename(options.leftPath)
+        tempFolder    = outputFolder + '/' + inputBaseName + '_rotCorrectTemp/'
+        if not os.path.exists(tempFolder):
+            os.mkdir(tempFolder) 
 
         # File must already have had spiceinit called
 
@@ -187,23 +191,23 @@ def main():
         os.system(cmd)
 
         # Call head -120 on file
-        tempTextPath = os.path.join(outputFolder, "headOutput.txt")
+        tempTextPath = os.path.join(tempFolder, "headOutput.txt")
         cmd = "head -120 "+options.outputPath+" > "+tempTextPath
         print cmd
         os.system(cmd)
         if not os.path.exists(tempTextPath):
             print 'Error! Failed to extract cube kernel data!'
-            return 0
-        
+            return 1
+
         # Parse output looking for the IK frame file
         print 'Looking for source frame file...'
         inputFramePath = parseHeadOutput(tempTextPath)
         if not inputFramePath:
             print 'Error! Unable to find any IK kernel file in ' + tempTextPath
-            return 0
+            return 1
 
         # Make sure the output path does not already exist
-        rotationAnglePath = os.path.join(outputFolder, "solvedRotationAngles.txt")
+        rotationAnglePath = os.path.join(tempFolder, "solvedRotationAngles.txt")
         if os.path.exists(rotationAnglePath):
             os.remove(rotationAnglePath)
         
@@ -214,7 +218,7 @@ def main():
         os.system(cmd)
         if not os.path.exists(rotationAnglePath):
             print 'Error! Failed to solve for rotation angles!'
-            return 0
+            return 1
         
         # Read the rotation angles
         newRotation = readRotationFile(rotationAnglePath)
@@ -224,7 +228,7 @@ def main():
 #        newRotationAngles = [10, 0, 20]
 
         # Generate a modified frame file
-        tempIkPath='angleCorrectedIkFile.tf'
+        tempIkPath = os.path.join(tempFolder, "angleCorrectedIkFile.tf")
         modifyFrameFile(inputFramePath, tempIkPath, newRotation)
         
         # Re-run spiceinit (on the copied RE file) using the new frame file

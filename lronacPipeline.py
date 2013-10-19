@@ -138,17 +138,17 @@ def makeDem(demFolder):
     numThreads = 2
 
     #TODO: These should be passed into lronac2mosaic.py!
-    mosaicNameA = os.path.splitext(leftImgA)[0] + '.lronaccal.lronacecho.noproj.mosaic.norm.cub'
-    mosaicNameB = os.path.splitext(leftImgB)[0] + '.lronaccal.lronacecho.noproj.mosaic.norm.cub'
+    mosaicNameA = os.path.splitext(leftImgA)[0] + '.lronaccal.lronacecho.posCorrected.noproj.mosaic.norm.cub'
+    mosaicNameB = os.path.splitext(leftImgB)[0] + '.lronaccal.lronacecho.posCorrected.noproj.mosaic.norm.cub'
 
     # Merge the two LRONAC pairs 
 #    keepstring = ' --keep' # Keeping temp files
     keepstring = '' # Not keeping temp files
     if not os.path.exists(mosaicNameA):
-        cmd = 'lronac2mosaic.py ' + leftImgA + ' ' + rightImgA + keepstring
+        cmd = '~/repo/lronacPipeline/lronac2mosaic_v2.py ' + leftImgA + ' ' + rightImgA + keepstring
         add_job(cmd, numThreads)
     if not os.path.exists(mosaicNameB):
-        cmd = 'lronac2mosaic.py ' + leftImgB + ' ' + rightImgB + keepstring
+        cmd = '~/repo/lronacPipeline/lronac2mosaic_v2.py ' + leftImgB + ' ' + rightImgB + keepstring
         add_job(cmd, numThreads)
     
     wait_on_all_jobs()
@@ -262,10 +262,10 @@ def compareDems(demPath, asuDemPath, lolaDataPath):
     asuDiffStatsPath     = outputFolder + '/ASU_diff_stats.txt'
     lolaDiffStatsPath    = outputFolder + '/LOLA_diff_stats.txt'
     lolaAsuDiffStatsPath = outputFolder + '/LOLA_ASU_diff_stats.txt'
-    
+
 
     numThreads = 2
-    
+
     # The geodiff tool can compare two geotif DEMs and produce a difference image
     print asuAlignedDemPath
     print asuDemPath
@@ -279,8 +279,8 @@ def compareDems(demPath, asuDemPath, lolaDataPath):
     if (os.path.exists(geodiffOutputPath)) and (not os.path.exists(asuDiffStatsPath)):
         cmd = 'imagestats --limit-hist=2 -i ' + geodiffOutputPath + ' -o ' + asuDiffStatsPath
         add_job(cmd, numThreads)       
-    
-    #bsolute  Call script to compare LOLA data with the DEM
+
+    # Call script to compare LOLA data with the DEM
     if (os.path.exists(lolaDataPath)) and (os.path.exists(lolaAlignedDemPath)) and (not os.path.exists(lolaDiffStatsPath)):
         cmd = 'lola_compare --absolute --limit-hist=2 -l "' + lolaDataPath + '" -d ' + lolaAlignedDemPath + ' -o ' + lolaDiffStatsPath
         add_job(cmd, numThreads)    

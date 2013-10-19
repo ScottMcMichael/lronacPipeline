@@ -57,9 +57,9 @@ using std::setw;
 
 
 
-namespace vw{
-namespace math{
-
+/*
+//-----------------------------------------------------------------------------------------------------------
+// Copy of class to allow easy insertion of debug statements
   template <class ImplT>
   typename ImplT::domain_type levenberg_marquardt_V( LeastSquaresModelBase<ImplT> const& least_squares_model,
                                                    typename ImplT::domain_type const& seed,
@@ -249,9 +249,9 @@ namespace math{
   }
 
 }} // end vw::math
+*/
 
-
-
+//----------------------------------------------------------------------------------------------------------------
 
 
 
@@ -261,8 +261,11 @@ struct Parameters : asp::BaseOptions
   std::string leftFilePath;
   std::string rightFilePath;
   std::string outputPath;
+  std::string matchingPointsPath; ///< If not set, ipfind/ransac is used to find matching points
 
-  int   cropWidth;  
+  bool worldTransform; ///< Solve for transform in world coordinate frame instead of camera frame
+
+  int   cropWidth; ///< Specifies image overlap for use with ipfind
 };
 
 
@@ -272,8 +275,10 @@ bool handle_arguments(int argc, char* argv[],
 { 
   po::options_description general_options("Options");
   general_options.add_options()
-    ("outputPath", po::value(&opt.outputPath)->default_value(""),  "Write angles to this path (in degrees)")
-    ("crop-width", po::value(&opt.cropWidth )->default_value(200), "Crop images to this width before disparity search");
+    ("outputPath",         po::value(&opt.outputPath)->default_value(""),  "Write angles to this path (in degrees)")
+    ("matchingPixelsPath", po::value(&opt.matchingPointsPath)->default_value(""),  "File to load matching points from")
+    ("worldTransform",     po::bool_switch(&opt.worldTransform)->default_value(false),  "Compute transform in world frame instead of camera frame")
+    ("crop-width",         po::value(&opt.cropWidth )->default_value(200), "Crop images to this width before disparity search");
   
   general_options.add( asp::BaseOptionsDescription(opt) );
     
@@ -323,11 +328,14 @@ public:  // Definitions
 private: // Variables
   
   // Camera models
-  vw::camera::IsisCameraModel     _leftCameraModel;
-  vw::camera::IsisCameraModel     _rightCameraModel;
+  asp::isis::IsisInterfaceLineScan _leftCameraModel;
+  asp::isis::IsisInterfaceLineScan _rightCameraModel;
   
-  //mutable vw::camera::AdjustedCameraModel _rightCameraRotatedModel;
+  bool _solveWorldFrame;
   
+  mutable vw::camera::AdjustedCameraModel _rightCameraRotatedModel;
+  
+  //TODO: Modify this class so that the rays from this task can be used!
   //vw::stereo::StereoModel         _stereoModel;
   
   // Observation records
@@ -339,9 +347,9 @@ private: // Variables
 public: // Functions  
   
   /// Constructor performs initialization
-  LrocPairModel(const std::string &leftCubePath, const std::string &rightCubePath)
-    : _leftCameraModel(leftCubePath), _rightCameraModel(rightCubePath)//, 
-      //_rightCameraRotatedModel(boost::shared_ptr<vw::camera::IsisCameraModel>(&_rightCameraModel, boost::serialization::null_deleter())),
+  LrocPairModel(const std::string &leftCubePath, const std::string &rightCubePath, const bool solveWorldFrame=false)
+    : _leftCameraModel(leftCubePath), _rightCameraModel(rightCubePath), _solveWorldFrame(solveWorldFrame), 
+      _rightCameraRotatedModel(boost::shared_ptr<vw::camera::CameraModel>(&_rightCameraModel, boost::serialization::null_deleter()))
       //_stereoModel(&_leftCameraModel, &_rightCameraRotatedModel) // Only the right camera is rotated
   {
     // Both camera models are loaded from file on initialization
@@ -350,9 +358,25 @@ public: // Functions
   
   /// Test functions to get a single pixel vector
   Vector3 getLeftVector (const Vector2& pixel) {return vw::math::normalize(_leftCameraModel.pixel_to_vector (pixel));}
-  Vector3 getRightVector(const Vector2& pixel) {return vw::math::normalize(_rightCameraModel.pixel_to_vector(pixel));}
-
-  Vector2 getRightPixelRot(const Vector3& point, const Vector3& rot) {return vw::math::normalize(_rightCameraModel.point_to_pixel_rotated(point, rot));}
+  Vector3 getRightVector(const Vector2& pixel) 
+  {
+    if (_solveWorldFrame)
+      return vw::math::normalize(_rightCameraRotatedModel.pixel_to_vector(pixel));
+    else // Camera frame
+      return vw::math::normalize(_rightCameraModel.pixel_to_vector(pixel));
+  }
+  
+  Vector2 getRightPixelRot(const Vector3& point, const Vector3& rot)
+  {
+    if (_solveWorldFrame)
+    {
+      _rightCameraRotatedModel.set_axis_angle_rotation(rot);
+      return vw::math::normalize(_rightCameraRotatedModel.point_to_pixel(point));
+    }
+    else // Camera frame
+      return vw::math::normalize(_rightCameraModel.point_to_pixel_rotated(point, rot));
+  }
+  
 
   /// Given the pixel pair observations, compute the initial state estimate.
   /// - This also loads the observation vectors and returns a packed version of them.
@@ -416,7 +440,7 @@ public: // Functions
       Quaternion<double> rightCamPose = vw::math::normalize(_rightCameraModel.camera_pose(rightPixel));
       Vector3            leftVec      = vw::math::normalize(_leftCameraModel.pixel_to_vector (leftPixel));
       Vector3            rightVec     = vw::math::normalize(_rightCameraModel.pixel_to_vector(rightPixel));
-      double             vectorAngle  = acos(vw::math::dot_prod(leftVec, rightVec));
+      //double             vectorAngle  = acos(vw::math::dot_prod(leftVec, rightVec));
       Quaternion<double> conjLeftPose = vw::math::conj(leftCamPose);
       Quaternion<double> invLeftPose  = vw::math::inverse(leftCamPose);
       Quaternion<double> rotDiff      = rightCamPose*invLeftPose;
@@ -482,7 +506,7 @@ public: // Functions
       
       if (camRadius < intersectionRadius)
       {
-        printf("Warning: Point %d, reverse intersection!  Using previous point location as an estimate.\n", i);
+        printf("Warning: Point %lu, reverse intersection!  Using previous point location as an estimate.\n", i);
         printf("%lf < %lf\n", camRadius, intersectionRadius);
         if (i == 0) // No previous point to copy
           pointLoc = leftCamCenter + (leftVec*37000); // Extend 37km from left camera
@@ -519,6 +543,8 @@ public: // Functions
   
     Vector3 rotVec(x[0], x[1], x[2]);
     
+    _rightCameraRotatedModel.set_axis_angle_rotation(rotVec);
+
         // For each input point pair
     Vector3 pointLoc, lastPointLoc;
     for (size_t i=0; i<numPoints; ++i)
@@ -530,7 +556,12 @@ public: // Functions
       
       // Project to pixel locations                  
       Vector2 leftProjection  = _leftCameraModel.point_to_pixel(thisPoint);
-      Vector2 rightProjection = _rightCameraModel.point_to_pixel_rotated(thisPoint, rotVec);
+      Vector2 rightProjection;
+      if (_solveWorldFrame)
+        rightProjection = _rightCameraRotatedModel.point_to_pixel(thisPoint);
+      else // Camera frame
+        rightProjection = _rightCameraModel.point_to_pixel_rotated(thisPoint, rotVec);
+      
                         
       // Compare to observed pixel locations
       Vector2 leftObsPoint (_leftCols [i], _leftRows [i]);
@@ -548,68 +579,6 @@ public: // Functions
     
     return errorVector;
       
-/*   
-    
-    // For each input point pair
-    Vector3 pointLoc, lastPointLoc;
-    for (size_t i=0; i<numPoints; ++i)
-    {
-      // Set up point pair
-      Vector2 leftPixel (_leftCols[i],  _leftRows[i]);
-      Vector2 rightPixel(_rightCols[i], _rightRows[i]);
-      
-      //// Apply the current camera rotation
-      //Vector3 currentRotVec(x[0], x[1], x[2]);
-      //_rightCameraRotatedModel.set_axis_angle_rotation(currentRotVec);
-      
-      double triangulationError;
-//      pointLoc = _stereoModel(leftPixel, rightPixel, triangulationError); // Not working!
-
-      // Compute the intersection location
-      Vector3 leftCamCenter  = _leftCameraModel.camera_center(leftPixel);
-      Vector3 rightCamCenter = _rightCameraModel.camera_center(rightPixel);      
-      
-      Quaternion<double> leftCamPose  = vw::math::normalize(_leftCameraModel.camera_pose (leftPixel));
-      Quaternion<double> rightCamPose = vw::math::normalize(_rightCameraModel.camera_pose(rightPixel));
-      Vector3            leftVec      = vw::math::normalize(_leftCameraModel.pixel_to_vector (leftPixel));
-      Vector3            rightVec     = vw::math::normalize(_rightCameraModel.pixel_to_vector(rightPixel));
-      double             vectorAngle  = acos(vw::math::dot_prod(leftVec, rightVec));
-      Quaternion<double> conjLeftPose = vw::math::conj(leftCamPose);
-      Quaternion<double> invLeftPose  = vw::math::inverse(leftCamPose);
-      Quaternion<double> rotDiff      = rightCamPose*invLeftPose;
-      Vector3 axis; double angle;
-      rotDiff.axis_angle(axis, angle);
-
-      
-  Vector3 v12 = cross_prod(leftVec, rightVec);
-  Vector3 v1 = cross_prod(v12, leftVec);
-  Vector3 v2 = cross_prod(v12, rightVec);
-
-  Vector3 closestPoint1 = leftCamCenter  + dot_prod(v2, rightCamCenter-leftCamCenter )/dot_prod(v2, leftVec )*leftVec;
-  Vector3 closestPoint2 = rightCamCenter + dot_prod(v1, leftCamCenter -rightCamCenter)/dot_prod(v1, rightVec)*rightVec;
-  Vector3 midPoint = 0.5 * (closestPoint1 + closestPoint2);
-  pointLoc = midPoint; // HIJACK TRIANGULATION CALCULATIONS!
-      
-  Vector3 errorVec = closestPoint1 - closestPoint2;
-  triangulationError = vw::math::norm_2(errorVec);
-            
-      // Sanity check
-      const double intersectionRadius = vw::math::norm_2(midPoint);
-      const double camRadius          = vw::math::norm_2(rightCamCenter);
-      if (camRadius < intersectionRadius)
-      {
-        printf("Warning: Point %d, reverse intersection!  Using previous point location as an estimate.\n", i);
-//        if (i == 0)
-//          return false; //TODO: Handle this
-        pointLoc = lastPointLoc; // For now our best guess to a failed projection is the previous point projection (at least it is in front of the camera!)
-      }
-        else lastPointLoc = pointLoc;
-      
-      errorVector[i] = triangulationError;
-    } // End loop through points
-    
-    return errorVector;
-    */
   } // end computeError()
   
 
@@ -622,7 +591,8 @@ public: // Functions
 
     // Apply the rotations from the state vector to the right LROC camera model
     Vector3 rotVec(x[0], x[1], x[2]);
-    //_rightCameraRotatedModel.set_axis_angle_rotation(rotVec);
+    if (_solveWorldFrame)
+      _rightCameraRotatedModel.set_axis_angle_rotation(rotVec);
   
     const double rad2deg = 180.0 / M_PI;
     //printf("Trying rotation %lf, %lf, %lf\n", x[0]*rad2deg, x[1]*rad2deg, x[2]*rad2deg);
@@ -649,8 +619,10 @@ public: // Functions
       try
       {
         leftProjection  = _leftCameraModel.point_to_pixel(thisPoint);
-        //rightProjection = _rightCameraRotatedModel.point_to_pixel(thisPoint);
-        rightProjection = _rightCameraModel.point_to_pixel_rotated(thisPoint, rotVec);
+        if (_solveWorldFrame)
+          rightProjection = _rightCameraRotatedModel.point_to_pixel(thisPoint);
+        else // Camera frame
+          rightProjection = _rightCameraModel.point_to_pixel_rotated(thisPoint, rotVec);
       }
       catch(...)
       {
@@ -698,36 +670,21 @@ public: // Functions
 }; // End class LrocPairModel
 //----------------------------------------------------------------------------------------------------------------
 
-bool optimizeRotations(Parameters & params)
+// Load mathing points from a file
+bool loadMatchingPixels(const std::string &pointPath,
+          Vector<double> &leftRow, Vector<double> &leftCol, Vector<double> &rightRow, Vector<double> &rightCol)
 {
   
-  // Verify images are present
-  boost::filesystem::path leftBoostPath (params.leftFilePath );
-  boost::filesystem::path rightBoostPath(params.rightFilePath);
   
-  if (!boost::filesystem::exists(boost::filesystem::path(params.leftFilePath)))
-  {
-    printf("Error: input file %s is missing!\n", params.leftFilePath.c_str());
-    return false;
-  }
-  if (!boost::filesystem::exists(boost::filesystem::path(params.rightFilePath)))
-  {
-    printf("Error: input file %s is missing!\n", params.rightFilePath.c_str());
-    return false;
-  }
-
-  printf("Constructing geometry class\n");
-
-  // Initialize the geometry/solver class for the two input cubes
-  LrocPairModel lrocClass(params.leftFilePath, params.rightFilePath);
+  //TODO: Read in output file from qtie!
   
-  //DEBUG - call functions with fixed points to print some pixel info (no rotation)
-  lrocClass.getRightPixelRot(Vector3(-1.09977e+06, 387050, 1.29165e+06), Vector3());
-  lrocClass.getRightPixelRot(Vector3(-1.09272e+06, 384682, 1.29613e+06), Vector3());
-  lrocClass.getRightPixelRot(Vector3(-1.08521e+06, 382190, 1.2999e+06 ), Vector3());
-  lrocClass.getRightPixelRot(Vector3(-1.07943e+06, 380243, 1.30479e+06), Vector3());
+  return false;
+}
 
-  
+// Search for matching pixels in the LE/RE overlap
+bool findMatchingPixels(const Parameters &params, Vector<double> &leftRow, Vector<double> &leftCol, Vector<double> &rightRow, Vector<double> &rightCol)
+{
+ 
   // Load both images  
   printf("Loading images left=%s and right=%s...\n",
          params.leftFilePath.c_str(),
@@ -738,10 +695,10 @@ bool optimizeRotations(Parameters & params)
   printf("Left  input image size: %d rows, %d cols\n", left_disk_image.rows(),  left_disk_image.cols());
   printf("Right input image size: %d rows, %d cols\n", right_disk_image.rows(), right_disk_image.cols());
   
-  const int imageWidth      = std::min(left_disk_image.cols(), right_disk_image.cols());
+  //const int imageWidth      = std::min(left_disk_image.cols(), right_disk_image.cols());
   const int imageHeight     = std::min(left_disk_image.rows(), right_disk_image.rows());
   const int imageTopRow     = 0;
-  const int imageMidPointX  = imageWidth / 2;
+  //const int imageMidPointX  = imageWidth / 2;
   //const int cropStartX      = imageMidPointX - (params.cropWidth/2);
 
   // Restrict processing to the border of the images
@@ -763,7 +720,7 @@ bool optimizeRotations(Parameters & params)
   printf("Found %lu, %lu interest points.\n", ip1.size(), ip2.size());
       
   ip::SGradDescriptorGenerator descriptor;
-  describe_interest_points( vw::create_mask_less_or_equal(crop(left_disk_image,  leftRoi), 0), descriptor, ip1 );
+  describe_interest_points( vw::create_mask_less_or_equal(crop(left_disk_image,  leftRoi ), 0), descriptor, ip1 );
   describe_interest_points( vw::create_mask_less_or_equal(crop(right_disk_image, rightRoi), 0), descriptor, ip2 );
 
   // Match interest points
@@ -806,9 +763,7 @@ bool optimizeRotations(Parameters & params)
     // Get list of interest points consistent with the transform
     std::vector<size_t> inlierIndicesF = ransac.inlier_indices(H, ransac_ip1, ransac_ip2); //TODO: Why is this failing?
     size_t numInliers = inlierIndicesF.size(); 
-    printf("Found %d inliers\n", numInliers);
-    
-    math::InterestPointErrorMetric metric;
+    printf("Found %lu inliers\n", numInliers);
     
     std::vector<Vector3> tempL(numInliers), tempR(numInliers);
     for (size_t i=0; i<numInliers; ++i)  // Replace contents of ransac_ip1 with inliers only
@@ -830,10 +785,10 @@ bool optimizeRotations(Parameters & params)
   // Now that we have correspondence points, feed them into an angular solver.
 
   // Convert the matching points into the correct format!
-  const int    pointSkip     = 100; 
+  const int    pointSkip     = 500; //TODO: MOVE THIS!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
   const size_t numMatchedPts = ransac_ip1.size() / pointSkip;
-  printf("Num sampled points = %d\n", numMatchedPts);
-  Vector<double> leftRow(numMatchedPts), leftCol(numMatchedPts), rightRow(numMatchedPts), rightCol(numMatchedPts);
+  printf("Num sampled points = %lu\n", numMatchedPts);
+  leftRow.set_size(numMatchedPts), leftCol.set_size(numMatchedPts), rightRow.set_size(numMatchedPts), rightCol.set_size(numMatchedPts);
   int i = 0;
   for (size_t p=0; p<numMatchedPts; ++p)
   {
@@ -843,7 +798,62 @@ bool optimizeRotations(Parameters & params)
     rightRow[p] = ransac_ip2[i][1];
     //printf("p: %d, i: %d --> %lf, %lf, %lf, %lf\n", p, i, leftCol[p], leftRow[p], rightCol[p], rightRow[p]);
     i+= pointSkip;
+  }  
+  
+  return true;
+}
+
+
+// Main solver function
+bool optimizeRotations(Parameters & params)
+{
+  
+  // Verify images are present
+  boost::filesystem::path leftBoostPath (params.leftFilePath );
+  boost::filesystem::path rightBoostPath(params.rightFilePath);
+  
+  if (!boost::filesystem::exists(boost::filesystem::path(params.leftFilePath)))
+  {
+    printf("Error: input file %s is missing!\n", params.leftFilePath.c_str());
+    return false;
   }
+  if (!boost::filesystem::exists(boost::filesystem::path(params.rightFilePath)))
+  {
+    printf("Error: input file %s is missing!\n", params.rightFilePath.c_str());
+    return false;
+  }
+
+  printf("Constructing geometry class\n");
+
+  // Initialize the geometry/solver class for the two input cubes
+  LrocPairModel lrocClass(params.leftFilePath, params.rightFilePath);
+  
+  //DEBUG - call functions with fixed points to print some pixel info (no rotation)
+  lrocClass.getRightPixelRot(Vector3(-1.09977e+06, 387050, 1.29165e+06), Vector3());
+  lrocClass.getRightPixelRot(Vector3(-1.09272e+06, 384682, 1.29613e+06), Vector3());
+  lrocClass.getRightPixelRot(Vector3(-1.08521e+06, 382190, 1.2999e+06 ), Vector3());
+  lrocClass.getRightPixelRot(Vector3(-1.07943e+06, 380243, 1.30479e+06), Vector3());
+
+  
+  Vector<double> leftRow, leftCol, rightRow, rightCol;
+  
+  if (params.matchingPointsPath.empty())
+  {
+    printf("Searching for matching pixels in image overlap region\n");
+    if (!findMatchingPixels(params, leftRow, leftCol, rightRow, rightCol))
+      return false;
+  }
+  else
+  {
+    printf("Loading list of matched pixels from file\n");
+    if (!loadMatchingPixels(params.matchingPointsPath, leftRow, leftCol, rightRow, rightCol))
+      return false;
+  }
+  
+  
+  const size_t numMatchedPts = leftRow.size();
+  
+
 
   // Load the inital points into the solver
   printf("Initializing solver state...\n");
@@ -922,9 +932,9 @@ bool optimizeRotations(Parameters & params)
   Matrix<double> initialJac = lrocClass.jacobian(initialState);
   std::ofstream initialJacFile("/home/smcmich1/initialJac.csv");
   initialJacFile.precision(3);
-  for (int r=0; r<initialJac.rows(); ++r)
+  for (size_t r=0; r<initialJac.rows(); ++r)
   {
-    for (int c=0; c<initialJac.cols(); ++c)
+    for (size_t c=0; c<initialJac.cols(); ++c)
     {
       initialJacFile << initialJac(r,c) << " ";
     }
@@ -968,9 +978,9 @@ bool optimizeRotations(Parameters & params)
   Matrix<double> finalJac = lrocClass.jacobian(finalParams);
   std::ofstream finalJacFile("/home/smcmich1/finalJac.csv");
   finalJacFile.precision(3);
-  for (int r=0; r<finalJac.rows(); ++r)
+  for (size_t r=0; r<finalJac.rows(); ++r)
   {
-    for (int c=0; c<finalJac.cols(); ++c)
+    for (size_t c=0; c<finalJac.cols(); ++c)
     {
       finalJacFile << finalJac(r,c) << " ";
     }
@@ -1036,7 +1046,11 @@ bool optimizeRotations(Parameters & params)
   //vw::math::Matrix<double,3,3> fixed_from_sc  = transpose(solvedRotation) * frameRotation;
   //vw::math::Matrix<double,3,3> outputRotation = transpose(fixed_from_sc); // == sc_from_fixed
   
-  vw::math::Matrix<double,3,3> outputRotation = transpose(frameRotation * transpose(solvedRotation)); // == sc_from_instrument(good)
+  vw::math::Matrix<double,3,3> outputRotation;
+  if (params.worldTransform)
+    outputRotation = solvedRotation;
+  else
+    outputRotation = transpose(frameRotation * transpose(solvedRotation)); // == sc_from_instrument(good)
   std::cout << "Output rotation: " << outputRotation << std::endl;
   
   //vw::math::Matrix<double,3,3> outputRotationT = transpose(frameRotation * transpose(solvedRotation));
@@ -1059,9 +1073,9 @@ bool optimizeRotations(Parameters & params)
     //outputFile << outputAngles[2]*rad2deg << std::endl; // Z rotation
 
     // Write out rotation matrix
-    for (int r=0; r<outputRotation.rows(); ++r)
+    for (unsigned int r=0; r<outputRotation.rows(); ++r)
     {
-      for (int c=0; c<outputRotation.cols(); ++c)
+      for (unsigned int c=0; c<outputRotation.cols(); ++c)
       {
         outputFile << outputRotation(r,c) << std::endl;
       }
@@ -1081,172 +1095,6 @@ bool optimizeRotations(Parameters & params)
 
 int main(int argc, char* argv[]) 
 { 
-/*
-  const double rad2deg = 180.0 / M_PI;
-  const double deg2rad = M_PI / 180.0;
-  vw::math::Matrix<double,3,3> frameRotation = vw::math::euler_to_rotation_matrix(180.0*deg2rad, -0.079*deg2rad, 1.129*deg2rad, "zyx");
-  std::cout << "zyx" << frameRotation << std::endl;
-  
-  frameRotation = vw::math::euler_to_rotation_matrix(1.129*deg2rad, -0.079*deg2rad, 180.0*deg2rad, "xyz");
-  std::cout << "xyz" << frameRotation << std::endl;
-  
-  return 0;
-
-
-  vw::math::Matrix<double,3,3> scRot(-0.725978, -0.36853, 0.580639,-0.143581,  0.906914,  0.396095,-0.672562,  0.204188, -0.711314);
-  std::cout << "scRot = " << scRot << std::endl;
-  
-  const double rad2deg = 180.0 / M_PI;
-  const double deg2rad = M_PI / 180.0;
-  
-  double rX = 1.15506;
-  double rY = -0.0847975;
-  double rZ = -179.86;
-  printf("---\n");
-  
-  vw::math::Matrix<double,3,3> frameRotation = vw::math::euler_to_rotation_matrix(rX*deg2rad, rY*deg2rad, rZ*deg2rad, "xyz");
-  std::cout << "xyz'*scRot" << transpose(frameRotation) * scRot << std::endl;
-  
-  frameRotation = vw::math::euler_to_rotation_matrix(rX*deg2rad, rZ*deg2rad, rY*deg2rad, "xzy");
-  std::cout << "xzy'*scRot" << transpose(frameRotation) * scRot << std::endl;
-
-  frameRotation = vw::math::euler_to_rotation_matrix(rZ*deg2rad, rX*deg2rad, rY*deg2rad, "zxy");
-  std::cout << "zxy'*scRot" << transpose(frameRotation) * scRot << std::endl;
-
-  frameRotation = vw::math::euler_to_rotation_matrix(rZ*deg2rad, rY*deg2rad, rX*deg2rad, "zyx");
-  std::cout << "zyx'*scRot" << transpose(frameRotation) * scRot << std::endl;
-
-  frameRotation = vw::math::euler_to_rotation_matrix(rY*deg2rad, rZ*deg2rad, rX*deg2rad, "yzx");
-  std::cout << "yzx'*scRot" << transpose(frameRotation) * scRot << std::endl;
-
-  frameRotation = vw::math::euler_to_rotation_matrix(rY*deg2rad, rX*deg2rad, rZ*deg2rad, "yxz");
-  std::cout << "yxz'*scRot" << transpose(frameRotation) * scRot << std::endl;
-  
-  
-  rX = 1.15506;
-  rZ = -0.0847975;
-  rY = -179.86;
-  printf("---\n");
-  
-   frameRotation = vw::math::euler_to_rotation_matrix(rX*deg2rad, rY*deg2rad, rZ*deg2rad, "xyz");
-  std::cout << "xyz'*scRot" << transpose(frameRotation) * scRot << std::endl;
-  
-  frameRotation = vw::math::euler_to_rotation_matrix(rX*deg2rad, rZ*deg2rad, rY*deg2rad, "xzy");
-  std::cout << "xzy'*scRot" << transpose(frameRotation) * scRot << std::endl;
-
-  frameRotation = vw::math::euler_to_rotation_matrix(rZ*deg2rad, rX*deg2rad, rY*deg2rad, "zxy");
-  std::cout << "zxy'*scRot" << transpose(frameRotation) * scRot << std::endl;
-
-  frameRotation = vw::math::euler_to_rotation_matrix(rZ*deg2rad, rY*deg2rad, rX*deg2rad, "zyx");
-  std::cout << "zyx'*scRot" << transpose(frameRotation) * scRot << std::endl;
-
-  frameRotation = vw::math::euler_to_rotation_matrix(rY*deg2rad, rZ*deg2rad, rX*deg2rad, "yzx");
-  std::cout << "yzx'*scRot" << transpose(frameRotation) * scRot << std::endl;
-
-  frameRotation = vw::math::euler_to_rotation_matrix(rY*deg2rad, rX*deg2rad, rZ*deg2rad, "yxz");
-  std::cout << "yxz'*scRot" << transpose(frameRotation) * scRot << std::endl;
-  
-  
-  rY = 1.15506;
-  rX = -0.0847975;
-  rZ = -179.86;
-  printf("---\n");
-  
-  frameRotation = vw::math::euler_to_rotation_matrix(rX*deg2rad, rY*deg2rad, rZ*deg2rad, "xyz");
-  std::cout << "xyz'*scRot" << transpose(frameRotation) * scRot << std::endl;
-  
-  frameRotation = vw::math::euler_to_rotation_matrix(rX*deg2rad, rZ*deg2rad, rY*deg2rad, "xzy");
-  std::cout << "xzy'*scRot" << transpose(frameRotation) * scRot << std::endl;
-
-  frameRotation = vw::math::euler_to_rotation_matrix(rZ*deg2rad, rX*deg2rad, rY*deg2rad, "zxy");
-  std::cout << "zxy'*scRot" << transpose(frameRotation) * scRot << std::endl;
-
-  frameRotation = vw::math::euler_to_rotation_matrix(rZ*deg2rad, rY*deg2rad, rX*deg2rad, "zyx");
-  std::cout << "zyx'*scRot" << transpose(frameRotation) * scRot << std::endl;
-
-  frameRotation = vw::math::euler_to_rotation_matrix(rY*deg2rad, rZ*deg2rad, rX*deg2rad, "yzx");
-  std::cout << "yzx'*scRot" << transpose(frameRotation) * scRot << std::endl;
-
-  frameRotation = vw::math::euler_to_rotation_matrix(rY*deg2rad, rX*deg2rad, rZ*deg2rad, "yxz");
-  std::cout << "yxz'*scRot" << transpose(frameRotation) * scRot << std::endl;
-  
-  
-  
-  rY = 1.15506;
-  rZ = -0.0847975;
-  rX = -179.86;
-  printf("---\n");
-  
-  frameRotation = vw::math::euler_to_rotation_matrix(rX*deg2rad, rY*deg2rad, rZ*deg2rad, "xyz");
-  std::cout << "xyz'*scRot" << transpose(frameRotation) * scRot << std::endl;
-  
-  frameRotation = vw::math::euler_to_rotation_matrix(rX*deg2rad, rZ*deg2rad, rY*deg2rad, "xzy");
-  std::cout << "xzy'*scRot" << transpose(frameRotation) * scRot << std::endl;
-
-  frameRotation = vw::math::euler_to_rotation_matrix(rZ*deg2rad, rX*deg2rad, rY*deg2rad, "zxy");
-  std::cout << "zxy'*scRot" << transpose(frameRotation) * scRot << std::endl;
-
-  frameRotation = vw::math::euler_to_rotation_matrix(rZ*deg2rad, rY*deg2rad, rX*deg2rad, "zyx");
-  std::cout << "zyx'*scRot" << transpose(frameRotation) * scRot << std::endl;
-
-  frameRotation = vw::math::euler_to_rotation_matrix(rY*deg2rad, rZ*deg2rad, rX*deg2rad, "yzx");
-  std::cout << "yzx'*scRot" << transpose(frameRotation) * scRot << std::endl;
-
-  frameRotation = vw::math::euler_to_rotation_matrix(rY*deg2rad, rX*deg2rad, rZ*deg2rad, "yxz");
-  std::cout << "yxz'*scRot" << transpose(frameRotation) * scRot << std::endl;
-  
-  
-  rZ = 1.15506;
-  rX = -0.0847975;
-  rY = -179.86;
-  printf("---\n");
-  
-  frameRotation = vw::math::euler_to_rotation_matrix(rX*deg2rad, rY*deg2rad, rZ*deg2rad, "xyz");
-  std::cout << "xyz'*scRot" << transpose(frameRotation) * scRot << std::endl;
-  
-  frameRotation = vw::math::euler_to_rotation_matrix(rX*deg2rad, rZ*deg2rad, rY*deg2rad, "xzy");
-  std::cout << "xzy'*scRot" << transpose(frameRotation) * scRot << std::endl;
-
-  frameRotation = vw::math::euler_to_rotation_matrix(rZ*deg2rad, rX*deg2rad, rY*deg2rad, "zxy");
-  std::cout << "zxy'*scRot" << transpose(frameRotation) * scRot << std::endl;
-
-  frameRotation = vw::math::euler_to_rotation_matrix(rZ*deg2rad, rY*deg2rad, rX*deg2rad, "zyx");
-  std::cout << "zyx'*scRot" << transpose(frameRotation) * scRot << std::endl;
-
-  frameRotation = vw::math::euler_to_rotation_matrix(rY*deg2rad, rZ*deg2rad, rX*deg2rad, "yzx");
-  std::cout << "yzx'*scRot" << transpose(frameRotation) * scRot << std::endl;
-
-  frameRotation = vw::math::euler_to_rotation_matrix(rY*deg2rad, rX*deg2rad, rZ*deg2rad, "yxz");
-  std::cout << "yxz'*scRot" << transpose(frameRotation) * scRot << std::endl;
-  
-  
-  rZ = 1.15506;
-  rY = -0.0847975;
-  rX = -179.86;
-  printf("---\n");
-  
-  frameRotation = vw::math::euler_to_rotation_matrix(rX*deg2rad, rY*deg2rad, rZ*deg2rad, "xyz");
-  std::cout << "xyz'*scRot" << transpose(frameRotation) * scRot << std::endl;
-  
-  frameRotation = vw::math::euler_to_rotation_matrix(rX*deg2rad, rZ*deg2rad, rY*deg2rad, "xzy");
-  std::cout << "xzy'*scRot" << transpose(frameRotation) * scRot << std::endl;
-
-  frameRotation = vw::math::euler_to_rotation_matrix(rZ*deg2rad, rX*deg2rad, rY*deg2rad, "zxy");
-  std::cout << "zxy'*scRot" << transpose(frameRotation) * scRot << std::endl;
-
-  frameRotation = vw::math::euler_to_rotation_matrix(rZ*deg2rad, rY*deg2rad, rX*deg2rad, "zyx");
-  std::cout << "zyx'*scRot" << transpose(frameRotation) * scRot << std::endl;
-
-  frameRotation = vw::math::euler_to_rotation_matrix(rY*deg2rad, rZ*deg2rad, rX*deg2rad, "yzx");
-  std::cout << "yzx'*scRot" << transpose(frameRotation) * scRot << std::endl;
-
-  frameRotation = vw::math::euler_to_rotation_matrix(rY*deg2rad, rX*deg2rad, rZ*deg2rad, "yxz");
-  std::cout << "yxz'*scRot" << transpose(frameRotation) * scRot << std::endl;
-  
-   
-  return 0;
-  */
-
   try 
   {
     // Parse the input parameters

@@ -24,16 +24,30 @@ cd /home/smcmich1/data/angleCorrectionTest
 #lronacecho from=M123514622RE.lronaccal.cub to=M123514622RE.lronaccal.lronacecho.cub
 
 # Apply corrected SPICE data
-/home/smcmich1/repo/lronacPipeline/positionCorrector.py --input M123514622LE.lronaccal.lronacecho.cub --output M123514622LE.corrected.cub
-/home/smcmich1/repo/lronacPipeline/positionCorrector.py --input M123514622RE.lronaccal.lronacecho.cub --output M123514622RE.corrected.cub --spk reCorrectedSpk.bsp
+#/home/smcmich1/repo/lronacPipeline/positionCorrector.py --input M123514622LE.lronaccal.lronacecho.cub --output M123514622LE.corrected.cub
+#/home/smcmich1/repo/lronacPipeline/positionCorrector.py --input M123514622RE.lronaccal.lronacecho.cub --output M123514622RE.corrected.cub --spk reCorrectedSpk.bsp
 
 # TODO: Handle kernel-spanning data!
 
 # Now compute the corrected rotation
 /home/smcmich1/repo/lronacPipeline/rotationCorrector.py --left M123514622LE.corrected.cub --right M123514622RE.corrected.cub --output M123514622RE.rotCorrected.cub --spk reCorrectedSpk.bsp --keep
 
-# TEST: Compare rotations here!
-#/home/smcmich1/repo/StereoPipeline/src/asp/Tools/lronacAngleSolver ~/data/angleCorrectionTest/M123514622LE.corrected.cub ~/data/angleCorrectionTest/M123514622RE.rotCorrected.cub 
+# TODO: Split rotation amount?
+
+# TODO: Do the same to the other LRONAC pair!
+
+# TODO: Get matching points between the two pairs of images!
+
+# TODO: Can this just be called on the LE (unmodified) images? <---
+# TODO: Call rotation corrector to compute offset (and position?) between two of the images, record 3d points.  Use GLOBAL transform!
+
+# TODO: Apply rotation and offset to second pair (need absolute rot changer?)
+
+# TODO: Use pc-align to compare points to LOLA DEM, compute rotation and offset
+
+# TODO: Apply rotation and offset to 
+
+
 
 # Noproj the corrected data
 noproj from=M123514622LE.corrected.cub    to=M123514622LE.corrected.noproj.cub    match=M123514622LE.corrected.cub specs=noprojInstruments_fullRes.pvl
