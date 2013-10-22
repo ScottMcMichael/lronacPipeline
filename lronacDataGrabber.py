@@ -159,7 +159,7 @@ def getDataList(outputFilePath):
 
 	# Loop through all index pages and collect DEM pages
     dtmPageList = []
-    for currentPage in range(4,largestPage+1):
+    for currentPage in range(1,largestPage+1):
         currentPageUrl  = baseUrl + str(currentPage) + '&sort=time_reverse'
         parsedIndexPage = BeautifulSoup(urllib2.urlopen(currentPageUrl).read())
         #tableNode       = parsedIndexPage.find(id="dtm_select_selectiontable")
@@ -309,8 +309,8 @@ def retrieveDataFiles(logPath, outputDir):
 
             # wget DEM
             #			print "wget --directory-prefix=" + currentOutputFolder + "  " + asuUrl
-#            if not os.path.exists(asuDemPath.strip()):
-#                os.system("wget -P " + currentOutputFolder + "  " + asuUrl)
+            if not os.path.exists(asuDemPath.strip()):
+                os.system("wget -P " + currentOutputFolder + "  " + asuUrl)
  
         elif (line.find('.IMG') >= 0):
             # wget image
@@ -319,8 +319,8 @@ def retrieveDataFiles(logPath, outputDir):
             imgCopyPath = currentOutputFolder + '/' + imgFileName
             #			print "wget -P " + currentOutputFolder + "  " + imgUrl
             print imgCopyPath
-#            if not os.path.exists(imgCopyPath):
-#                os.system("wget -P " + currentOutputFolder + "  " + imgUrl)
+            if not os.path.exists(imgCopyPath):
+                os.system("wget -P " + currentOutputFolder + "  " + imgUrl)
 
         # Read bounding box
         elif (line.find('Min lat') >= 0):
@@ -331,7 +331,7 @@ def retrieveDataFiles(logPath, outputDir):
             minLon = float(line[10:])
         elif (line.find('Max lon') >= 0): # The last BB entry, download the LOLA data file
             maxLon = float(line[10:])            
-            retrieveLolaFile(minLat, maxLat, minLon, maxLon, currentOutputFolder)
+#            retrieveLolaFile(minLat, maxLat, minLon, maxLon, currentOutputFolder)
 
 
 
@@ -370,11 +370,11 @@ def main():
 #        retrieveLolaFile(12.0, 12.1, 10.0, 10.1, '~/repot/lronacPipeline')
 
 
-        getDataList('/home/smcmich1/repo/lronacPipeline/logFile.txt')
+#        getDataList('/home/smcmich1/repo/lronacPipeline/logFile.txt')
 	
         # Download all of the data we need 
         print 'Retrieving data files'
-        #retrieveDataFiles('/home/smcmich1/repo/lronacPipeline/logFile_small.txt', options.inputFolder)
+        retrieveDataFiles('/home/smcmich1/repo/lronacPipeline/logFile_small.txt', options.inputFolder)
 
         endTime = time.time()
 

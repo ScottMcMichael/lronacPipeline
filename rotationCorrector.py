@@ -113,7 +113,7 @@ def parseHeadOutput(textPath):
     for line in dataFile:
         # Append leftovers from last line and clear left/right whitespace
         workingLine = lastLine + line.strip()
-#        print 'workingLine =' + workingLine
+        print 'workingLine =' + workingLine
         if (workingLine.find('/kernels/fk/lro_frames_') >= 0): # This should week out all other kernels
             m = re.search('\$[a-zA-Z0-9/._\-]*', workingLine)
             if m: # Path found
@@ -132,7 +132,7 @@ def parseHeadOutput(textPath):
                print 'Failed to find kernel in line: ' + line
                
     # Failed to find the frame kernel!
-    return false
+    return []
 
 #--------------------------------------------------------------------------------
 
@@ -148,14 +148,21 @@ def main():
             parser = optparse.OptionParser(usage=usage)
             parser.add_option("--left",  dest="leftPath",  help="Path to LE .cub file")
             parser.add_option("--right", dest="rightPath", help="Path to RE .cub file")
+            parser.add_option("--gdcPointsOutPath", dest="gdcPointsOutPath", help="Path to save solved GDC points to")
+            parser.add_option("--matchingPixelsPath", dest="matchingPixelsPath", help="Path to read in matching image points from")
+            parser.add_option("--woldTransform", action="store_true", dest="woldTransform",
+                              help="Compute transform in world coordinates.")
+            parser.add_option("--includePosition", action="store_true", dest="includePosition",
+                              help="Also compute position offset.")
+
+
             parser.add_option("-s", "--spk", dest="spkPath",
                               help="Path to optional specified SPK (position) file to use.")
             parser.add_option("-o", "--output", dest="outputPath",
                               help="Where to write the output (RE) file.")
             parser.add_option("--manual", action="callback", callback=man,
                               help="Read the manual.")
-            parser.add_option("--keep", action="store_true",
-                              dest="keep",
+            parser.add_option("--keep", action="store_true", dest="keep",
                               help="Do not delete the temporary files.")
             (options, args) = parser.parse_args()
 
@@ -214,6 +221,12 @@ def main():
         # Call lronacSpkParser to generate modified text file
         cmd = '/home/smcmich1/repo/StereoPipeline/src/asp/Tools/lronacAngleSolver --outputPath '+ \
                   rotationAnglePath + ' ' + options.leftPath + ' ' + options.rightPath
+        if options.gdcPointsOutPath:
+            cmd = cmd + ' --gdcPointsOutPath ' + options.gdcPointsOutPath
+        if options.woldTransform:
+            cmd = cmd + ' --worldTransform'
+        if options.includePosition:
+            cmd = cmd + ' --includePosition'
         print cmd
         os.system(cmd)
         if not os.path.exists(rotationAnglePath):

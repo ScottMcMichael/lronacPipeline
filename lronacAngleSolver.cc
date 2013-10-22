@@ -19,6 +19,8 @@
 /// \file lronacAngleSolver.cc
 ///
 
+#include <iostream>
+
 #include <boost/shared_ptr.hpp>
 #include <boost/serialization/shared_ptr.hpp> // for null_deleter
 
@@ -261,11 +263,13 @@ struct Parameters : asp::BaseOptions
   std::string leftFilePath;
   std::string rightFilePath;
   std::string outputPath;
+  std::string gdcPointsOutPath;
   std::string matchingPointsPath; ///< If not set, ipfind/ransac is used to find matching points
 
-  bool worldTransform; ///< Solve for transform in world coordinate frame instead of camera frame
+  bool worldTransform;  ///< Solve for transform in world coordinate frame instead of camera frame
+  bool includePosition; ///< Also solve for a position offset in the specified coordinate frame
 
-  int   cropWidth; ///< Specifies image overlap for use with ipfind
+  int  cropWidth; ///< Specifies image overlap for use with ipfind
 };
 
 
@@ -275,10 +279,12 @@ bool handle_arguments(int argc, char* argv[],
 { 
   po::options_description general_options("Options");
   general_options.add_options()
-    ("outputPath",         po::value(&opt.outputPath)->default_value(""),  "Write angles to this path (in degrees)")
-    ("matchingPixelsPath", po::value(&opt.matchingPointsPath)->default_value(""),  "File to load matching points from")
-    ("worldTransform",     po::bool_switch(&opt.worldTransform)->default_value(false),  "Compute transform in world frame instead of camera frame")
-    ("crop-width",         po::value(&opt.cropWidth )->default_value(200), "Crop images to this width before disparity search");
+    ("outputPath",         po::value      (&opt.outputPath        )->default_value(""),     "Write angles to this path (in degrees)")
+    ("matchingPixelsPath", po::value      (&opt.matchingPointsPath)->default_value(""),     "File to load matching points from")
+    ("gdcPointsOutPath",   po::value      (&opt.gdcPointsOutPath  )->default_value(""),     "Output path for final GDC points")
+    ("worldTransform",     po::bool_switch(&opt.worldTransform    )->default_value(false),  "Compute transform in world frame instead of camera frame")
+    ("includePosition",    po::bool_switch(&opt.includePosition   )->default_value(false),  "Also solve for a 3D position offset (in chosen frame)")
+    ("crop-width",         po::value      (&opt.cropWidth         )->default_value(200),    "Crop images to this width before disparity search");
   
   general_options.add( asp::BaseOptionsDescription(opt) );
     
@@ -332,11 +338,12 @@ private: // Variables
   asp::isis::IsisInterfaceLineScan _rightCameraModel;
   
   bool _solveWorldFrame;
+  bool _includePosition; // Currently only works if solveWorldFrame is true!
   
   mutable vw::camera::AdjustedCameraModel _rightCameraRotatedModel;
   
   //TODO: Modify this class so that the rays from this task can be used!
-  //vw::stereo::StereoModel         _stereoModel;
+  vw::stereo::StereoModel         _stereoModel;
   
   // Observation records
   Vector<double> _leftRows;
@@ -347,10 +354,12 @@ private: // Variables
 public: // Functions  
   
   /// Constructor performs initialization
-  LrocPairModel(const std::string &leftCubePath, const std::string &rightCubePath, const bool solveWorldFrame=false)
-    : _leftCameraModel(leftCubePath), _rightCameraModel(rightCubePath), _solveWorldFrame(solveWorldFrame), 
-      _rightCameraRotatedModel(boost::shared_ptr<vw::camera::CameraModel>(&_rightCameraModel, boost::serialization::null_deleter()))
-      //_stereoModel(&_leftCameraModel, &_rightCameraRotatedModel) // Only the right camera is rotated
+  LrocPairModel(const std::string &leftCubePath,  const std::string &rightCubePath, 
+                const bool solveWorldFrame=false, const bool includePosition=false)
+    : _leftCameraModel(leftCubePath), _rightCameraModel(rightCubePath), 
+      _solveWorldFrame(solveWorldFrame), _includePosition(includePosition),
+      _rightCameraRotatedModel(boost::shared_ptr<vw::camera::CameraModel>(&_rightCameraModel, boost::serialization::null_deleter())),
+      _stereoModel(&_leftCameraModel, &_rightCameraModel) // Only the right camera is rotated
   {
     // Both camera models are loaded from file on initialization
     printf("Done constructing LROC model\n");
@@ -358,19 +367,21 @@ public: // Functions
   
   /// Test functions to get a single pixel vector
   Vector3 getLeftVector (const Vector2& pixel) {return vw::math::normalize(_leftCameraModel.pixel_to_vector (pixel));}
-  Vector3 getRightVector(const Vector2& pixel) 
+/*  Vector3 getRightVector(const Vector2& pixel) 
   {
     if (_solveWorldFrame)
       return vw::math::normalize(_rightCameraRotatedModel.pixel_to_vector(pixel));
     else // Camera frame
       return vw::math::normalize(_rightCameraModel.pixel_to_vector(pixel));
   }
+*/
   
-  Vector2 getRightPixelRot(const Vector3& point, const Vector3& rot)
+  Vector2 getRightPixelRot(const Vector3& point, const Vector3& rot, const Vector3& offset=Vector3())
   {
     if (_solveWorldFrame)
     {
       _rightCameraRotatedModel.set_axis_angle_rotation(rot);
+      _rightCameraRotatedModel.set_translation(offset);
       return vw::math::normalize(_rightCameraRotatedModel.point_to_pixel(point));
     }
     else // Camera frame
@@ -396,6 +407,10 @@ public: // Functions
       rotationOffsetX (additional rotations applied to RE camera)
       rotationOffsetY
       rotationOffsetZ
+      [positionOffsetX // Optional with certain parameters
+       positionOffsetY
+       positionOffsetZ
+      ]
       x               [Repeated for every correspondence point]
       y
       z
@@ -403,14 +418,24 @@ public: // Functions
     
     // Determine the number of state elements
     const size_t numPoints        = leftRows.size();
-    const size_t numStateElements = numPoints*3 + 3;
+          size_t numFixedElements = 3;
+    if (_includePosition) 
+      numFixedElements = 6;
+    const size_t numStateElements = numPoints*3 + numFixedElements;
     stateEstimate.set_size(numStateElements);
     packedObsVector.set_size(numPoints*4);
-    
+
     // Rotation values start at zero
     stateEstimate[0] = 0;
     stateEstimate[1] = 0;
     stateEstimate[2] = 0;
+
+    if (_includePosition) // Also init the position to zero
+    {
+      stateEstimate[3] = 0;
+      stateEstimate[4] = 0;
+      stateEstimate[5] = 0;
+    }
 
     //DEBUG
     // Set up georeference class with default moon datum
@@ -431,7 +456,7 @@ public: // Functions
       Vector3 zeroRotVec(0, 0, 0);
       //_rightCameraRotatedModel.set_axis_angle_rotation(zeroRotVec);
       double triangulationError;
-//      pointLoc = _stereoModel(leftPixel, rightPixel, triangulationError); // Not working!
+      pointLoc = _stereoModel(leftPixel, rightPixel, triangulationError); // Not working!
       
       Vector3 leftCamCenter  = _leftCameraModel.camera_center(leftPixel);
       Vector3 rightCamCenter = _rightCameraModel.camera_center(rightPixel);
@@ -464,7 +489,7 @@ public: // Functions
   Vector3 closestPoint1 = leftCamCenter  + dot_prod(v2, rightCamCenter-leftCamCenter )/dot_prod(v2, leftVec )*leftVec;
   Vector3 closestPoint2 = rightCamCenter + dot_prod(v1, leftCamCenter -rightCamCenter)/dot_prod(v1, rightVec)*rightVec;
   Vector3 midPoint = 0.5 * (closestPoint1 + closestPoint2);
-  pointLoc = midPoint; // HIJACK TRIANGULATION CALCULATIONS!
+  //pointLoc = midPoint; // HIJACK TRIANGULATION CALCULATIONS!
       
   Vector3 errorVec = closestPoint1 - closestPoint2;
   triangulationError = vw::math::norm_2(errorVec);
@@ -487,8 +512,22 @@ public: // Functions
       // = 0.33 meters, from the kernel definition file
       // Angular difference on start should be over 2.5 degrees
       
-      //std::cout << "Left pixel  = " << leftPixel << " Right pixel = " << rightPixel << std::endl;
-      //std::cout << "Initial point " << i << " = " << pointLoc << " Triangulation error = " << triangulationError << std::endl;
+      std::cout << "Left pixel  = " << leftPixel << " Right pixel = " << rightPixel << std::endl;
+      std::cout << "Initial point " << i << " = " << pointLoc << " Triangulation error = " << triangulationError << std::endl;
+      
+      
+      Vector2 rightProjection, leftProjection;
+      /*
+      if (_solveWorldFrame)
+        rightProjection = _rightCameraRotatedModel.point_to_pixel(pointLoc);
+      else // Camera frame
+        //rightProjection = _rightCameraModel.point_to_pixel_rotated(pointLoc, Vector3(0,0,0));
+        rightProjection = _rightCameraModel.point_to_pixel_rotated(pointLoc, Vector3(0,0,0));
+      */
+      leftProjection  = _leftCameraModel.point_to_pixel(pointLoc);
+      rightProjection = _rightCameraModel.point_to_pixel(pointLoc);
+      std::cout << "**Left: "  << leftProjection  << " - " << leftPixel  << std::endl;
+      std::cout << "**Right: " << rightProjection << " - " << rightPixel << std::endl;
       
       // Sanity check
       const double intersectionRadius = vw::math::norm_2(pointLoc);
@@ -498,7 +537,7 @@ public: // Functions
       // Convert from GCC to GDC
       Vector3 gdcCoord = datum.cartesian_to_geodetic(midPoint);
       
-      //std::cout << "elevation above ellipsoid = " << gdcCoord[2] << std::endl;
+      std::cout << "elevation above ellipsoid = " << gdcCoord[2] << std::endl;
       
       //// Try dropping the elevation down to the datum level
       //gdcCoord[2] = 0.0;
@@ -517,9 +556,9 @@ public: // Functions
         lastPointLoc = pointLoc;
       
       // Record the x/y/z value for this point
-      stateEstimate[3 + i*3 + 0] = pointLoc[0];
-      stateEstimate[3 + i*3 + 1] = pointLoc[1];
-      stateEstimate[3 + i*3 + 2] = pointLoc[2];
+      stateEstimate[numFixedElements + i*3 + 0] = pointLoc[0];
+      stateEstimate[numFixedElements + i*3 + 1] = pointLoc[1];
+      stateEstimate[numFixedElements + i*3 + 2] = pointLoc[2];
       
       // Build the packed observation vector
       packedObsVector[i*4 + 0] = leftCols [i];
@@ -541,19 +580,29 @@ public: // Functions
     const size_t numPoints = _leftRows.size();
     std::vector<double> errorVector(numPoints);
   
-    Vector3 rotVec(x[0], x[1], x[2]);
-    
-    _rightCameraRotatedModel.set_axis_angle_rotation(rotVec);
+    Vector3 rotVec   (x[0], x[1], x[2]);
+    Vector3 offsetVec(x[3], x[4], x[5]); // Only used if _includePosition = true
+
+    int firstPointState = 3;
+    if (_includePosition) 
+    {
+      firstPointState = 6;
+      _rightCameraRotatedModel.set_translation(offsetVec);
+    }
+    if (_solveWorldFrame)
+      _rightCameraRotatedModel.set_axis_angle_rotation(rotVec);
 
         // For each input point pair
     Vector3 pointLoc, lastPointLoc;
     for (size_t i=0; i<numPoints; ++i)
     {
       // Create a point object
-      Vector3 thisPoint(x[3 + i*3 + 0],
-                        x[3 + i*3 + 1],
-                        x[3 + i*3 + 2]);      
+      Vector3 thisPoint(x[firstPointState + i*3 + 0],
+                        x[firstPointState + i*3 + 1],
+                        x[firstPointState + i*3 + 2]);      
       
+      //std::cout << "thisPoint = " << thisPoint << std::endl;
+                        
       // Project to pixel locations                  
       Vector2 leftProjection  = _leftCameraModel.point_to_pixel(thisPoint);
       Vector2 rightProjection;
@@ -569,6 +618,8 @@ public: // Functions
       
       Vector2 leftDiff  = leftProjection  - leftObsPoint;
       Vector2 rightDiff = rightProjection - rightObsPoint;
+      //std::cout << "Left: "  << leftProjection  << " - " << leftObsPoint  << std::endl;
+      //std::cout << "Right: " << rightProjection << " - " << rightObsPoint << std::endl;
       
       double leftError  = vw::math::norm_2(leftDiff );
       double rightError = vw::math::norm_2(rightDiff);
@@ -590,10 +641,18 @@ public: // Functions
     // This function returns an error vector for a given set of parameters
 
     // Apply the rotations from the state vector to the right LROC camera model
-    Vector3 rotVec(x[0], x[1], x[2]);
+    Vector3 rotVec   (x[0], x[1], x[2]);
+    Vector3 offsetVec(x[3], x[4], x[5]); // Only used if _includePosition = true
+
+    int firstPointState = 3;
+    if (_includePosition) 
+    {
+      firstPointState = 6;
+      _rightCameraRotatedModel.set_translation(offsetVec);
+    }
     if (_solveWorldFrame)
       _rightCameraRotatedModel.set_axis_angle_rotation(rotVec);
-  
+    
     const double rad2deg = 180.0 / M_PI;
     //printf("Trying rotation %lf, %lf, %lf\n", x[0]*rad2deg, x[1]*rad2deg, x[2]*rad2deg);
     
@@ -608,12 +667,11 @@ public: // Functions
     for (size_t i=0; i<numPoints; ++i)
     {
       // Create a point object
-      Vector3 thisPoint(x[3 + i*3 + 0],
-                        x[3 + i*3 + 1],
-                        x[3 + i*3 + 2]);
+      Vector3 thisPoint(x[firstPointState + i*3 + 0],
+                        x[firstPointState + i*3 + 1],
+                        x[firstPointState + i*3 + 2]);
 //      std::cout << "This point = " << thisPoint << std::endl;
-                        
-                                
+
       // Project the point into both cameras
       Vector2 leftProjection, rightProjection;
       try
@@ -637,7 +695,7 @@ public: // Functions
         obsVec[4*i + 3] = obsVec[4*(i-1) + 3];
       }
       //std::cout << "leftProjection  = " << leftProjection << " rightProjection = " << rightProjection << std::endl;
-      
+
       // Load the projected pixels into the output obseration vector
       obsVec[4*i + 0] = leftProjection [0]; // x
       obsVec[4*i + 1] = leftProjection [1]; // y
@@ -674,11 +732,51 @@ public: // Functions
 bool loadMatchingPixels(const std::string &pointPath,
           Vector<double> &leftRow, Vector<double> &leftCol, Vector<double> &rightRow, Vector<double> &rightCol)
 {
+  // The input file is a line for each point: sample1, line1, sample2, line2
+  std::ifstream file(pointPath.c_str());
+  if (file.fail())
+  {
+    printf("Failed to open point file %s\n", pointPath.c_str());
+    return false;
+  }
   
+  char comma;
+  std::string line;
+  double sample1, line1, sample2, line2;
+  std::vector<double> row1, row2, col1, col2;
+  row1.reserve(50);
+  row2.reserve(50);
+  col1.reserve(50);
+  col2.reserve(50);
+  int p=0;
+  while (std::getline(file, line)) // Read in each line and append to vectors
+  {
+    if (line.size() < 8) // Stop if we hit a blank line
+      break;
+    std::stringstream s(line);
+    s >> sample1 >> comma >> line1 >> comma >> sample2 >> comma >> line2;
+    col1.push_back(sample1);
+    row1.push_back(line1);
+    col2.push_back(sample2);
+    row2.push_back(line2);
+    printf("p: %d, --> %lf, %lf, %lf, %lf\n", p, sample1, line1, sample2, line2);
+    ++p;
+  }
+  file.close();
   
-  //TODO: Read in output file from qtie!
+  leftRow.set_size (p);
+  leftCol.set_size (p);
+  rightRow.set_size(p);
+  rightCol.set_size(p);
+  for (int i=0; i<p; ++i)
+  {
+    leftCol [i] = col1[i];
+    leftRow [i] = row1[i];
+    rightCol[i] = col2[i];
+    rightRow[i] = row2[i];
+  }
   
-  return false;
+  return true;
 }
 
 // Search for matching pixels in the LE/RE overlap
@@ -826,7 +924,7 @@ bool optimizeRotations(Parameters & params)
   printf("Constructing geometry class\n");
 
   // Initialize the geometry/solver class for the two input cubes
-  LrocPairModel lrocClass(params.leftFilePath, params.rightFilePath);
+  LrocPairModel lrocClass(params.leftFilePath, params.rightFilePath, params.worldTransform, params.includePosition);
   
   //DEBUG - call functions with fixed points to print some pixel info (no rotation)
   lrocClass.getRightPixelRot(Vector3(-1.09977e+06, 387050, 1.29165e+06), Vector3());
@@ -849,11 +947,9 @@ bool optimizeRotations(Parameters & params)
     if (!loadMatchingPixels(params.matchingPointsPath, leftRow, leftCol, rightRow, rightCol))
       return false;
   }
-  
-  
-  const size_t numMatchedPts = leftRow.size();
-  
 
+
+  const size_t numMatchedPts = leftRow.size();
 
   // Load the inital points into the solver
   printf("Initializing solver state...\n");
@@ -898,12 +994,16 @@ bool optimizeRotations(Parameters & params)
     initialStateFile << initialState[i] << std::endl;
   initialStateFile.close();
   
+  int startOfPts = 3;
+  if (params.includePosition)
+    startOfPts = 6;
+  
   // Write initial points as GDC coordinates for google earth
   std::ofstream initialGdcCoordFile(initialGdcCoordPath.c_str());
   for (size_t i=0; i<numMatchedPts; ++i)
   {
     // Convert from GCC to GDC
-    Vector3 gccPoint(initialState[3+ 3*i], initialState[3+ 3*i+1], initialState[3+ 3*i+2]);
+    Vector3 gccPoint(initialState[startOfPts+ 3*i], initialState[startOfPts+ 3*i+1], initialState[startOfPts+ 3*i+2]);
     Vector3 gdcCoord = datum.cartesian_to_geodetic(gccPoint);
     initialGdcCoordFile.precision(12);
     initialGdcCoordFile << gdcCoord[0] << std::endl;
@@ -954,7 +1054,6 @@ bool optimizeRotations(Parameters & params)
   std::cout << "Status = " << status << std::endl;
 
   
-  
   //printf("Writing final error log to %s\n", finalErrorPath.c_str());
   std::ofstream finalErrorFile(finalErrorPath.c_str()); 
   double meanFinalError = 0;
@@ -966,13 +1065,26 @@ bool optimizeRotations(Parameters & params)
   {
     predictionFile << finalPredictions[i] << std::endl;
     rawError[i] = packedObservations[i] - finalPredictions[i];
-    finalErrorFile << packedObservations[i] - finalPredictions[i] << std::endl;
+    //finalErrorFile << packedObservations[i] - finalPredictions[i] << std::endl;
     if (i % 4 == 0)
       meanFinalError += finalError[i/4];
   }
+  
+  for (size_t i=0; i<finalError.size(); ++i)
+  {   
+    finalErrorFile << finalError[i] << std::endl;
+    meanFinalError += finalError[i];
+  }
+  meanFinalError = meanFinalError / finalError.size(); 
+  
+  
   predictionFile.close();
   finalErrorFile.close();
-  meanFinalError = meanFinalError / currentError.size(); 
+  //meanFinalError = meanFinalError / currentError.size(); 
+  
+  
+  
+  
   
   // DEBUG: Check output Jacobian -------------------------------------------
   Matrix<double> finalJac = lrocClass.jacobian(finalParams);
@@ -997,11 +1109,15 @@ bool optimizeRotations(Parameters & params)
   finalStateFile.close();
 
   // Write initial points as GDC coordinates for google earth
-  std::ofstream finalGdcCoordFile(finalGdcCoordPath.c_str());
+  std::ofstream finalGdcCoordFile;
+  if (params.gdcPointsOutPath.empty())
+    finalGdcCoordFile.open(finalGdcCoordPath.c_str()); // TODO: Remove deubg default
+  else
+    finalGdcCoordFile.open(params.gdcPointsOutPath.c_str());
   for (size_t i=0; i<numMatchedPts; ++i)
   {
     // Convert from GCC to GDC
-    Vector3 gccPoint(finalParams[3+ 3*i], finalParams[3+ 3*i+1], finalParams[3+ 3*i+2]);
+    Vector3 gccPoint(finalParams[startOfPts+ 3*i], finalParams[startOfPts+ 3*i+1], finalParams[startOfPts+ 3*i+2]);
     Vector3 gdcCoord = datum.cartesian_to_geodetic(gccPoint);
     finalGdcCoordFile.precision(12);
     finalGdcCoordFile << gdcCoord[0] << std::endl;
@@ -1009,7 +1125,7 @@ bool optimizeRotations(Parameters & params)
     finalGdcCoordFile << gdcCoord[2] << std::endl;
   }
   finalGdcCoordFile.close();
-  
+
   std::ofstream finalStateDiffFile(finalStateDiffPath.c_str()); 
   for (size_t i=0; i<finalParams.size(); ++i)
     finalStateDiffFile << finalParams[i] - initialState[i] << std::endl;
@@ -1022,8 +1138,9 @@ bool optimizeRotations(Parameters & params)
   const double deg2rad = M_PI / 180.0;
   printf("Adjustment rotation angles (degrees): %lf, %lf, %lf\n", finalParams[0]*rad2deg, finalParams[1]*rad2deg, finalParams[2]*rad2deg);
   //printf("Output rotation angles (degrees): %lf, %lf, %lf\n", finalParams[0]*rad2deg, finalParams[1]*rad2deg, finalParams[2]*rad2deg);
-
-  //TODO: Experiment with this until it works!
+  if (params.includePosition)
+    printf("Adjustment offset (meters): %lf, %lf, %lf\n", finalParams[3], finalParams[4], finalParams[5]);
+  
   
   // These are instrument rotations from the frame file - rotation order is R = Rx(1.29)*Ry(-0.079)*Rz(180)
   // sc_from_instrument,  ( 1.129, -0.079, 180.0 ) [units in degrees]
@@ -1080,6 +1197,9 @@ bool optimizeRotations(Parameters & params)
         outputFile << outputRotation(r,c) << std::endl;
       }
     }
+    
+    if (params.includePosition) // Also write out the translation
+      outputFile << finalParams[3] << finalParams[4] << finalParams[5] << std::endl;
     
     outputFile.close();
   }
