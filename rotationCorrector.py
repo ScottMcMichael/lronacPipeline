@@ -20,12 +20,10 @@ import sys
 
 import os, glob, optparse, re, shutil, subprocess, string, time
 
-job_pool = [];
-
 def man(option, opt, value, parser):
     print >>sys.stderr, parser.usage
     print >>sys.stderr, '''\
-Applies the LROC offset from spacecraft position to an LROC cube's spice data
+Tool for applying a rotation and position to a camera using mkspk and msopck
 '''
     sys.exit()
 
@@ -33,56 +31,63 @@ class Usage(Exception):
     def __init__(self, msg):
         self.msg = msg
 
-def add_job( cmd, num_working_threads=4 ):
-    if ( len(job_pool) >= num_working_threads):
-        job_pool[0].wait();
-        job_pool.pop(0);
-    print cmd;
-    job_pool.append( subprocess.Popen(cmd, shell=True) );
-
-def wait_on_all_jobs():
-    print "Waiting for jobs to finish";
-    while len(job_pool) > 0:
-        job_pool[0].wait();
-        job_pool.pop(0);
-
 
 #--------------------------------------------------------------------------------
 
+
 # Creates the required mkspk setup file if it does not already exist
-def modifyFrameFile(frameFilePath, outputPath, newRotData):
+def makeSpkSetupFile(leapSecondFilePath, outputPath):
 
     # If the file already exists, delete it and rewrite it.
     if os.path.exists(outputPath):
         os.remove(outputPath)
-    if not os.path.exists(frameFilePath):
-        print 'Error, file ' + frameFilePath + ' not found!'
-        return false
 
-    # Find and modify this line: TKFRAME_-85610_ANGLES    = ( 0.0, 0.0, 0.0 )
-
-
-    print 'reading file ' + frameFilePath
-    i = open(frameFilePath, 'r')
     f = open(outputPath, 'w')
-    for line in i:
-        #print 'input --> ' + line
-        if (line.find('TKFRAME_-85610_ANGLES') >= 0): # Line where rotation amounts are specified
-            f.write('      TKFRAME_-85610_MATRIX    = ( ') # Replace with matrix
-            for d in newRotData:
-                f.write('\n' + '                                  ' + str(d))
-            f.write(' )\n')
-        elif (line.find('TKFRAME_-85610_SPEC') >= 0): # Line where data type is specified
-            newString = "      TKFRAME_-85610_SPEC    =  'Matrix'\n" # Replace data type
-            f.write(newString)
-        elif (line.find('TKFRAME_-85610_AXES') >= 0): # Line where rotation axes are specified
-            f.write('') # Skip the line
-        elif (line.find('TKFRAME_-85610_UNITS') >= 0): # Line where angular units are specified
-            f.write('') # Skip the line
-        else: # Normal line, just copy it
-            #print 'normal -->' + line
-            f.write(line)
-    i.close()
+    f.write("\\begindata\n")
+    f.write("INPUT_DATA_TYPE   = 'STATES'\n")
+    f.write("OUTPUT_SPK_TYPE   = 13\n")
+    f.write("OBJECT_ID         = -85\n") # LRO
+    f.write("CENTER_ID         = 301\n") # Moon
+    f.write("REF_FRAME_NAME    = 'J2000'\n")
+    f.write("PRODUCER_ID       = 'Lronac Pipeline'\n")
+    f.write("DATA_ORDER        = 'epoch x y z vx vy vz'\n")
+    f.write("DATA_DELIMITER    = ','\n")
+    f.write("LEAPSECONDS_FILE  = '" + leapSecondFilePath + "'\n")
+    f.write("LINES_PER_RECORD  = 1\n")
+    f.write("TIME_WRAPPER      = '# ETSECONDS'\n")
+    #f.write("EPOCH_STR_LENGTH  = 16\n")
+    f.write("INPUT_DATA_UNITS  = ('ANGLES=DEGREES' 'DISTANCES=km')\n")
+    f.write("POLYNOM_DEGREE    = 11\n")
+    f.write("SEGMENT_ID        = 'SPK_STATES_13'\n")
+#        f.write("INPUT_DATA_FILE   = 'spkDataFile.txt'")
+#        f.write("OUTPUT_SPK_FILE   = '/home/smcmich1/testSpkFile.bsp'")
+    f.write("\\begintext\n")
+    f.close()
+
+
+# Creates the required msopck setup file if it does not already exist
+def makeCkSetupFile(leapSecondFilePath, clockFilePath, frameFilePath, outputPath):
+
+    # If the file already exists, delete it and rewrite it.
+    if os.path.exists(outputPath):
+        os.remove(outputPath)
+
+    f = open(outputPath, 'w')
+    f.write("\\begindata\n")
+    f.write("CK_TYPE              = 3\n") # 3 is usually the reccomended type
+    f.write("INPUT_DATA_TYPE      = 'MATRICES'\n")
+    f.write("INPUT_TIME_TYPE      = 'ET'\n")
+    f.write("INSTRUMENT_ID        = -85000\n") # LRO
+    f.write("REFERENCE_FRAME_NAME = 'J2000'\n")
+    f.write("ANGULAR_RATE_PRESENT = 'NO'\n")
+    f.write("PRODUCER_ID          = 'Lronac Pipeline'\n")
+    f.write("LSK_FILE_NAME        = '" + leapSecondFilePath + "'\n")
+    f.write("SCLK_FILE_NAME       = '" + clockFilePath + "'\n")
+    f.write("FRAMES_FILE_NAME     = '" + frameFilePath + "'\n")
+    f.write("CK_SEGMENT_ID        = 'CK_MATRICES'\n")
+#        f.write("INPUT_DATA_FILE   = 'spkDataFile.txt'")
+#        f.write("OUTPUT_SPK_FILE   = '/home/smcmich1/testSpkFile.bsp'")
+    f.write("\\begintext\n")
     f.close()
 
 # Parses the output from head [cube path]
@@ -101,11 +106,14 @@ def readRotationFile(rotFilePath):
 
     return rotData
 
-
+# TODO: Some sort of python library!
 # Parses the output from head [cube path]
-def parseHeadOutput(textPath):
+def parseHeadOutput(textPath, cubePath):
+
+    kernelList = []
 
     isisDataFolder = os.environ['ISIS3DATA']
+    cubeFolder     = os.path.dirname(cubePath)
 
     # Search each line in the folder for a required kernel file
     dataFile = open(textPath, 'r')
@@ -113,30 +121,30 @@ def parseHeadOutput(textPath):
     for line in dataFile:
         # Append leftovers from last line and clear left/right whitespace
         workingLine = lastLine + line.strip()
-        print 'workingLine =' + workingLine
-        if (workingLine.find('/kernels/fk/lro_frames_') >= 0): # This should week out all other kernels
-            m = re.search('\$[a-zA-Z0-9/._\-]*', workingLine)
+#        print 'workingLine =' + workingLine
+        # TODO: Need better way to pick out kernels!
+        if (workingLine.find('/kernels/') >= 0) or (workingLine.find('./M') >= 0):
+            m = re.search('((\$)|(./))[a-zA-Z0-9/._\-]*', workingLine)
             if m: # Path found
                 if (m.group(0)[-1] == '-'): # This means ISIS has done a weird truncation to the next line
                     lastLine = m.group(0)[:-1] # Strip trailing - and append next line to it
                 else: # Valid match
                     print 'found kernel path ' + m.group(0)
-                    kernelPath = os.path.join(isisDataFolder, m.group(0)[1:])
-
+                    if m.group(0)[0] == '$': # Located in ISIS data folder
+                        kernelPath = os.path.join(isisDataFolder, m.group(0)[1:])
+                    else: # Relative path (./)
+                        kernelPath = os.path.join(cubeFolder, m.group(0)[2:])
                     if not os.path.exists(kernelPath): # Make sure the kernel file exists
                         print 'Error! Specified kernel file ' + kernelPath + ' does not exist!'
                         return [] # Fail if we get a miss
-                    
-                    return kernelPath # We are only looking for this one kernel file
+                    kernelList.append(kernelPath)
+                    lastLine = ''
             else: 
                print 'Failed to find kernel in line: ' + line
                
-    # Failed to find the frame kernel!
-    return []
-
+    # Return the list of kernels
+    return kernelList
 #--------------------------------------------------------------------------------
-
-#TODO: Support for file based logging of results
 
 def main():
 
@@ -146,35 +154,25 @@ def main():
         try:
             usage = "usage: rotationCorrector.py [--output <path>][--manual]\n  "
             parser = optparse.OptionParser(usage=usage)
-            parser.add_option("--left",  dest="leftPath",  help="Path to LE .cub file")
-            parser.add_option("--right", dest="rightPath", help="Path to RE .cub file")
-            parser.add_option("--gdcPointsOutPath", dest="gdcPointsOutPath", help="Path to save solved GDC points to")
-            parser.add_option("--matchingPixelsPath", dest="matchingPixelsPath", help="Path to read in matching image points from")
-            parser.add_option("--woldTransform", action="store_true", dest="woldTransform",
-                              help="Compute transform in world coordinates.")
-            parser.add_option("--includePosition", action="store_true", dest="includePosition",
-                              help="Also compute position offset.")
+            parser.add_option("--input",  dest="inputPath",  help="Path to input .cub file to modify")
 
-
-            parser.add_option("-s", "--spk", dest="spkPath",
-                              help="Path to optional specified SPK (position) file to use.")
+            parser.add_option("-s", "--spk", dest="spkPath", help="Path to write new SPK file to.")
+            parser.add_option("-c", "--ck",  dest="ckPath",  help="Path to write new CK file to.")
             parser.add_option("-o", "--output", dest="outputPath",
-                              help="Where to write the output (RE) file.")
+                              help="Where to write the output file.")
+            parser.add_option("--transformPath",  dest="transformPath",  help="Path to input file containing transform to apply")
+
             parser.add_option("--manual", action="callback", callback=man,
                               help="Read the manual.")
             parser.add_option("--keep", action="store_true", dest="keep",
                               help="Do not delete the temporary files.")
             (options, args) = parser.parse_args()
 
-            if not options.leftPath: 
-                parser.error("Need left input path")
-            if not options.rightPath: 
-                parser.error("Need right input path")
+            if not options.inputPath: 
+                parser.error("Need input path")
+
             if not options.outputPath: 
                 parser.error("Need output path")
-
-
-            #TODO: Find LE and RE paths in args
 
         except optparse.OptionError, msg:
             raise Usage(msg)
@@ -183,9 +181,9 @@ def main():
 
         startTime = time.time()
 
-        outputFolder = os.path.dirname(options.outputPath)
-        inputBaseName = os.path.basename(options.leftPath)
-        tempFolder    = outputFolder + '/' + inputBaseName + '_rotCorrectTemp/'
+        outputFolder  = os.path.dirname(options.outputPath)
+        inputBaseName = os.path.basename(options.inputPath)
+        tempFolder    = outputFolder + '/' + inputBaseName + '_rotPosCorrectTemp/'
         if not os.path.exists(tempFolder):
             os.mkdir(tempFolder) 
 
@@ -193,9 +191,18 @@ def main():
 
 
         # Copy the input file to the output location (only the RE image is modified
-        cmd = "cp " + options.rightPath + " " + options.outputPath
+        cmd = "cp " + options.inputPath + " " + options.outputPath
         print cmd
         os.system(cmd)
+
+        # TODO: Remove this section!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        # Call spiceinit on input file
+        cmd = "spiceinit from=" + options.outputPath
+        print cmd
+        os.system(cmd)
+
+        #print 'QUITTING EARLY'
+        #return 0 
 
         # Call head -120 on file
         tempTextPath = os.path.join(tempFolder, "headOutput.txt")
@@ -206,50 +213,117 @@ def main():
             print 'Error! Failed to extract cube kernel data!'
             return 1
 
-        # Parse output looking for the IK frame file
+        # Parse output looking for all the kernel files
         print 'Looking for source frame file...'
-        inputFramePath = parseHeadOutput(tempTextPath)
-        if not inputFramePath:
-            print 'Error! Unable to find any IK kernel file in ' + tempTextPath
+        kernelList = parseHeadOutput(tempTextPath, options.outputPath)
+        if not kernelList:
+            print 'Error! Unable to find all kernel files in ' + tempTextPath
             return 1
 
-        # Make sure the output path does not already exist
-        rotationAnglePath = os.path.join(tempFolder, "solvedRotationAngles.txt")
-        if os.path.exists(rotationAnglePath):
-            os.remove(rotationAnglePath)
-        
-        # Call lronacSpkParser to generate modified text file
-        cmd = '/home/smcmich1/repo/StereoPipeline/src/asp/Tools/lronacAngleSolver --outputPath '+ \
-                  rotationAnglePath + ' ' + options.leftPath + ' ' + options.rightPath
-        if options.gdcPointsOutPath:
-            cmd = cmd + ' --gdcPointsOutPath ' + options.gdcPointsOutPath
-        if options.woldTransform:
-            cmd = cmd + ' --worldTransform'
-        if options.includePosition:
-            cmd = cmd + ' --includePosition'
-        print cmd
-        os.system(cmd)
-        if not os.path.exists(rotationAnglePath):
-            print 'Error! Failed to solve for rotation angles!'
-            return 1
-        
-        # Read the rotation angles
-        newRotation = readRotationFile(rotationAnglePath)
-#        newRotationAngles = [0, 0, 30] = 30 deg Z
-#        newRotationAngles = [0, 30, 0]# = a ways off 30 deg Y?
-#        newRotationAngles = [30, 0, 0] = 30 deg X
-#        newRotationAngles = [10, 0, 20]
+        # Locate the clock kernel file and leap second file
+        for k in kernelList:
+            if (k.find('/kernels/sclk/lro_clkcor_') >= 0): # This should week out all other kernels
+                #clockFilePath = k
+                clockFilePath = '/home/smcmich1/lro_clkcor_2013246_v00.tsc' #HACK
+                print k
+            if (k.find('/kernels/lsk/naif') >= 0): # This should week out all other kernels
+                leapSecondFilePath = k
+                print k
+            if (k.find('/kernels/fk/lro_frames_') >= 0): # This should week out all other kernels
+                frameFilePath = k
+                print k
 
-        # Generate a modified frame file
-        tempIkPath = os.path.join(tempFolder, "angleCorrectedIkFile.tf")
-        modifyFrameFile(inputFramePath, tempIkPath, newRotation)
-        
-        # Re-run spiceinit (on the copied RE file) using the new frame file
-        cmd = "spiceinit from=" + options.outputPath + " fk=" + tempIkPath;
-        if (options.spkPath): # Add forced SPK path if needed
-            cmd = cmd + " spk=" + options.spkPath
+        if not clockFilePath:
+            print 'Error! Unable to find clock kernel file!'
+            return 1
+        if not leapSecondFilePath:
+            print 'Error! Unable to find leap second file!'
+            return 1
+
+        # Convert the kernels into a space delimited string to pass as arguments
+        kernelStringList = ""
+        for i in kernelList:
+          kernelStringList = kernelStringList + ' ' + str(i)
+
+        # Make sure the SPK and CK data paths do not already exist
+        tempDataPrefix = os.path.join(tempFolder, "tempNavData")
+        spkDataPath    = tempDataPrefix + "-spkData.txt"
+        ckDataPath     = tempDataPrefix + "-ckData.txt"
+        if os.path.exists(spkDataPath):
+            os.remove(spkDataPath)
+        if os.path.exists(ckDataPath):
+            os.remove(ckDataPath)
+
+
+        # Call lronac spice editor tool to generate modified text file
+        cmd = '/home/smcmich1/repo/StereoPipeline/src/asp/Tools/spiceEditor --transformFile ' + options.transformPath + ' --outputPrefix ' + tempDataPrefix + ' --kernels ' + kernelStringList
         print cmd
         os.system(cmd)
+        if not os.path.exists(spkDataPath):
+            print 'Error! Failed to create modified SPK data!'
+            return 1
+        if not os.path.exists(ckDataPath):
+            print 'Error! Failed to create modified CK data!'
+            return 1
+
+        # Write the config file needed for the mkspk function
+        print 'Writing mkspk config file...'
+        mkspkConfigPath = os.path.join(tempFolder, "spkConfig.txt")
+        makeSpkSetupFile(leapSecondFilePath, mkspkConfigPath)
+
+        # If the file already exists, delete it and rewrite it.
+        if options.spkPath:
+          tempSpkPath = options.spkPath
+          print 'Storing modified SPK file ' + tempSpkPath
+        else:
+          tempSpkPath = os.path.join(tempFolder, "modifiedLrocSpk.bsp")
+        if os.path.exists(tempSpkPath):
+            os.remove(tempSpkPath)
+
+        # Create new SPK file using modified data
+        cmd = '/home/smcmich1/repo/StereoPipeline/src/asp/Tools/mkspk -setup ' + mkspkConfigPath + ' -input ' + spkDataPath + ' -output ' + tempSpkPath
+        print cmd
+        os.system(cmd)
+        if not os.path.exists(tempSpkPath):
+            print 'Error! Failed to create modified SPK file!'
+            return 1
+
+        # Write the config file needed for the msopck function
+        print 'Writing msopck config file...'
+        msopckConfigPath = os.path.join(tempFolder, "ckConfig.txt")
+        makeCkSetupFile(leapSecondFilePath, clockFilePath, frameFilePath, msopckConfigPath)
+
+        # If the file already exists, delete it and rewrite it.
+        if options.ckPath:
+          tempCkPath = options.ckPath
+          print 'Storing modified CK file ' + tempCkPath
+        else:
+          tempCkPath = os.path.join(tempFolder, "modifiedLrocCk.bc")
+        if os.path.exists(tempCkPath):
+            os.remove(tempCkPath)
+
+        # For unknown reasons there seems to be serious restrictions on directories this will actually write to
+        tempCkPath = '/tmp/modifiedLrocCk.bc'
+
+        # Create new SPK file using modified data
+        cmd = '/home/smcmich1/repo/StereoPipeline/src/asp/Tools/msopck ' + msopckConfigPath + ' ' + ckDataPath + '  ' + tempCkPath
+        print cmd
+        os.system(cmd)
+        if not os.path.exists(tempCkPath):
+            print 'Error! Failed to create modified CK file!'
+            return 1
+
+
+        #print 'QUITTING EARLY'
+        #return 0 
+
+
+        # Re-run spiceinit using the new SPK and CK file
+        cmd = "spiceinit from=" + options.outputPath + " spk=" + tempSpkPath + " ck=" + tempCkPath
+        print cmd
+        os.system(cmd)
+
+
 
         # Clean up temporary files
         if not options.keep:
@@ -257,6 +331,7 @@ def main():
             os.remove(rotationAnglePath)
             os.remove(tempIkPath)
             os.remove(options.spkPath)
+            os.remove(options.ckPath)
       
 
         endTime = time.time()

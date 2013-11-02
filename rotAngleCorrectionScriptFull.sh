@@ -51,17 +51,36 @@ cd /home/smcmich1/data/stereoCorrectionTest
 # Convert control point file into usable format
 #/home/smcmich1/repo/lronacPipeline/extractQtieControlPoints.py --cnetPath ~/data/ARISTARCHU2/control_pointreg6.net --output controlPoints.csv
 
-# Compute the global rotation and offet between the two LE cubes, recording the GDC stereo points
-/home/smcmich1/repo/StereoPipeline/src/asp/Tools/lronacAngleSolver --outputPath ./solvedParams.txt --gdcPointsOutPath stereoGdcPoints.csv --matchingPixelsPath controlPoints.csv ./M120168714LE.corrected.cub ./M120175500LE.corrected.cub --worldTransform --includePosition
 
+# Perform initial stereo step on two LE cubes to generate a large number of point correspondences
+#stereo --entry-point 0 ./M120168714LE.corrected.cub ./M120175500LE.corrected.cub ./stereoOutput --compute-low-res-disparity-only
+#TODO: Make this only perform the requested stages!
 
-# TODO: Call rotation corrector to compute offset (and position?) between two of the images, record 3d points.  Use GLOBAL transform!
+# Extract a small number of matching pixel locations ( < 100)
+#/home/smcmich1/repo/StereoPipeline/src/asp/Tools/stereoPixelPairExtractor -i stereoOutput-D_sub.tif -o stereoPixelPairsSmall.csv -p 100
+
+# Compute the global rotation and offet between the two LE cubes
+#/home/smcmich1/repo/StereoPipeline/src/asp/Tools/lronacAngleSolver --outputPath ./solvedParams.txt --gdcPointsOutPath stereoGdcPointsSmall.csv --matchingPixelsPath stereoPixelPairsSmall.csv ./M120168714LE.corrected.cub ./M120175500LE.corrected.cub --worldTransform --includePosition
+
+# Extract a large number of matching pixel locations (several thousand)
+#/home/smcmich1/repo/StereoPipeline/src/asp/Tools/stereoPixelPairExtractor -i stereoOutput-D_sub.tif -o stereoPixelPairsLarge.csv -p 25
+
+# Compute the 3d coordinates for each pixel pair
+#/home/smcmich1/repo/StereoPipeline/src/asp/Tools/lronacAngleSolver --outputPath ./dummy.txt --gdcPointsOutPath stereoGdcPointsLarge.csv --matchingPixelsPath stereoPixelPairsLarge.csv ./M120168714LE.corrected.cub ./M120175500LE.corrected.cub --worldTransform --includePosition --initialValues TODO
+
+# Use pc-align to compare points to LOLA DEM, compute rotation and offset
+#pc_align --max-displacement 1000 --datum D_MOON --max-num-reference-points 25000000 --save-transformed-source-points ~/data/ARISTARCHU2/RDR_310E312E_23N26NPointPerRow_csv_table.csv stereoGdcPointsLarge.csv -o ./transformToLola  --compute-translation-only
 
 # TODO: Apply rotation and offset to second pair (need absolute rot changer?)
 
-# TODO: Use pc-align to compare points to LOLA DEM, compute rotation and offset
 
 # TODO: Apply rotation and offset to LE images
+/home/smcmich1/repo/lronacPipeline/rotationCorrector.py --input ~/data/stereoCorrectionTest/M120175500RE.lronaccal.lronacecho.cub --output ~/data/stereoCorrectionTest/M120175500RE.lronaccal.lronacecho.lolaMatched.cub --keep --transformPath ~/data/stereoCorrectionTest/M120168714LE.corrected.cub_stereoCalibrationTemp/pcAlignOutput-transform.txt
+
+#~/data/stereoCorrectionTest/transformToLola-transform.txt
+
+#
+
 
 # TODO: Use rotation corrector to rotate RE images
 

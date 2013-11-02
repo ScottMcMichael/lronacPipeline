@@ -20,8 +20,6 @@ import sys
 
 import os, glob, optparse, re, shutil, subprocess, string, time
 
-job_pool = [];
-
 def man(option, opt, value, parser):
     print >>sys.stderr, parser.usage
     print >>sys.stderr, '''\
@@ -32,20 +30,6 @@ Applies the LROC offset from spacecraft position to an LROC cube's spice data
 class Usage(Exception):
     def __init__(self, msg):
         self.msg = msg
-
-def add_job( cmd, num_working_threads=4 ):
-    if ( len(job_pool) >= num_working_threads):
-        job_pool[0].wait();
-        job_pool.pop(0);
-    print cmd;
-    job_pool.append( subprocess.Popen(cmd, shell=True) );
-
-def wait_on_all_jobs():
-    print "Waiting for jobs to finish";
-    while len(job_pool) > 0:
-        job_pool[0].wait();
-        job_pool.pop(0);
-
 
 #--------------------------------------------------------------------------------
 
@@ -186,6 +170,15 @@ def main():
             return 1
 #        print 'Found ' + str(len(kernelList)) + ' kernel files'
 
+        # Find the leap second file
+        for k in kernelList:
+            if (k.find('/kernels/lsk/naif') >= 0): # This should week out all other kernels
+                leapSecondFilePath = k
+        if not leapSecondFilePath:
+            print 'Error! Unable to find leap second file!'
+            return 1
+
+
         # Convert the kernels into a space delimited string to pass as arguments
         kernelStringList = ""
         for i in kernelList:
@@ -200,19 +193,25 @@ def main():
         else: 
             sideCode = '1' # RE
 
-        # Call lronacSpkParser to generate modified text file
-        modifiedDataPath = os.path.join(tempFolder, "newSpkData.txt")
-        cmd = '/home/smcmich1/repo/StereoPipeline/src/asp/Tools/spiceEditor --offsetCode ' + sideCode + ' --outputPath ' + modifiedDataPath + ' --kernels ' + kernelStringList
+
+        # Make sure the SPK data path does not already exist
+        tempDataPrefix = os.path.join(tempFolder, "tempNavData")
+        spkDataPath    = tempDataPrefix + "-spkData.txt"
+        if os.path.exists(spkDataPath):
+            os.remove(spkDataPath)
+
+        # Call lronac spice editor tool to generate modified text file
+        cmd = '/home/smcmich1/repo/StereoPipeline/src/asp/Tools/spiceEditor --offsetCode ' + sideCode + ' --outputPrefix ' + tempDataPrefix + ' --kernels ' + kernelStringList
         print cmd
         os.system(cmd)
-        if not os.path.exists(modifiedDataPath):
+        if not os.path.exists(spkDataPath):
             print 'Error! Failed to create modified SPK data!'
             return 1
 
         # Write the config file needed for the mkspk function
         print 'Writing mkspk config file...'
         mkspkConfigPath = os.path.join(tempFolder, "spkConfig.txt")
-        makeSpkSetupFile('/home/smcmich1/programs/isis/isis3data/base/kernels/lsk/naif0010.tls', mkspkConfigPath)
+        makeSpkSetupFile(leapSecondFilePath, mkspkConfigPath)
 
         # If the file already exists, delete it and rewrite it.
         if options.spkPath:
@@ -224,7 +223,7 @@ def main():
             os.remove(tempSpkPath)
 
         # Create new SPK file using modified data
-        cmd = '/home/smcmich1/repo/StereoPipeline/src/asp/Tools/mkspk -setup ' + mkspkConfigPath + ' -input ' + modifiedDataPath + ' -output ' + tempSpkPath
+        cmd = '/home/smcmich1/repo/StereoPipeline/src/asp/Tools/mkspk -setup ' + mkspkConfigPath + ' -input ' + spkDataPath + ' -output ' + tempSpkPath
         print cmd
         os.system(cmd)
         if not os.path.exists(tempSpkPath):
@@ -232,7 +231,9 @@ def main():
             return 1
 
         # Re-run spiceinit using the new SPK file
-        os.system("spiceinit from=" + options.outputPath + " spk=" + tempSpkPath)
+        cmd = "spiceinit from=" + options.outputPath + " spk=" + tempSpkPath
+        print cmd
+        os.system(cmd)
 
 
         #DEBUG
@@ -244,7 +245,7 @@ def main():
         # Clean up temporary files
         if not options.keep:
             os.remove(tempTextPath)
-            os.remove(modifiedDataPath)
+            os.remove(spkDataPath)
             os.remove(mkspkConfigPath)
             if not options.spkPath:
                 os.remove(tempSpkPath)
