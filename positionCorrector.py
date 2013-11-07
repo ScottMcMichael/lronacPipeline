@@ -20,6 +20,8 @@ import sys
 
 import os, glob, optparse, re, shutil, subprocess, string, time
 
+import IsisTools
+
 def man(option, opt, value, parser):
     print >>sys.stderr, parser.usage
     print >>sys.stderr, '''\
@@ -63,40 +65,6 @@ def makeSpkSetupFile(leapSecondFilePath, outputPath):
     f.write("\\begintext\n")
     f.close()
 
-# Parses the output from head [cube path]
-def parseHeadOutput(textPath):
-
-    kernelList = []
-
-    isisDataFolder = os.environ['ISIS3DATA']
-
-    # Search each line in the folder for a required kernel file
-    dataFile = open(textPath, 'r')
-    lastLine = ''
-    for line in dataFile:
-        # Append leftovers from last line and clear left/right whitespace
-        workingLine = lastLine + line.strip()
-#        print 'workingLine =' + workingLine
-        if (workingLine.find('/kernels/') >= 0):
-            m = re.search('\$[a-zA-Z0-9/._\-]*', workingLine)
-            if m: # Path found
-                if (m.group(0)[-1] == '-'): # This means ISIS has done a weird truncation to the next line
-                    lastLine = m.group(0)[:-1] # Strip trailing - and append next line to it
-                else: # Valid match
-#                    print 'found kernel path ' + m.group(0)
-                    kernelPath = os.path.join(isisDataFolder, m.group(0)[1:])
-                    
-                    if not os.path.exists(kernelPath): # Make sure the kernel file exists
-                        print 'Error! Specified kernel file ' + kernelPath + ' does not exist!'
-                        return [] # Fail if we get a miss
-                    kernelList.append(kernelPath)
-                    lastLine = ''
-            else: 
-               print 'Failed to find kernel in line: ' + line
-               
-    # Return the list of kernels
-    return kernelList
-
 #--------------------------------------------------------------------------------
 
 #TODO: Support for file based logging of results
@@ -113,6 +81,10 @@ def main():
                               help="Path to the input file.")
             parser.add_option("-o", "--output", dest="outputPath",
                               help="Where to write the output file.")
+
+            # The default working directory path is kind of ugly...
+            parser.add_option("--workDir", dest="workDir",  help="Folder to store temporary files in")
+
             parser.add_option("--manual", action="callback", callback=man,
                               help="Read the manual.")
             parser.add_option("--keep", action="store_true",
@@ -134,6 +106,8 @@ def main():
         outputFolder  = os.path.dirname(options.outputPath)
         inputBaseName = os.path.basename(options.inputPath)
         tempFolder    = outputFolder + '/' + inputBaseName + '_posCorrectTemp/'
+        if (options.workDir):
+            tempFolder = options.workDir
         if not os.path.exists(tempFolder):
             os.mkdir(tempFolder) 
 
@@ -142,6 +116,7 @@ def main():
         print cmd
         os.system(cmd)
 
+        #TODO: Remove or make optional?
         # Call spiceinit on input file
         cmd = "spiceinit from=" + options.outputPath
         print cmd
@@ -153,37 +128,22 @@ def main():
         #print cmd
         #os.system(cmd)
 
-        # Call head -120 on file
-        tempTextPath = os.path.join(tempFolder, "headOutput.txt")
-        cmd = "head -120 "+options.outputPath+" > "+tempTextPath
-        print cmd
-        os.system(cmd)
-        if not os.path.exists(tempTextPath):
-            print 'Error! Failed to extract cube kernel data!'
-            return 1
-
-        # Parse output
-        print 'Parsing cube metadata for kernel locations...'
-        kernelList = parseHeadOutput(tempTextPath)
-        if not kernelList:
-            print 'Error! Unable to find any kernel files in ' + tempTextPath
-            return 1
-#        print 'Found ' + str(len(kernelList)) + ' kernel files'
+        # Retrieve a list of all the kernels needed by the input cube file
+        kernelDict = IsisTools.getKernelsFromCube(options.outputPath, tempFolder)
 
         # Find the leap second file
-        for k in kernelList:
-            if (k.find('/kernels/lsk/naif') >= 0): # This should week out all other kernels
-                leapSecondFilePath = k
-        if not leapSecondFilePath:
+        if not ('LeapSecond' in kernelDict):
             print 'Error! Unable to find leap second file!'
             return 1
-
+        else:
+            leapSecondFilePath = kernelDict['LeapSecond'][0] # Only deal with a single file
+            
 
         # Convert the kernels into a space delimited string to pass as arguments
         kernelStringList = ""
-        for i in kernelList:
-          kernelStringList = kernelStringList + ' ' + str(i)
-#        print kernelStringList
+        for k, v in kernelDict.iteritems(): # Iterate through dictionary entries
+            for i in v: # Iterate through type lists
+                kernelStringList = kernelStringList + ' ' + str(i)
 
         # Determine if the input file is LE or RE
         lePos = options.inputPath.rfind('LE')
@@ -222,6 +182,8 @@ def main():
         if os.path.exists(tempSpkPath):
             os.remove(tempSpkPath)
 
+        #TODO: Need to make sure this is stored as an absolute path!!!!!!!!!!!!!
+
         # Create new SPK file using modified data
         cmd = '/home/smcmich1/repo/StereoPipeline/src/asp/Tools/mkspk -setup ' + mkspkConfigPath + ' -input ' + spkDataPath + ' -output ' + tempSpkPath
         print cmd
@@ -244,7 +206,7 @@ def main():
 
         # Clean up temporary files
         if not options.keep:
-            os.remove(tempTextPath)
+            #os.remove(tempTextPath)
             os.remove(spkDataPath)
             os.remove(mkspkConfigPath)
             if not options.spkPath:

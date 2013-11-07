@@ -20,6 +20,8 @@ import sys
 
 import os, glob, optparse, re, shutil, subprocess, string, time
 
+import IsisTools
+
 def man(option, opt, value, parser):
     print >>sys.stderr, parser.usage
     print >>sys.stderr, '''\
@@ -106,48 +108,11 @@ def readRotationFile(rotFilePath):
 
     return rotData
 
-# TODO: Some sort of python library!
-# Parses the output from head [cube path]
-def parseHeadOutput(textPath, cubePath):
-
-    kernelList = []
-
-    isisDataFolder = os.environ['ISIS3DATA']
-    cubeFolder     = os.path.dirname(cubePath)
-
-    # Search each line in the folder for a required kernel file
-    dataFile = open(textPath, 'r')
-    lastLine = ''
-    for line in dataFile:
-        # Append leftovers from last line and clear left/right whitespace
-        workingLine = lastLine + line.strip()
-#        print 'workingLine =' + workingLine
-        # TODO: Need better way to pick out kernels!
-        if (workingLine.find('/kernels/') >= 0) or (workingLine.find('./M') >= 0):
-            m = re.search('((\$)|(./))[a-zA-Z0-9/._\-]*', workingLine)
-            if m: # Path found
-                if (m.group(0)[-1] == '-'): # This means ISIS has done a weird truncation to the next line
-                    lastLine = m.group(0)[:-1] # Strip trailing - and append next line to it
-                else: # Valid match
-                    print 'found kernel path ' + m.group(0)
-                    if m.group(0)[0] == '$': # Located in ISIS data folder
-                        kernelPath = os.path.join(isisDataFolder, m.group(0)[1:])
-                    else: # Relative path (./)
-                        kernelPath = os.path.join(cubeFolder, m.group(0)[2:])
-                    if not os.path.exists(kernelPath): # Make sure the kernel file exists
-                        print 'Error! Specified kernel file ' + kernelPath + ' does not exist!'
-                        return [] # Fail if we get a miss
-                    kernelList.append(kernelPath)
-                    lastLine = ''
-            else: 
-               print 'Failed to find kernel in line: ' + line
-               
-    # Return the list of kernels
-    return kernelList
 #--------------------------------------------------------------------------------
 
 def main():
 
+# TODO: Rename this file!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     print "Started rotationCorrector.py"
 
     try:
@@ -161,6 +126,9 @@ def main():
             parser.add_option("-o", "--output", dest="outputPath",
                               help="Where to write the output file.")
             parser.add_option("--transformPath",  dest="transformPath",  help="Path to input file containing transform to apply")
+
+            # The default working directory path is kind of ugly...
+            parser.add_option("--workDir", dest="workDir",  help="Folder to store temporary files in")
 
             parser.add_option("--manual", action="callback", callback=man,
                               help="Read the manual.")
@@ -184,6 +152,8 @@ def main():
         outputFolder  = os.path.dirname(options.outputPath)
         inputBaseName = os.path.basename(options.inputPath)
         tempFolder    = outputFolder + '/' + inputBaseName + '_rotPosCorrectTemp/'
+        if (options.workDir):
+            tempFolder = options.workDir
         if not os.path.exists(tempFolder):
             os.mkdir(tempFolder) 
 
@@ -195,55 +165,35 @@ def main():
         print cmd
         os.system(cmd)
 
-        # TODO: Remove this section!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        # Call spiceinit on input file
-        cmd = "spiceinit from=" + options.outputPath
-        print cmd
-        os.system(cmd)
 
-        #print 'QUITTING EARLY'
-        #return 0 
+        # Retrieve a list of all the kernels needed by the input cube file
+        kernelDict = IsisTools.getKernelsFromCube(options.outputPath, tempFolder)
 
-        # Call head -120 on file
-        tempTextPath = os.path.join(tempFolder, "headOutput.txt")
-        cmd = "head -120 "+options.outputPath+" > "+tempTextPath
-        print cmd
-        os.system(cmd)
-        if not os.path.exists(tempTextPath):
-            print 'Error! Failed to extract cube kernel data!'
-            return 1
-
-        # Parse output looking for all the kernel files
-        print 'Looking for source frame file...'
-        kernelList = parseHeadOutput(tempTextPath, options.outputPath)
-        if not kernelList:
-            print 'Error! Unable to find all kernel files in ' + tempTextPath
-            return 1
-
-        # Locate the clock kernel file and leap second file
-        for k in kernelList:
-            if (k.find('/kernels/sclk/lro_clkcor_') >= 0): # This should week out all other kernels
-                #clockFilePath = k
-                clockFilePath = '/home/smcmich1/lro_clkcor_2013246_v00.tsc' #HACK
-                print k
-            if (k.find('/kernels/lsk/naif') >= 0): # This should week out all other kernels
-                leapSecondFilePath = k
-                print k
-            if (k.find('/kernels/fk/lro_frames_') >= 0): # This should week out all other kernels
-                frameFilePath = k
-                print k
-
-        if not clockFilePath:
-            print 'Error! Unable to find clock kernel file!'
-            return 1
-        if not leapSecondFilePath:
+        # Locate required kernels
+        if not ('LeapSecond' in kernelDict):
             print 'Error! Unable to find leap second file!'
             return 1
+        else:
+            leapSecondFilePath = kernelDict['LeapSecond'][0] # Only deal with a single file
+
+        if not ('SpacecraftClock' in kernelDict):
+            print 'Error! Unable to find clock kernel file!'
+            return 1
+        else:
+            #clockFilePath = kernelDict['SpacecraftClock'][0] # Only deal with a single file
+            clockFilePath = '/home/smcmich1/lro_clkcor_2013246_v00.tsc' #HACK - is other path too long?
+
+        if not ('Frame' in kernelDict):
+            print 'Error! Unable to find frame kernel file!'
+            return 1
+        else:
+            frameFilePath = kernelDict['Frame'][0] # Only deal with a single file
 
         # Convert the kernels into a space delimited string to pass as arguments
         kernelStringList = ""
-        for i in kernelList:
-          kernelStringList = kernelStringList + ' ' + str(i)
+        for k, v in kernelDict.iteritems(): # Iterate through dictionary entries
+            for i in v: # Iterate through type lists
+                kernelStringList = kernelStringList + ' ' + str(i)
 
         # Make sure the SPK and CK data paths do not already exist
         tempDataPrefix = os.path.join(tempFolder, "tempNavData")
@@ -254,7 +204,7 @@ def main():
         if os.path.exists(ckDataPath):
             os.remove(ckDataPath)
 
-
+#TODO: What is up the kernel unloading step here?
         # Call lronac spice editor tool to generate modified text file
         cmd = '/home/smcmich1/repo/StereoPipeline/src/asp/Tools/spiceEditor --transformFile ' + options.transformPath + ' --outputPrefix ' + tempDataPrefix + ' --kernels ' + kernelStringList
         print cmd

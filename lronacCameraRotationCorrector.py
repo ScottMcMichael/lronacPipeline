@@ -85,7 +85,7 @@ def readRotationFile(rotFilePath):
 
     return rotData
 
-
+# TODO: Replace this with call to IsisTools!
 # Parses the output from head [cube path]
 def parseHeadOutput(textPath):
 
@@ -97,14 +97,14 @@ def parseHeadOutput(textPath):
     for line in dataFile:
         # Append leftovers from last line and clear left/right whitespace
         workingLine = lastLine + line.strip()
-        print 'workingLine =' + workingLine
+        #print 'workingLine =' + workingLine
         if (workingLine.find('/kernels/fk/lro_frames_') >= 0): # This should week out all other kernels
             m = re.search('\$[a-zA-Z0-9/._\-]*', workingLine)
             if m: # Path found
                 if (m.group(0)[-1] == '-'): # This means ISIS has done a weird truncation to the next line
                     lastLine = m.group(0)[:-1] # Strip trailing - and append next line to it
                 else: # Valid match
-                    print 'found kernel path ' + m.group(0)
+                    #print 'found kernel path ' + m.group(0)
                     kernelPath = os.path.join(isisDataFolder, m.group(0)[1:])
 
                     if not os.path.exists(kernelPath): # Make sure the kernel file exists
@@ -133,8 +133,15 @@ def main():
             parser.add_option("--left",  dest="leftPath",  help="Path to LE .cub file")
             parser.add_option("--right", dest="rightPath", help="Path to RE .cub file")
 
+            parser.add_option("-g", "--gdcLogPath", dest="gdcLogPath",
+                              help="Optional path to save computed GDC points to")
+
             parser.add_option("-s", "--spk", dest="spkPath",
                               help="Path to optional specified SPK (position) file to use.")
+            parser.add_option("-c", "--ck", dest="ckPath",
+                              help="Path to optional specified CK (orientation) file to use.")
+
+
             parser.add_option("-o", "--output", dest="outputPath",
                               help="Where to write the output (RE) file.")
             parser.add_option("--manual", action="callback", callback=man,
@@ -193,9 +200,11 @@ def main():
             os.remove(rotationAnglePath)
         
         # Call lronacSpkParser to generate modified text file
+        gdcText = ''
+        if options.gdcLogPath: # Handle GDC point logging option
+            gdcText = ' --gdcPointsOutPath ' + options.gdcLogPath
         cmd = '/home/smcmich1/repo/StereoPipeline/src/asp/Tools/lronacAngleSolver --outputPath '+ \
-                  rotationAnglePath + ' ' + options.leftPath + ' ' + options.rightPath
-
+                  rotationAnglePath + gdcText + ' ' + options.leftPath + ' ' + options.rightPath
         print cmd
         os.system(cmd)
         if not os.path.exists(rotationAnglePath):
@@ -213,6 +222,8 @@ def main():
         cmd = "spiceinit from=" + options.outputPath + " fk=" + tempIkPath;
         if (options.spkPath): # Add forced SPK path if needed
             cmd = cmd + " spk=" + options.spkPath
+        if (options.ckPath): # Add forced CK path if needed
+            cmd = cmd + " ck=" + options.ckPath
         print cmd
         os.system(cmd)
 

@@ -503,7 +503,7 @@ def generatePlots(dataFolder):
     lgd = plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
     plt.savefig(dataFolder + '/localShift.png', bbox_extra_artists=[lgd], bbox_inches='tight')
     plt.clf()
-       
+
 
     # We now have a list of means/stds and sums of percentiles and histograms
     # - Get means for all of them

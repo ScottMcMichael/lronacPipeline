@@ -1,5 +1,15 @@
 #!/bin/bash  
 
+
+
+
+# Testing the big stereo calibration program
+~/repo/lronacPipeline/stereoCalibrationProcess.py --left /home/smcmich1/data/ARISTARCHU2/M120168714LE.IMG --right /home/smcmich1/data/ARISTARCHU2/M120168714RE.IMG --stereo-left /home/smcmich1/data/ARISTARCHU2/M120175500LE.IMG --lola ~/data/ARISTARCHU2/RDR_310E312E_23N26NPointPerRow_csv_table.csv --keep --outputL ~/data/stereoCorrectionTest/M120168714LE.final.cub --outputR ~/data/stereoCorrectionTest/M120168714RE.final.cub --workDir ~/data/stereoCorrectionTest/workingDir
+
+
+
+
+
 # Generate comparison data
 #mkdir /home/smcmich1/data/angleCorrectionTest/oldResults
 #lronac2mosaic.py -t 4 -o /home/smcmich1/data/angleCorrectionTest/oldResults --keep ~/data/M112646261LE.IMG ~/data/M112646261RE.IMG
@@ -10,7 +20,7 @@
 
 # Move to test directory
 #mkdir /home/smcmich1/data/stereoCorrectionTest
-cd /home/smcmich1/data/stereoCorrectionTest
+#cd /home/smcmich1/data/stereoCorrectionTest
 
 
 
@@ -48,6 +58,7 @@ cd /home/smcmich1/data/stereoCorrectionTest
 # TODO: Handle kernel-spanning data!
 
 
+
 # Convert control point file into usable format
 #/home/smcmich1/repo/lronacPipeline/extractQtieControlPoints.py --cnetPath ~/data/ARISTARCHU2/control_pointreg6.net --output controlPoints.csv
 
@@ -75,7 +86,13 @@ cd /home/smcmich1/data/stereoCorrectionTest
 
 
 # TODO: Apply rotation and offset to LE images
-/home/smcmich1/repo/lronacPipeline/rotationCorrector.py --input ~/data/stereoCorrectionTest/M120175500RE.lronaccal.lronacecho.cub --output ~/data/stereoCorrectionTest/M120175500RE.lronaccal.lronacecho.lolaMatched.cub --keep --transformPath ~/data/stereoCorrectionTest/M120168714LE.corrected.cub_stereoCalibrationTemp/pcAlignOutput-transform.txt
+#/home/smcmich1/repo/lronacPipeline/rotationCorrector.py --input ~/data/stereoCorrectionTest/M120168714LE.corrected.cub --output ~/data/stereoCorrectionTest/M120175500LE.corrected.lolaMatched.cub --keep --transformPath /home/smcmich1/data/stereoCorrectionTest/M120168714LE.corrected.cub_stereoCalibrationTemp2/pcAlignOutput-transform.txt
+
+#/home/smcmich1/repo/lronacPipeline/rotationCorrector.py --input ~/data/stereoCorrectionTest/M120168714RE.corrected.cub --output ~/data/stereoCorrectionTest/M120175500RE.corrected.lolaMatched.cub --keep --transformPath /home/smcmich1/data/stereoCorrectionTest/M120168714LE.corrected.cub_stereoCalibrationTemp2/pcAlignOutput-transform.txt
+
+
+#/home/smcmich1/repo/lronacPipeline/rotationCorrector.py --input ~/data/stereoCorrectionTest/M120175500LE.corrected.cub --output ~/data/stereoCorrectionTest/M120175500LE.corrected.lolaMatched.cub --keep --transformPath /home/smcmich1/data/stereoCorrectionTest/M120168714LE.corrected.cub_stereoCalibrationTemp2/pcAlignOutput-transform.txt
+
 
 #~/data/stereoCorrectionTest/transformToLola-transform.txt
 
