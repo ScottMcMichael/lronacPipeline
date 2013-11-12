@@ -209,8 +209,8 @@ def main():
             #os.remove(tempTextPath)
             os.remove(spkDataPath)
             os.remove(mkspkConfigPath)
-            if not options.spkPath:
-                os.remove(tempSpkPath)
+            #if not options.spkPath: # Really need to keep the SPK file around
+            #    os.remove(tempSpkPath)
       
 
         endTime = time.time()

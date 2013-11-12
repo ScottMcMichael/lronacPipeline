@@ -2,11 +2,38 @@
 
 
 
+# Making sure the old example still works
+#/home/smcmich1/repo/StereoPipeline/src/asp/Tools/lronacAngleSolver --outputPath dummy.txt --gdcPointsOutPath /home/smcmich1/data/angleCorrectionTest/pairGdcCheck.csv /home/smcmich1/data/angleCorrectionTest/M123514622LE.corrected.cub /home/smcmich1/data/angleCorrectionTest/M123514622RE.corrected.cub
 
+#/home/smcmich1/repo/StereoPipeline/src/asp/Tools/lronacAngleSolver --outputPath dummy.txt --gdcPointsOutPath /home/smcmich1/data/angleCorrectionTest/pairGdcCheck.csv /home/smcmich1/data/angleCorrectionTest/M123514622LE.lronaccal.lronacecho.cub /home/smcmich1/data/angleCorrectionTest/M123514622RE.lronaccal.lronacecho.cub
+
+# --> Output can be similar without the position correction so a more detailed numerical comparison would be needed to tell the difference
+
+# --> The solution is very sensitive to the set of points used to solve.  Unfortunately after 70 or so points the non-sparse solver becomes very slow.  Multiple trials or a better solver may be needed to improve results.
+
+# --> The ground points from the angle solver also have a lot of variation, maybe very sensitive to pixel match quality?
+
+# Output from M120168714 with translation only is really good!
+
+#***********************************************************************************
 # Testing the big stereo calibration program
-~/repo/lronacPipeline/stereoCalibrationProcess.py --left /home/smcmich1/data/ARISTARCHU2/M120168714LE.IMG --right /home/smcmich1/data/ARISTARCHU2/M120168714RE.IMG --stereo-left /home/smcmich1/data/ARISTARCHU2/M120175500LE.IMG --lola ~/data/ARISTARCHU2/RDR_310E312E_23N26NPointPerRow_csv_table.csv --keep --outputL ~/data/stereoCorrectionTest/M120168714LE.final.cub --outputR ~/data/stereoCorrectionTest/M120168714RE.final.cub --workDir ~/data/stereoCorrectionTest/workingDir
+#~/repo/lronacPipeline/stereoCalibrationProcess.py --left /home/smcmich1/data/ARISTARCHU2/M120168714LE.IMG --right /home/smcmich1/data/ARISTARCHU2/M120168714RE.IMG --stereo-left /home/smcmich1/data/ARISTARCHU2/M120175500LE.IMG --stereo-right /home/smcmich1/data/ARISTARCHU2/M120175500RE.IMG --lola ~/data/ARISTARCHU2/RDR_310E312E_23N26NPointPerRow_csv_table.csv --keep --outputL ~/data/stereoCorrectionTest/M120168714LE.final.cub --outputR ~/data/stereoCorrectionTest/M120168714RE.final.cub --workDir ~/data/stereoCorrectionTest/workingDir
+
+# Draw test output
+#~/repo/lronacPipeline/calibrationReport.py --input ~/data/stereoCorrectionTest/workingDir/pairGdcCheckInitial.csv --output ~/data/stereoCorrectionTest/pairGdcCheckInitialC.kml --name pairCheckInitialC --color blue
+
+#~/repo/lronacPipeline/calibrationReport.py --input ~/data/stereoCorrectionTest/workingDir/pairGdcCheckFinal.csv --output ~/data/stereoCorrectionTest/pairGdcCheckFinalC.kml --name pairCheckFinalC --color blue
+
+#~/repo/lronacPipeline/calibrationReport.py --input ~/data/stereoCorrectionTest/workingDir/gdcPointsCheckFinalRot.csv --output ~/data/stereoCorrectionTest/gdcPointsGdcCheckFinalRotC.kml --name gdcPointsCheckFinalRotC --color red
 
 
+# Draw input to pc_align
+#~/repo/lronacPipeline/calibrationReport.py --input /home/smcmich1/data/stereoCorrectionTest/workingDir/gdcPointsLarge.csv --output ~/data/stereoCorrectionTest/inputGdcPoints.kml --name inputGdcPoints --color red --skip 100
+
+# Draw pc_align moved points
+#~/repo/lronacPipeline/calibrationReport.py --input /home/smcmich1/data/stereoCorrectionTest/workingDir/pcAlignOutput/dem-trans_source.csv --output ~/data/stereoCorrectionTest/movedGdcPoints.kml --name movedGdcPoints --color red --skip 100
+
+#***********************************************************************************
 
 
 
@@ -28,87 +55,25 @@
 #lronac2isis from=~/data/ARISTARCHU2/M120168714LE.IMG to=M120168714LE.cub
 #lronac2isis from=~/data/ARISTARCHU2/M120168714RE.IMG to=M120168714RE.cub
 
-# Perform pre-processing steps
-#lronaccal from=M120168714LE.cub to=M120168714LE.lronaccal.cub
-#lronaccal from=M120168714RE.cub to=M120168714RE.lronaccal.cub
 
-#lronacecho from=M120168714LE.lronaccal.cub to=M120168714LE.lronaccal.lronacecho.cub
-#lronacecho from=M120168714RE.lronaccal.cub to=M120168714RE.lronaccal.lronacecho.cub
-
-# Apply corrected SPICE data
-#/home/smcmich1/repo/lronacPipeline/positionCorrector.py --input ./M120168714LE.lronaccal.lronacecho.cub --output ./M120168714LE.corrected.cub
-#/home/smcmich1/repo/lronacPipeline/positionCorrector.py --input ./M120168714RE.lronaccal.lronacecho.cub --output ./M120168714RE.corrected.cub --spk reCorrectedSpk.bsp
-
-
-# Copy and convert the second set of cubes
-#lronac2isis from=~/data/ARISTARCHU2/M120175500LE.IMG to=M120175500LE.cub
-#lronac2isis from=~/data/ARISTARCHU2/M120175500RE.IMG to=M120175500RE.cub
-
-# Perform pre-processing steps
-#lronaccal from=M120175500LE.cub to=M120175500LE.lronaccal.cub
-#lronaccal from=M120175500RE.cub to=M120175500RE.lronaccal.cub
-
-#lronacecho from=M120175500LE.lronaccal.cub to=M120175500LE.lronaccal.lronacecho.cub
-#lronacecho from=M120175500RE.lronaccal.cub to=M120175500RE.lronaccal.lronacecho.cub
-
-# Apply corrected SPICE data
-#/home/smcmich1/repo/lronacPipeline/positionCorrector.py --input ./M120175500LE.lronaccal.lronacecho.cub --output ./M120175500LE.corrected.cub
-#/home/smcmich1/repo/lronacPipeline/positionCorrector.py --input ./M120175500RE.lronaccal.lronacecho.cub --output ./M120175500RE.corrected.cub --spk reCorrectedSpk.bsp
-
-# TODO: Handle kernel-spanning data!
 
 
 
 # Convert control point file into usable format
 #/home/smcmich1/repo/lronacPipeline/extractQtieControlPoints.py --cnetPath ~/data/ARISTARCHU2/control_pointreg6.net --output controlPoints.csv
 
-
-# Perform initial stereo step on two LE cubes to generate a large number of point correspondences
-#stereo --entry-point 0 ./M120168714LE.corrected.cub ./M120175500LE.corrected.cub ./stereoOutput --compute-low-res-disparity-only
-#TODO: Make this only perform the requested stages!
-
-# Extract a small number of matching pixel locations ( < 100)
-#/home/smcmich1/repo/StereoPipeline/src/asp/Tools/stereoPixelPairExtractor -i stereoOutput-D_sub.tif -o stereoPixelPairsSmall.csv -p 100
-
-# Compute the global rotation and offet between the two LE cubes
-#/home/smcmich1/repo/StereoPipeline/src/asp/Tools/lronacAngleSolver --outputPath ./solvedParams.txt --gdcPointsOutPath stereoGdcPointsSmall.csv --matchingPixelsPath stereoPixelPairsSmall.csv ./M120168714LE.corrected.cub ./M120175500LE.corrected.cub --worldTransform --includePosition
-
-# Extract a large number of matching pixel locations (several thousand)
-#/home/smcmich1/repo/StereoPipeline/src/asp/Tools/stereoPixelPairExtractor -i stereoOutput-D_sub.tif -o stereoPixelPairsLarge.csv -p 25
-
-# Compute the 3d coordinates for each pixel pair
-#/home/smcmich1/repo/StereoPipeline/src/asp/Tools/lronacAngleSolver --outputPath ./dummy.txt --gdcPointsOutPath stereoGdcPointsLarge.csv --matchingPixelsPath stereoPixelPairsLarge.csv ./M120168714LE.corrected.cub ./M120175500LE.corrected.cub --worldTransform --includePosition --initialValues TODO
-
-# Use pc-align to compare points to LOLA DEM, compute rotation and offset
-#pc_align --max-displacement 1000 --datum D_MOON --max-num-reference-points 25000000 --save-transformed-source-points ~/data/ARISTARCHU2/RDR_310E312E_23N26NPointPerRow_csv_table.csv stereoGdcPointsLarge.csv -o ./transformToLola  --compute-translation-only
-
 # TODO: Apply rotation and offset to second pair (need absolute rot changer?)
 
-
-# TODO: Apply rotation and offset to LE images
-#/home/smcmich1/repo/lronacPipeline/rotationCorrector.py --input ~/data/stereoCorrectionTest/M120168714LE.corrected.cub --output ~/data/stereoCorrectionTest/M120175500LE.corrected.lolaMatched.cub --keep --transformPath /home/smcmich1/data/stereoCorrectionTest/M120168714LE.corrected.cub_stereoCalibrationTemp2/pcAlignOutput-transform.txt
-
-#/home/smcmich1/repo/lronacPipeline/rotationCorrector.py --input ~/data/stereoCorrectionTest/M120168714RE.corrected.cub --output ~/data/stereoCorrectionTest/M120175500RE.corrected.lolaMatched.cub --keep --transformPath /home/smcmich1/data/stereoCorrectionTest/M120168714LE.corrected.cub_stereoCalibrationTemp2/pcAlignOutput-transform.txt
-
-
-#/home/smcmich1/repo/lronacPipeline/rotationCorrector.py --input ~/data/stereoCorrectionTest/M120175500LE.corrected.cub --output ~/data/stereoCorrectionTest/M120175500LE.corrected.lolaMatched.cub --keep --transformPath /home/smcmich1/data/stereoCorrectionTest/M120168714LE.corrected.cub_stereoCalibrationTemp2/pcAlignOutput-transform.txt
-
-
-#~/data/stereoCorrectionTest/transformToLola-transform.txt
-
-#
-
-
-# TODO: Use rotation corrector to rotate RE images
 
 
 
 # Noproj the corrected data
-#noproj from=M112646261LE.corrected.cub    to=M112646261LE.corrected.noproj.cub    match=M112646261LE.corrected.cub specs=noprojInstruments_fullRes.pvl
-#noproj from=M112646261RE.rotCorrected.cub to=M112646261RE.rotCorrected.noproj.cub match=M112646261LE.corrected.cub specs=noprojInstruments_fullRes.pvl 
+noproj from=/home/smcmich1/data/stereoCorrectionTest/M120168714LE.final.cub    to=/home/smcmich1/data/stereoCorrectionTest/M120168714LE.final.noproj.cub    match=/home/smcmich1/data/stereoCorrectionTest/M120168714LE.final.cub specs=/home/smcmich1/data/stereoCorrectionTest/noprojInstruments_fullRes.pvl
 
-#cp M112646261LE.corrected.noproj.cub M112646261LE.mosaic.cub
-#handmos from=M112646261RE.rotCorrected.noproj.cub mosaic=M112646261LE.mosaic.cub outsample=0 outline=0 matchbandbin=FALSE priority=ontop
+noproj from=/home/smcmich1/data/stereoCorrectionTest/M120168714RE.final.cub    to=/home/smcmich1/data/stereoCorrectionTest/M120168714RE.final.noproj.cub    match=/home/smcmich1/data/stereoCorrectionTest/M120168714LE.final.cub specs=/home/smcmich1/data/stereoCorrectionTest/noprojInstruments_fullRes.pvl
+
+cp /home/smcmich1/data/stereoCorrectionTest/M120168714LE.final.noproj.cub /home/smcmich1/data/stereoCorrectionTest/M120168714LE.mosaic.cub
+handmos from=/home/smcmich1/data/stereoCorrectionTest/M120168714RE.final.noproj.cub mosaic=/home/smcmich1/data/stereoCorrectionTest/M120168714LE.mosaic.cub outsample=0 outline=0 matchbandbin=FALSE priority=ontop
 
 # TODO: Generate DEM, compare to ASU/LOLA
 

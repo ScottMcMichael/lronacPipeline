@@ -253,7 +253,7 @@ def main():
             os.remove(tempCkPath)
 
         # For unknown reasons there seems to be serious restrictions on directories this will actually write to
-        tempCkPath = '/tmp/modifiedLrocCk.bc'
+        #tempCkPath = '/tmp/modifiedLrocCk.bc'
 
         # Create new SPK file using modified data
         cmd = '/home/smcmich1/repo/StereoPipeline/src/asp/Tools/msopck ' + msopckConfigPath + ' ' + ckDataPath + '  ' + tempCkPath
