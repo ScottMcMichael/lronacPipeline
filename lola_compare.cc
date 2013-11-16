@@ -228,6 +228,7 @@ int main( int argc, char *argv[] )
   }
   
   // Loop through all the lines in the file
+  unsigned int numValidPixels = 0;
   RunningStatistics statCalc;
   double  demValue = 0;
   std::vector<float> diffVector;
@@ -280,6 +281,7 @@ int main( int argc, char *argv[] )
     float diff = static_cast<float>(demValue - lolaElevation);
     if (useAbsolute)
       diff = fabs(diff);
+    ++numValidPixels;
 
     // Update records
     statCalc.Push(diff);
@@ -287,7 +289,7 @@ int main( int argc, char *argv[] )
 
   } // End of loop through lines
 
-
+  printf("Found %d valid pixels\n", numValidPixels);
 
 
   double meanValue = statCalc.Mean();

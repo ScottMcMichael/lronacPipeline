@@ -26,19 +26,20 @@
 // CSpice include files
 #include "SpiceUsr.h"
 #include "SpiceZfc.h"
-#include "SpiceZfc.h"
 
 #include <vw/Core/Exception.h>
 #include <vw/Math/Vector.h>
 #include <vw/Math/Quaternion.h>
 
-#include <asp/Tools/stereo.h>
 #include <vw/FileIO/DiskImageResource.h>
 #include <vw/FileIO/DiskImageView.h>
 
+//#include <asp/Tools/stereo.h>
+#include <stereo.h> // Using local version
+
 //TODO: Would be nice to be able to remove these
 using namespace vw;
-using namespace vw::stereo;
+//using namespace vw::stereo;
 
 using std::endl;
 using std::setprecision;

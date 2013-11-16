@@ -49,31 +49,6 @@ def wait_on_all_jobs():
 
 #--------------------------------------------------------------------------------
 
-# Reads in a lronacAngleSolver state file and produces a string of the outputs
-def readSolvedState(filePath):
-    
-    if not os.path.exists(filePath):
-        print 'Error: file ' + filePath + ' does not exist!'
-        return ''
-
-    # Read through file one line at a time
-    f = open(filePath)
-    #params = []
-    paramString = ''
-    limit = 6
-    for line in f:
-        #params.append(float(line)) # Each line just contains a floating point value
-        newNum       = float(line.strip())
-        newNumString = '%f' % (newNum) # Remove any scientific notation
-        paramString  = paramString + newNumString + ' '
-        limit        = limit - 1
-        if limit == 0: # Only read in the first six parameters
-            break
-    f.close()
-
-    return paramString
-
-
 # TODO: Make this a standalone function!
 # Get a single file ready to process
 def prepareImgFile(inputPath, outputFolder):
@@ -115,8 +90,6 @@ def prepareImgFile(inputPath, outputFolder):
 
 #--------------------------------------------------------------------------------
 
-#TODO: Support for file based logging of results
-
 def main():
 
     print "Started stereoCalibrationProcess.py"
@@ -135,10 +108,11 @@ def main():
             parser.add_option("--workDir", dest="workDir",  help="Folder to store temporary files in")
             parser.add_option("--lola",    dest="lolaPath", help="Path to LOLA DEM")
 
-            parser.add_option("--outputL", dest="outputPathLeft",
-                              help="Where to write the output LE file.")
-            parser.add_option("--outputR", dest="outputPathRight",
-                              help="Where to write the output RE file.")
+            parser.add_option("--outputL",  dest="outputPathLeft",        help="Where to write the output LE file.")
+            parser.add_option("--outputR",  dest="outputPathRight",       help="Where to write the output RE file.")
+            parser.add_option("--outputSL", dest="outputPathStereoLeft",  help="Where to write the output Stereo LE file.")
+            parser.add_option("--outputSR", dest="outputPathStereoRight", help="Where to write the output Stereo RE file.")
+
             
             parser.add_option("--manual", action="callback", callback=man,
                               help="Read the manual.")
@@ -160,6 +134,10 @@ def main():
                 parser.error("Need left output path")
             if not options.outputPathRight: 
                 parser.error("Need right output path")
+            if not options.outputPathStereoLeft: 
+                parser.error("Need stereo left output path")
+            if not options.outputPathStereoRight: 
+                parser.error("Need stereo right output path")
 
         except optparse.OptionError, msg:
             raise Usage(msg)
@@ -173,12 +151,12 @@ def main():
         tempFolder    = outputFolder + '/' + inputBaseName + '_stereoCalibrationTemp3/'
         if (options.workDir):
             tempFolder = options.workDir
+        if not os.path.exists(outputFolder):
+            os.mkdir(outputFolder) 
         if not os.path.exists(tempFolder):
             os.mkdir(tempFolder) 
 
-  
-        # TODO: Wrap the following functions into one call!
-  
+
         # Convert the input files from IMG files to spiceinit'ed cubes in the output folder
         spiceInitLeftPath        = prepareImgFile(options.leftPath,    tempFolder)
         spiceInitRightPath       = prepareImgFile(options.rightPath,   tempFolder)
@@ -188,7 +166,7 @@ def main():
 
         # DEBUG: Check angle solver on input LE/RE images!
         pairGdcCheckPath = os.path.join(tempFolder, 'pairGdcCheck.csv')
-        if False:#not os.path.exists(pairGdcCheckPath):
+        if not os.path.exists(pairGdcCheckPath):
             cmd = '/home/smcmich1/repo/StereoPipeline/src/asp/Tools/lronacAngleSolver --outputPath dummy.txt --gdcPointsOutPath ' + pairGdcCheckPath + ' ' + spiceInitLeftPath + ' ' + spiceInitRightPath
             print cmd
             os.system(cmd)
@@ -232,7 +210,7 @@ def main():
 
         # DEBUG: Check angle solver on input LE/RE images!
         pairGdcCheckPath = os.path.join(tempFolder, 'pairGdcCheckInitial.csv')
-        if True:#not os.path.exists(pairGdcCheckPath):
+        if not os.path.exists(pairGdcCheckPath):
             cmd = '/home/smcmich1/repo/StereoPipeline/src/asp/Tools/lronacAngleSolver --outputPath dummy.txt --gdcPointsOutPath ' + pairGdcCheckPath + ' ' + posOffsetCorrectedLeftPath + ' ' + posOffsetCorrectedRightPath
             print cmd
             os.system(cmd)
@@ -241,9 +219,6 @@ def main():
         #return 0 
 
 
-
-
-        # WARNING: This step takes a long time!
         # Perform initial stereo step on two LE cubes to generate a large number of point correspondences
         stereoPrefix   = os.path.join(tempFolder, 'stereoOutput')
         disparityImage = stereoPrefix + '-D.tif'
@@ -253,8 +228,8 @@ def main():
             cmd = 'stereo_pprc ' + posOffsetCorrectedLeftPath + ' ' + posOffsetCorrectedStereoLeftPath + ' ' + stereoPrefix
             print cmd
             os.system(cmd)
-            # Stage 1 (sloooow), maybe faster with parallel?
-            cmd = 'stereo_corr ' + posOffsetCorrectedLeftPath + ' ' + posOffsetCorrectedStereoLeftPath + ' ' + stereoPrefix
+            # Stage 1 (slow!)
+            cmd = 'stereo_corr --cost-mode 0 --corr-timeout 400 ' + posOffsetCorrectedLeftPath + ' ' + posOffsetCorrectedStereoLeftPath + ' ' + stereoPrefix
             print cmd
             os.system(cmd)
         else:
@@ -263,6 +238,9 @@ def main():
         if (not os.path.exists(disparityImage)):
             print 'Stereo processing failed!  Processing stopped.'
             return 0
+
+        #print 'QUITTING EARLY'
+        #return 0 
 
         # Extract a small number of matching pixel locations ( < 100)
         pixelPairsSmall = os.path.join(tempFolder, 'stereoPixelPairsSmall.csv')
@@ -277,6 +255,7 @@ def main():
 
         # Compute the global rotation and offet between the two LE cubes
         globalParamsFile = os.path.join(tempFolder, 'solvedParams.csv')
+        globalParamsFileMatrix = os.path.join(tempFolder, 'solvedParams.csv.matrix.csv') # TODO: Improve how this is handled!
         smallGdcFile     = os.path.join(tempFolder, 'gdcPointsSmall.csv')
         if not os.path.exists(globalParamsFile):
             cmd = '/home/smcmich1/repo/StereoPipeline/src/asp/Tools/lronacAngleSolver --outputPath ' + globalParamsFile + ' --gdcPointsOutPath ' + smallGdcFile + ' --matchingPixelsPath ' + pixelPairsSmall + ' ' + posOffsetCorrectedLeftPath + ' ' + posOffsetCorrectedStereoLeftPath + ' --worldTransform --includePosition'
@@ -284,16 +263,42 @@ def main():
             os.system(cmd)
         else:
             print 'Skipping stereo transform calculation step'
+        # Mean projection error here is 2.525159 with p=1700
+        # Mean projection error here is 2.640027 with p=1699
 
-        ## Read in the final state parameters (global rotation and shift)
-        #initialParamString = readSolvedState(globalParamsFile)
-        #if not initialParamString:
-        #    return 1
+        #print 'QUITTING EARLY'
+        #return 0 
+
+        # Apply the transform to the second camera pair!  The transform is in moon coordinates.
+        tempLeftStereoPath = os.path.join(tempFolder, 'leftStereoAdjusted.cub')
+        if not os.path.exists(tempLeftStereoPath):
+            thisWorkDir = os.path.join(tempFolder, 'stereoLeftStereoCorrection/')
+            cmd = '/home/smcmich1/repo/lronacPipeline/rotationCorrector.py --keep --input ' + posOffsetCorrectedStereoLeftPath + ' --output ' + tempLeftStereoPath + ' --transformPath ' + globalParamsFileMatrix + ' --workDir ' + thisWorkDir
+            print cmd
+            os.system(cmd) # TODO: Do we need to specify the SPK and CK file paths?
+
+        tempRightStereoPath = os.path.join(tempFolder, 'rightStereoAdjusted.cub')
+        if not os.path.exists(tempLeftStereoPath):
+            thisWorkDir = os.path.join(tempFolder, 'stereoRightStereoCorrection/')
+            cmd = '/home/smcmich1/repo/lronacPipeline/rotationCorrector.py --keep --input ' + posOffsetCorrectedStereoRightPath + ' --output ' + tempRightStereoPath + ' --transformPath ' + globalParamsFileMatrix + ' --workDir ' + thisWorkDir
+            print cmd
+            os.system(cmd) # TODO: Do we need to specify the SPK and CK file paths?
+
+        # DEBUG: Check angle solver on stereo adjusted LE/RE images!
+        pairGdcCheckPath = os.path.join(tempFolder, 'pairGdcCheckStereo.csv')
+        if not os.path.exists(pairGdcCheckPath):
+            cmd = '/home/smcmich1/repo/StereoPipeline/src/asp/Tools/lronacAngleSolver --outputPath dummy.txt --gdcPointsOutPath ' + pairGdcCheckPath + ' ' + tempLeftStereoPath + ' ' + tempRightStereoPath
+            print cmd
+            os.system(cmd)
+
+        #print 'QUITTING EARLY'
+        #return 0 
+
 
         # Extract a large number of matching pixel locations (several thousand)
         pixelPairsLarge = os.path.join(tempFolder, 'stereoPixelPairsLarge.csv')
         if not os.path.exists(pixelPairsLarge):
-            cmd = '/home/smcmich1/repo/StereoPipeline/src/asp/Tools/stereoPixelPairExtractor -i ' + disparityImage + ' -o ' + pixelPairsLarge + ' -p 100'
+            cmd = '/home/smcmich1/repo/StereoPipeline/src/asp/Tools/stereoPixelPairExtractor -i ' + disparityImage + ' -o ' + pixelPairsLarge + ' -p 10'
             print cmd
             os.system(cmd)
         else:
@@ -302,25 +307,20 @@ def main():
         # Compute the 3d coordinates for each pixel pair using the rotation and offset computed earlier
         largeGdcFile = os.path.join(tempFolder, 'gdcPointsLarge.csv')
         if not os.path.exists(largeGdcFile):
-            cmd = '/home/smcmich1/repo/StereoPipeline/src/asp/Tools/lronacAngleSolver --outputPath dummy.txt --gdcPointsOutPath ' + largeGdcFile + ' --matchingPixelsPath ' + pixelPairsLarge + ' ' + posOffsetCorrectedLeftPath + ' ' + posOffsetCorrectedStereoLeftPath + " --worldTransform --includePosition --initialOnly --initialValues " + globalParamsFile # + initialParamString + "'"
+            cmd = '/home/smcmich1/repo/StereoPipeline/src/asp/Tools/lronacAngleSolver --outputPath dummy.txt --gdcPointsOutPath ' + largeGdcFile + ' --matchingPixelsPath ' + pixelPairsLarge + ' ' + posOffsetCorrectedLeftPath + ' ' + posOffsetCorrectedStereoLeftPath + " --worldTransform --includePosition --initialOnly --initialValues " + globalParamsFile 
             print cmd
             os.system(cmd)
         else:
             print 'Skipping large GDC file creation step'
 
-        # TODO: Apply rotation and offset to second pair (need absolute rot changer?)
-
-        #print 'QUITTING EARLY'
-        #return 0 
-
-
         # Use pc-align to compare points to LOLA DEM, compute rotation and offset
         pcAlignOutputPrefix   = os.path.join(tempFolder, 'pcAlignOutput/dem')
         #largeGdcTransformedFile = os.path.joint(tempFolder, 'gdcPointsTransformedLarge.csv')
         #transformedPointsFile = os.path.join(tempFolder, 'pcAlignOutput-trans_source.csv')
-        transformMatrixFile   = pcAlignOutputPrefix + '-transform.txt'
-        if True:#not os.path.exists(transformMatrixFile):
-            cmd = 'pc_align --highest-accuracy --max-displacement 600 --datum D_MOON --max-num-reference-points 25000000 --save-transformed-source-points ' + options.lolaPath + ' ' + largeGdcFile + ' -o ' + pcAlignOutputPrefix + ' --compute-translation-only'
+        transformMatrixFile   = pcAlignOutputPrefix + '-inverse-transform.txt'
+        if not os.path.exists(transformMatrixFile):
+            #cmd = 'pc_align --highest-accuracy --max-displacement 600 --datum D_MOON --max-num-reference-points 25000000 --save-transformed-source-points ' + options.lolaPath + ' ' + largeGdcFile + ' -o ' + pcAlignOutputPrefix + ' --compute-translation-only'
+            cmd = 'pc_align --highest-accuracy --max-displacement 600 --datum D_MOON --save-inv-transformed-reference-points ' + largeGdcFile + ' ' + options.lolaPath + ' -o ' + pcAlignOutputPrefix + ' --compute-translation-only'
             print cmd
             os.system(cmd)
         else:
@@ -338,35 +338,48 @@ def main():
         # Now go back and apply the pc_align computed transform to the left and right input image
         leftCkPath  = os.path.join(tempFolder, 'leftFinalCk.bc') #TODO: Do we need to specify these?
         leftSpkPath = os.path.join(tempFolder, 'leftFinalSpk.bsp')
-        if True:#not os.path.exists(options.outputPathLeft): # Do this no matter what?
+        if not os.path.exists(options.outputPathLeft): # Do this no matter what?
             thisWorkDir = os.path.join(tempFolder, 'leftFullCorrection')
             cmd = '/home/smcmich1/repo/lronacPipeline/rotationCorrector.py --keep --input ' + posOffsetCorrectedLeftPath + ' --output ' + options.outputPathLeft + ' --transformPath ' + transformMatrixFile + ' --workDir ' + thisWorkDir + ' --ck ' + leftCkPath + ' --spk ' + leftSpkPath
             print cmd
             os.system(cmd)
 
-        ## DEBUG: Correct the stereo-left image and re-run the point computations to see if they match the pc_align output
-        #stereoLeftOutPath = os.path.join(tempFolder, 'stereo-left_final.cub') # TODO: Get from output path
-        #if not os.path.exists(stereoLeftOutPath):
-        #    cmd = '/home/smcmich1/repo/lronacPipeline/rotationCorrector.py --keep --input ' + options.stereoLeftPath + ' --output ' + stereoLeftOutPath + ' --transformPath ' + transformMatrixFile + ' --workDir ' + thisWorkDir
-        #    print cmd
-        #    os.system(cmd)
-
         tempRightPath = os.path.join(tempFolder, 'partial_corrected_RE.cub')
-        rightCkPath  = os.path.join(tempFolder, 'rightFinalCk.bc') # Need these later to pass to internal angle correction function
-        rightSpkPath = os.path.join(tempFolder, 'rightFinalSpk.bsp')
-        if True:#not os.path.exists(tempRightPath):
+        rightCkPath   = os.path.join(tempFolder, 'rightFinalCk.bc') # Need these later to pass to internal angle correction function
+        rightSpkPath  = os.path.join(tempFolder, 'rightFinalSpk.bsp')
+        if not os.path.exists(tempRightPath):
             thisWorkDir = os.path.join(tempFolder, 'rightFullCorrection/')
             cmd = '/home/smcmich1/repo/lronacPipeline/rotationCorrector.py --keep --input ' + posOffsetCorrectedRightPath + ' --output ' + tempRightPath + ' --transformPath ' + transformMatrixFile + ' --workDir ' + thisWorkDir + ' --ck ' + rightCkPath + ' --spk ' + rightSpkPath
             print cmd
             os.system(cmd)
 
-        # At this point the left image is hopefully in the correct position and we can compute the offset of the RE camera
+        # Do the same correction for the stereo-left and stereo-right images
+        leftStereoCkPath  = os.path.join(tempFolder, 'leftStereoFinalCk.bc') #msopck can't handle the default kernel paths
+        leftStereoSpkPath = os.path.join(tempFolder, 'leftStereoFinalSpk.bsp')
+        if not os.path.exists(options.outputPathStereoLeft):
+            thisWorkDir = os.path.join(tempFolder, 'leftStereoFullCorrection')
+            cmd = '/home/smcmich1/repo/lronacPipeline/rotationCorrector.py --keep --input ' + tempLeftStereoPath + ' --output ' + options.outputPathStereoLeft + ' --transformPath ' + transformMatrixFile + ' --workDir ' + thisWorkDir + ' --ck ' + leftStereoCkPath + ' --spk ' + leftStereoSpkPath
+            print cmd
+            os.system(cmd)
 
+        tempRightStereoPath2 = os.path.join(tempFolder, 'partial_corrected_stereo_RE.cub')
+        rightStereoCkPath   = os.path.join(tempFolder, 'rightStereoFinalCk.bc') # Need these later to pass to internal angle correction function
+        rightStereoSpkPath  = os.path.join(tempFolder, 'rightStereoFinalSpk.bsp')
+        if not os.path.exists(tempRightPath):
+            thisWorkDir = os.path.join(tempFolder, 'rightStereoFullCorrection/')
+            cmd = '/home/smcmich1/repo/lronacPipeline/rotationCorrector.py --keep --input ' + tempRightStereoPath + ' --output ' + tempRightStereoPath2 + ' --transformPath ' + transformMatrixFile + ' --workDir ' + thisWorkDir + ' --ck ' + rightStereoCkPath + ' --spk ' + rightStereoSpkPath
+            print cmd
+            os.system(cmd)
+
+        ## TODO: Re-run the point computations to see if they match the pc_align output!
+
+
+        # At this point the left images are hopefully in the correct position and we can compute the offset of the RE camera
 
 
         # DEBUG: Check angle solver on adjusted LE/RE images!
         pairGdcCheckPath = os.path.join(tempFolder, 'pairGdcCheckFinal.csv')
-        if True:#not os.path.exists(pairGdcCheckPath):
+        if not os.path.exists(pairGdcCheckPath):
             cmd = '/home/smcmich1/repo/StereoPipeline/src/asp/Tools/lronacAngleSolver --outputPath dummy.txt --gdcPointsOutPath ' + pairGdcCheckPath + ' ' + options.outputPathLeft + ' ' + tempRightPath
             print cmd
             os.system(cmd)
@@ -375,16 +388,19 @@ def main():
         #return 0 
 
 
-        # Compute the local rotation between the adjusted LE and RE cubes                                                                                                                                                                                                                                        
+        # Compute the local rotation between the adjusted LE and RE cubes
         checkGdcFile = os.path.join(tempFolder, 'gdcPointsCheckFinalRot.csv') # Record GDC points for debugging
-        if True: #not os.path.exists(globalParamsFile):
+        if not os.path.exists(globalParamsFile):
             cmd = '/home/smcmich1/repo/lronacPipeline/lronacCameraRotationCorrector.py --keep --output ' + options.outputPathRight + ' --left ' + options.outputPathLeft + ' --right ' + tempRightPath + ' --gdcLogPath ' + checkGdcFile +  ' --ck ' + rightCkPath + ' --spk ' + rightSpkPath 
             print cmd
             os.system(cmd)
 
-        # If we are feeling generous we could also correct the "stereo-left" input cube and its RE pair
-        # - This would require that we first apply the rotation correction found earlier, then the one found using pc_align
-
+        # Do the same thing for the two stereo cubes
+        checkGdcFileStereo = os.path.join(tempFolder, 'gdcPointsCheckFinalRotStereo.csv') # Record GDC points for debugging
+        if not os.path.exists(globalParamsFile):
+            cmd = '/home/smcmich1/repo/lronacPipeline/lronacCameraRotationCorrector.py --keep --output ' + options.outputPathStereoRight + ' --left ' + options.outputPathStereoLeft + ' --right ' + tempRightStereoPath2 + ' --gdcLogPath ' + checkGdcFileStereo +  ' --ck ' + rightStereoCkPath + ' --spk ' + rightStereoSpkPath 
+            print cmd
+            os.system(cmd)
 
 
         # Clean up temporary files

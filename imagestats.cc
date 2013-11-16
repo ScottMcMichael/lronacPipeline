@@ -163,7 +163,7 @@ bool writeOutput(const std::vector<float > &cdfVector,
   return true;
 }
 
-
+//TODO: Print help when no input arguments are used!
 int main( int argc, char *argv[] ) {
 
   const int numBins = 20; // 5% intervals

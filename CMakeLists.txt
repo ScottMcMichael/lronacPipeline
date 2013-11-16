@@ -172,6 +172,10 @@ target_link_libraries(lola_compare  ${VISIONWORKBENCH_LIBRARIES})
 add_executable(lronacAngleSolver lronacAngleSolver.cc) 
 target_link_libraries(lronacAngleSolver  ${QT_LIBRARIES} ${VISIONWORKBENCH_LIBRARIES} ${StereoPipeline_LIBRARIES}) 
 
+add_executable(pixelPairsFromStereo pixelPairsFromStereo.cc) 
+target_link_libraries(pixelPairsFromStereo  ${VISIONWORKBENCH_LIBRARIES}  ${StereoPipeline_LIBRARIES}) 
+
+
 add_executable(spiceEditor SpiceEditor.cc) 
 target_link_libraries(spiceEditor  ${VISIONWORKBENCH_LIBRARIES} ${StereoPipeline_LIBRARIES}) 
 
