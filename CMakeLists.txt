@@ -14,9 +14,11 @@ set(PACKAGE_BUGREPORT "scott.t.mcmichael@nasa.gov")
 
 
 #TODO: Remove this, the find functions should handle it!
-set(BASESYSTEM_INSTALL_DIR "/home/smcmich1/repo/BaseSystem")
-set(VISIONWORKBENCH_ROOT   "/home/smcmich1/repo/visionworkbench/build")
-set(StereoPipeline_ROOT    "/home/smcmich1/repo/StereoPipeline/build")
+set(BASESYSTEM_INSTALL_DIR  "/home/smcmich1/repo/BaseSystem")
+set(VISIONWORKBENCH_ROOT    "/home/smcmich1/repo/visionworkbench/build")
+set(StereoPipeline_ROOT     "/home/smcmich1/repo/StereoPipeline/build")
+set(CERES_INSTALL_DIR       "/home/smcmich1/repo/ceres-solver")
+set(SUITESPARSE_INSTALL_DIR "/home/smcmich1/repo/SuiteSparse")
 
 # Custom options
 option(BUILD_SHARED_LIBS "Produce shared libraries." TRUE)
@@ -129,7 +131,6 @@ find_package(VisionWorkbench REQUIRED
   interestPoint
   stereo
   mosaic
-  
   )
 
 message("Found vision workbench include directory: ${VISIONWORKBENCH_INCLUDE_DIRS}")
@@ -158,23 +159,61 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
 link_directories(${Boost_LIBRARY_DIRS})
 
+set(EIGEN_INCLUDE_DIR ${BASESYSTEM_INSTALL_DIR}/include/eigen3)
+include_directories("${EIGEN_INCLUDE_DIR}")
+
+include_directories("${SUITESPARSE_INSTALL_DIR}/include")
+link_directories("${SUITESPARSE_INSTALL_DIR}/lib")
+set(SUITESPARSE_LIBRARIES  libamd.a   libccolamd.a  libcolamd.a    libklu.a   libspqr.a libbtf.a   libcerbla.a   libcsparse.a   libldl.a libsuitesparseconfig.a  libcholmod.a  libcxsparse.a  librbio.a  libumfpack.a libcamd.a)
+# The order of the libraries here is important
+
+FIND_PACKAGE(OpenMP REQUIRED)
+if (OPENMP_FOUND)
+
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
+
+#  if (UNIX)
+#    # At least on Linux, we need pthreads to be enabled for mutex to
+#    # compile.  This may not work on Windows or Android.
+#    FIND_PACKAGE(Threads REQUIRED)
+#    SET(STATIC_LIBRARY_FLAGS
+#      "${STATIC_LIBRARY_FLAGS} ${CMAKE_THREAD_LIBS_INIT}")
+#    SET(CMAKE_SHARED_LINKER_FLAGS
+#      "${CMAKE_SHARED_LINKER_FLAGS} ${CMAKE_THREAD_LIBS_INIT}")
+#    ADD_DEFINITIONS(-DCERES_HAVE_PTHREAD)
+#    ADD_DEFINITIONS(-DCERES_HAVE_RWLOCK)
+#  endif (UNIX)
+endif (OPENMP_FOUND)
+
+
+
+# Add the Ceres library
+set(CERES_LIBRARIES    ${CERES_INSTALL_DIR}/build/lib/libceres.a ${CERES_INSTALL_DIR}/build/lib/libminiglog.a)
+set(CERES_INCLUDE_DIRS ${CERES_INSTALL_DIR}/include ${CERES_INSTALL_DIR}/internal/ceres/miniglog)
+message("${CERES_INCLUDE_DIRS}")
+include_directories("${CERES_INCLUDE_DIRS}")
+
+
 
 #===================================================================================
 # Executables
 
-
+# TODO: Don't build these, just use the "Tools" repository
 add_executable(imagestats imagestats.cc) 
 target_link_libraries(imagestats  ${VISIONWORKBENCH_LIBRARIES}) 
-
-add_executable(lola_compare lola_compare.cc) 
-target_link_libraries(lola_compare  ${VISIONWORKBENCH_LIBRARIES}) 
-
-add_executable(lronacAngleSolver lronacAngleSolver.cc) 
-target_link_libraries(lronacAngleSolver  ${QT_LIBRARIES} ${VISIONWORKBENCH_LIBRARIES} ${StereoPipeline_LIBRARIES}) 
 
 add_executable(pixelPairsFromStereo pixelPairsFromStereo.cc) 
 target_link_libraries(pixelPairsFromStereo  ${VISIONWORKBENCH_LIBRARIES}  ${StereoPipeline_LIBRARIES}) 
 
+add_executable(lola_compare lola_compare.cc) 
+target_link_libraries(lola_compare  ${VISIONWORKBENCH_LIBRARIES}) 
+
+
+
+add_executable(lronacAngleSolver lronacAngleSolver.cc lronacSolverSupport.h lronacSolverModel.h) 
+target_link_libraries(lronacAngleSolver  ${QT_LIBRARIES} ${VISIONWORKBENCH_LIBRARIES} ${StereoPipeline_LIBRARIES}  ${CERES_LIBRARIES} ${SUITESPARSE_LIBRARIES}) 
 
 add_executable(spiceEditor SpiceEditor.cc) 
 target_link_libraries(spiceEditor  ${VISIONWORKBENCH_LIBRARIES} ${StereoPipeline_LIBRARIES}) 

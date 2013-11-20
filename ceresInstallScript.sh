@@ -8,6 +8,7 @@ BASE_SYSTEM_DIR=/home/smcmich1/repo/BaseSystem
 wget http://www.cise.ufl.edu/research/sparse/SuiteSparse/current/SuiteSparse.tar.gz
 tar -zxvf SuiteSparse.tar.gz
 cd SuitSparse
+# TODO: swap comments on SuiteSparse_config.mk lines 62/63 to make sure timer is built!
 make
 # Do a sort of installation by hand since we can't call make install
 mkdir include
@@ -15,6 +16,7 @@ find . -name '*.h' -print0  | xargs -0 -I {} cp {} ./include
 find . -name '*.hpp' -print0  | xargs -0 -I {} cp {} ./include
 mkdir lib
 find . -name '*.a' -print0  | xargs -0 -I {} cp {} ./lib 
+
 
 #TODO: Store the include and lib paths and use below!
 
