@@ -471,7 +471,7 @@ bool optimizeRotations(Parameters & params)
   printf("Running solver...\n");
   Vector<double> finalParams;
   //@@@@@@@@@@@@@@@@@@@@ NEW METHOD @@@@@@@@@@@@@@@@@@@@@@@@@
-#if true
+#if false
   printf("Using Ceres solver!\n");
   //TODO: Turn on Glog
   
@@ -481,6 +481,9 @@ bool optimizeRotations(Parameters & params)
   // Set up camera parameters for solver
   double* cameraParams = &(initialState[0]);
   problem.AddParameterBlock(cameraParams, startOfPts);
+  printf("startOfPts = %d\n", startOfPts);
+  if (params.includePosition)
+    printf("Six point cost function\n");
   
   for (size_t i=0; i<numMatchedPts; ++i) // For each input point
   {
@@ -493,12 +496,12 @@ bool optimizeRotations(Parameters & params)
     
     // Add the function and residual block for the left camera
     ceres::CostFunction* costFunctionLeft = 
-            new ceres::NumericDiffCostFunction<LeftCostFunctor, ceres::CENTRAL, 2, 3>(
+            new ceres::NumericDiffCostFunction<LeftCostFunctor, ceres::CENTRAL, NUM_PARAMS_PER_OBSERVATION, 3>(
                 new LeftCostFunctor(&lrocClass, leftCol[i], leftRow[i]));
 
     problem.AddResidualBlock(costFunctionLeft,
                              0 /* squared loss TODO experiment with this */,
-                             cameraParams, pointParams);
+                             pointParams);
 
     // Add the function and residual block for the right camera (slightly more complex
     ceres::CostFunction* costFunctionRight;
@@ -529,11 +532,21 @@ bool optimizeRotations(Parameters & params)
   printf("Starting the Ceres solver...\n");
   ceres::Solver::Summary summary;
   ceres::Solve(solverOptions, &problem, &summary);
+  
+  std::ofstream ceresLog("~/data/ceresOutput.txt");
   std::cout << summary.FullReport() << "\n";
+  ceresLog << summary.FullReport();
+  ceresLog.close();
 
   printf("All done with the Ceres solver!\n");
-  //TODO: Get the information back from the solver!
-  return true;
+
+  printf("Copying out Ceres solver results.\n");
+  // Get the information back from the solver!
+  finalParams.set_size(initialState.size());
+  for (size_t i=0; i<initialState.size(); ++i)
+    finalParams[i] = initialState[i];
+  
+  //return true;
   
 #else
   //@@@@@@@@@@@@@@@@@@@@ OLD METHOD @@@@@@@@@@@@@@@@@@@@@@@@@
