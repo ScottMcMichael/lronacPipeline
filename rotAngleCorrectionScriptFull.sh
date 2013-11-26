@@ -1,4 +1,4 @@
-#!/bin/bash  
+#!/bin/bash
 
 
 
@@ -17,9 +17,11 @@
 
 #***********************************************************************************
 # Testing the big stereo calibration program
-#~/repo/lronacPipeline/stereoCalibrationProcess.py --left /home/smcmich1/data/ARISTARCHU2/M120168714LE.IMG --right /home/smcmich1/data/ARISTARCHU2/M120168714RE.IMG --stereo-left /home/smcmich1/data/ARISTARCHU2/M120175500LE.IMG --stereo-right /home/smcmich1/data/ARISTARCHU2/M120175500RE.IMG --lola ~/data/ARISTARCHU2/RDR_310E312E_23N26NPointPerRow_csv_table.csv --keep --outputL ~/data/stereoCorrectionTest/M120168714LE.final.cub --outputR ~/data/stereoCorrectionTest/M120168714RE.final.cub --outputSL ~/data/stereoCorrectionTest/M120175500LE.final.cub --outputSR ~/data/stereoCorrectionTest/M120175500RE.final.cub --workDir ~/data/stereoCorrectionTest/workingDir
+~/repo/lronacPipeline/stereoCalibrationProcess.py --left /home/smcmich1/data/ARISTARCHU2/M120168714LE.IMG --right /home/smcmich1/data/ARISTARCHU2/M120168714RE.IMG --stereo-left /home/smcmich1/data/ARISTARCHU2/M120175500LE.IMG --stereo-right /home/smcmich1/data/ARISTARCHU2/M120175500RE.IMG --lola ~/data/ARISTARCHU2/RDR_310E312E_23N26NPointPerRow_csv_table.csv --keep --outputL ~/data/stereoCorrectionTest/M120168714LE.final.cub --outputR ~/data/stereoCorrectionTest/M120168714RE.final.cub --outputSL ~/data/stereoCorrectionTest/M120175500LE.final.cub --outputSR ~/data/stereoCorrectionTest/M120175500RE.final.cub --workDir ~/data/stereoCorrectionTest/workingDir
 
 # Draw test output
+~/repo/lronacPipeline/calibrationReport.py --input ~/data/stereoCorrectionTest/workingDir/pairGdcCheckPre.csv --output ~/data/stereoCorrectionTest/pairGdcCheckPreCeres700.kml --name pairCheckPreCeres700 --color blue
+
 #~/repo/lronacPipeline/calibrationReport.py --input ~/data/stereoCorrectionTest/workingDir/pairGdcCheckInitial.csv --output ~/data/stereoCorrectionTest/pairGdcCheckInitialC.kml --name pairCheckInitialC --color blue
 
 #~/repo/lronacPipeline/calibrationReport.py --input ~/data/stereoCorrectionTest/workingDir/pairGdcCheckFinal.csv --output ~/data/stereoCorrectionTest/pairGdcCheckFinalC.kml --name pairCheckFinalC --color blue
@@ -29,12 +31,12 @@
 #~/repo/lronacPipeline/calibrationReport.py --input ~/data/stereoCorrectionTest/workingDir/gdcPointsCheckFinalRotStereo.csv --output ~/data/stereoCorrectionTest/gdcPointsGdcCheckFinalRotCStereo.kml --name gdcPointsCheckFinalRotCStereo --color red
 
 # Draw input to pc_align
-#~/repo/lronacPipeline/calibrationReport.py --input /home/smcmich1/data/stereoCorrectionTest/workingDir/gdcPointsLarge.csv --output ~/data/stereoCorrectionTest/inputGdcPointsLT.kml --name inputGdcPointsLT --color red --skip 10000
+#~/repo/lronacPipeline/calibrationReport.py --input /home/smcmich1/data/stereoCorrectionTest/workingDir/gdcPointsLarge.csv --output ~/data/stereoCorrectionTest/inputGdcPointsL.kml --name inputGdcPointsL --color red --skip 100000
 
 # Draw pc_align moved points
 #~/repo/lronacPipeline/calibrationReport.py --input /home/smcmich1/data/stereoCorrectionTest/workingDir/pcAlignOutput/dem-trans_source.csv --output ~/data/stereoCorrectionTest/movedGdcPointsLT.kml --name movedGdcPointsLT --color blue --skip 10000
 
-#~/repo/lronacPipeline/calibrationReport.py --input /home/smcmich1/data/stereoCorrectionTest/workingDir/pcAlignOutput/dem-trans_reference.csv --output ~/data/stereoCorrectionTest/movedGdcPointsLT.kml --name movedGdcPointsLT --color blue --skip 10000
+#~/repo/lronacPipeline/calibrationReport.py --input /home/smcmich1/data/stereoCorrectionTest/workingDir/pcAlignOutput/dem-trans_reference.csv --output ~/data/stereoCorrectionTest/movedGdcPointsL.kml --name movedGdcPointsL --color blue --skip 100000
 
 #***********************************************************************************
 
@@ -76,45 +78,14 @@
 
 
 # Generate a DEM from the two mosaic images
-parallel_stereo --corr-timeout 400 --alignment affineepipolar --subpixel-mode 1 --disable-fill-holes /home/smcmich1/data/stereoCorrectionTest/M120168714LE.mosaic.norm.cub /home/smcmich1/data/stereoCorrectionTest/M120175500LE.mosaic.norm.cub ~/data/stereoCorrectionTest/finalStereo/output --processes 8 --threads-multiprocess 4 --threads-singleprocess 32 --compute-error-vector
+#3parallel_stereo --corr-timeout 400 --alignment affineepipolar --subpixel-mode 1 --disable-fill-holes /home/smcmich1/data/stereoCorrectionTest/M120168714LE.mosaic.norm.cub /home/smcmich1/data/stereoCorrectionTest/M120175500LE.mosaic.norm.cub ~/data/stereoCorrectionTest/finalStereo/output --processes 8 --threads-multiprocess 4 --threads-singleprocess 32 --compute-error-vector
 #--nodes-list PBS_NODEFILE --processes 4 --threads-multiprocess 16 --threads-singleprocess 32
 
 # Find out the center latitude of the mosaic
-#point2dem --errorimage -o /data/stereoCorrectionTest/finalStereo /data/stereoCorrectionTest/finalStereo-PC.tif -r moon --tr 1 --t_srs "+proj=eqc +lat_ts=24.62 +lat_0=0 +a=1737400 +b=1737400 +units=m" --nodata -32767
+#point2dem --errorimage -o /home/smcmich1/data/stereoCorrectionTest/finalStereo/output-DEM.tif /home/smcmich1/data/stereoCorrectionTest/finalStereo/output-PC.tif -r moon --tr 1 --t_srs "+proj=eqc +lat_ts=24.62 +lat_0=0 +a=1737400 +b=1737400 +units=m" --nodata -32767
 
 # Create a hillshade image to check if the central errors are gone
-#hillshade <DEM_FILE> -o ~/data/stereoCorrectionTest/demHillshade.tif
-
-
-#***********************************************************************************
-# Until the same process fixes both files, do the same thing for the second pair.
-
-
-# Testing the big stereo calibration program
-#~/repo/lronacPipeline/stereoCalibrationProcess.py --stereo-left /home/smcmich1/data/ARISTARCHU2/M120168714LE.IMG --stereo-right /home/smcmich1/data/ARISTARCHU2/M120168714RE.IMG --left /home/smcmich1/data/ARISTARCHU2/M120175500LE.IMG --right /home/smcmich1/data/ARISTARCHU2/M120175500RE.IMG --lola ~/data/ARISTARCHU2/RDR_310E312E_23N26NPointPerRow_csv_table.csv --keep --outputL ~/data/stereoCorrectionTest2/M120175500LE.final.cub --outputR ~/data/stereoCorrectionTest2/M120175500RE.final.cub --workDir ~/data/stereoCorrectionTest2/workingDir
-
-# Draw test output
-#~/repo/lronacPipeline/calibrationReport.py --input ~/data/stereoCorrectionTest2/workingDir/pairGdcCheckInitial.csv --output ~/data/stereoCorrectionTest2/pairGdcCheckInitial.kml --name pairCheckInitial --color blue
-
-#~/repo/lronacPipeline/calibrationReport.py --input ~/data/stereoCorrectionTest2/workingDir/pairGdcCheckFinal.csv --output ~/data/stereoCorrectionTest2/pairGdcCheckFinal.kml --name pairCheckFinal --color blue
-
-#~/repo/lronacPipeline/calibrationReport.py --input ~/data/stereoCorrectionTest2/workingDir/gdcPointsCheckFinalRot.csv --output ~/data/stereoCorrectionTest2/gdcPointsGdcCheckFinalRot.kml --name gdcPointsCheckFinalRot --color red
-
-
-# Draw input to pc_align
-#~/repo/lronacPipeline/calibrationReport.py --input /home/smcmich1/data/stereoCorrectionTest2/workingDir/gdcPointsLarge.csv --output ~/data/stereoCorrectionTest2/inputGdcPoints.kml --name inputGdcPoints --color red --skip 100
-
-# Draw pc_align moved points
-#~/repo/lronacPipeline/calibrationReport.py --input /home/smcmich1/data/stereoCorrectionTest2/workingDir/pcAlignOutput/dem-trans_source.csv --output ~/data/stereoCorrectionTest2/movedGdcPoints.kml --name movedGdcPoints --color red --skip 100
-
-#TODO: Make sure the pvl file is written!
-# Noproj the corrected data
-#noproj from=/home/smcmich1/data/stereoCorrectionTest2/M120175500LE.final.cub    to=/home/smcmich1/data/stereoCorrectionTest2/M120175500LE.final.noproj.cub    match=/home/smcmich1/data/stereoCorrectionTest2/M120175500LE.final.cub specs=/home/smcmich1/data/stereoCorrectionTest2/noprojInstruments_fullRes.pvl
-
-#noproj from=/home/smcmich1/data/stereoCorrectionTest2/M120175500RE.final.cub    to=/home/smcmich1/data/stereoCorrectionTest2/M120175500RE.final.noproj.cub    match=/home/smcmich1/data/stereoCorrectionTest2/M120175500LE.final.cub specs=/home/smcmich1/data/stereoCorrectionTest2/noprojInstruments_fullRes.pvl
-
-#cp /home/smcmich1/data/stereoCorrectionTest2/M120175500LE.final.noproj.cub /home/smcmich1/data/stereoCorrectionTest2/M120175500LE.mosaic.cub
-#handmos from=/home/smcmich1/data/stereoCorrectionTest2/M120175500RE.final.noproj.cub mosaic=/home/smcmich1/data/stereoCorrectionTest2/M120175500LE.mosaic.cub outsample=0 outline=0 matchbandbin=FALSE priority=ontop
+#hillshade /home/smcmich1/data/stereoCorrectionTest/finalStereo/output-DEM.tif -o /home/smcmich1/data/stereoCorrectionTest/demHillshade.tif
 
 
 # Call the (hacked) pipeline

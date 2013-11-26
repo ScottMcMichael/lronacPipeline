@@ -247,7 +247,7 @@ bool findMatchingPixels(const Parameters &params, Vector<double> &leftRow, Vecto
   printf("Filtering points with RANSAC...\n");
   // Filter interest point matches
   int    numIterations       = 100;
-  double inlierThreshold     = 5.0; // Want to be somewhat generous here
+  double inlierThreshold     = 10.0; // Want to be somewhat generous here
   int    minNumOutputInliers = 100;
   math::RandomSampleConsensus<math::SimilarityFittingFunctor, math::InterestPointErrorMetric> ransac( math::SimilarityFittingFunctor(),
                           math::InterestPointErrorMetric(),
@@ -287,28 +287,33 @@ bool findMatchingPixels(const Parameters &params, Vector<double> &leftRow, Vecto
   // Now that we have correspondence points, feed them into an angular solver.
 
   // This value is governed by how slow the solver gets with large numbers of points
-  const int TARGET_NUM_POINTS = 70;
-
-  // Initialize random seed, then generate secret number between 0 and TARGET_NUM_POINTS-1
-  srand(time(0));
-  const int startIndex = rand() % TARGET_NUM_POINTS;
-  printf("Starting index = %d\n", startIndex);
+  // TODO: Fiddle with values to get this number higher?
+  const int TARGET_NUM_POINTS = 200;
 
   // Convert the matching points into the correct format
-  const int    pointSkip     = ransac_ip1.size() / TARGET_NUM_POINTS; // Pick skip to get the right number of points
-  const size_t numMatchedPts = ransac_ip1.size() / pointSkip;
+  const int pointSkip = ransac_ip1.size() / TARGET_NUM_POINTS; // Pick skip to get about the desired number of points
+
+  // Initialize random seed to generate random starting offset
+  srand(time(0));
+  const int startIndex = rand() % pointSkip;
+  printf("Starting index = %d, point skip = %d\n", startIndex, pointSkip);
+  
+  const size_t numMatchedPts = floor(ransac_ip1.size() / (pointSkip+1));
   printf("Num sampled points = %lu\n", numMatchedPts);
   leftRow.set_size(numMatchedPts), leftCol.set_size(numMatchedPts), rightRow.set_size(numMatchedPts), rightCol.set_size(numMatchedPts);
   int i = startIndex;
+  std::ofstream pointFile("/home/smcmich1/initialPixelDiff.csv");
   for (size_t p=0; p<numMatchedPts; ++p)
   {
     leftCol [p] = ransac_ip1[i][0] + leftStartX;
     leftRow [p] = ransac_ip1[i][1];
     rightCol[p] = ransac_ip2[i][0];
     rightRow[p] = ransac_ip2[i][1];
-    //printf("p: %d, i: %d --> %lf, %lf, %lf, %lf\n", p, i, leftCol[p], leftRow[p], rightCol[p], rightRow[p]);
+    printf("p: %d, i: %d --> %lf, %lf, %lf, %lf\n", p, i, leftCol[p], leftRow[p], rightCol[p], rightRow[p]);
+    pointFile << leftRow[p] - rightRow[p] << ", " << ransac_ip1[i][0] - rightCol[p] << std::endl;
     i+= pointSkip; 
-  }  
+  }
+  pointFile.close();
   
   return true;
 }
@@ -380,7 +385,6 @@ bool optimizeRotations(Parameters & params)
     if (!loadMatchingPixels(params.matchingPointsPath, leftRow, leftCol, rightRow, rightCol))
       return false;
   }
-
 
   const size_t numMatchedPts = leftRow.size();
 
@@ -471,7 +475,7 @@ bool optimizeRotations(Parameters & params)
   printf("Running solver...\n");
   Vector<double> finalParams;
   //@@@@@@@@@@@@@@@@@@@@ NEW METHOD @@@@@@@@@@@@@@@@@@@@@@@@@
-#if false
+#if true
   printf("Using Ceres solver!\n");
   //TODO: Turn on Glog
   
@@ -484,7 +488,8 @@ bool optimizeRotations(Parameters & params)
   printf("startOfPts = %d\n", startOfPts);
   if (params.includePosition)
     printf("Six point cost function\n");
-  
+
+  ceres::LossFunction* lossFunction = new ceres::HuberLoss(1.0);
   for (size_t i=0; i<numMatchedPts; ++i) // For each input point
   {
     const int NUM_PARAMS_PER_POINT       = 3;
@@ -500,7 +505,7 @@ bool optimizeRotations(Parameters & params)
                 new LeftCostFunctor(&lrocClass, leftCol[i], leftRow[i]));
 
     problem.AddResidualBlock(costFunctionLeft,
-                             0 /* squared loss TODO experiment with this */,
+                             lossFunction,
                              pointParams);
 
     // Add the function and residual block for the right camera (slightly more complex
@@ -518,22 +523,30 @@ bool optimizeRotations(Parameters & params)
                                 new RightCostFunctor(&lrocClass, rightCol[i], rightRow[i]));
     }
     problem.AddResidualBlock(costFunctionRight,
-                             0 /* squared loss TODO experiment with this */,
+                             lossFunction,
                              cameraParams, pointParams);
     
   } // End of loop through points
   
   // TODO: Select solver options
   ceres::Solver::Options solverOptions;
+  solverOptions.max_num_iterations           = 150;
   solverOptions.linear_solver_type           = ceres::DENSE_SCHUR;
   solverOptions.minimizer_progress_to_stdout = true;
+  solverOptions.max_num_line_search_direction_restarts = 8;
+  solverOptions.use_nonmonotonic_steps = true; // Allow non-descent steps to try to find global minumum
+  solverOptions.max_num_consecutive_invalid_steps = 15;
+  solverOptions.num_threads = 1; // SPICE cannot handle multiple threads here!
+  solverOptions.num_linear_solver_threads = 4; //TODO: Try this out
+  //solverOptions.solver_log = "~/data/ceresOutput.txt";
+  // There are many more options to play with!
   
   // Execute the Ceres solver
   printf("Starting the Ceres solver...\n");
   ceres::Solver::Summary summary;
   ceres::Solve(solverOptions, &problem, &summary);
   
-  std::ofstream ceresLog("~/data/ceresOutput.txt");
+  std::ofstream ceresLog("/home/smcmich1/data/ceresOutput2.txt");
   std::cout << summary.FullReport() << "\n";
   ceresLog << summary.FullReport();
   ceresLog.close();
@@ -561,7 +574,7 @@ bool optimizeRotations(Parameters & params)
 
   
   //printf("Writing final error log to %s\n", finalErrorPath.c_str());
-  //std::ofstream finalErrorFile(finalErrorPath.c_str()); 
+  std::ofstream finalErrorFile(finalErrorPath.c_str()); 
   double meanFinalError = 0;
   std::vector<double> finalError = lrocClass.computeError(finalParams);
   Vector<double> finalPredictions = lrocClass(finalParams);
@@ -578,21 +591,21 @@ bool optimizeRotations(Parameters & params)
   
   for (size_t i=0; i<finalError.size(); ++i)
   {   
-  //  finalErrorFile << finalError[i] << std::endl;
+    finalErrorFile << finalError[i] << std::endl;
     meanFinalError += finalError[i];
   }
   meanFinalError = meanFinalError / finalError.size(); 
   
   
   //predictionFile.close();
-  //finalErrorFile.close();
+  finalErrorFile.close();
   //meanFinalError = meanFinalError / currentError.size(); 
   
   //printf("Writing final state log to %s\n", finalStatePath.c_str());
-  //std::ofstream finalStateFile(finalStatePath.c_str()); 
-  //for (size_t i=0; i<finalParams.size(); ++i)
-  //  finalStateFile << finalParams[i] << std::endl;
-  //finalStateFile.close();
+  std::ofstream finalStateFile(finalStatePath.c_str()); 
+  for (size_t i=0; i<finalParams.size(); ++i)
+    finalStateFile << finalParams[i] << std::endl;
+  finalStateFile.close();
 
   // Write initial points as GDC coordinates for google earth
   std::ofstream finalGdcCoordFile;

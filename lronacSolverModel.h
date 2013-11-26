@@ -419,12 +419,13 @@ std::vector<double> computeError(domain_type const& x)
     //std::cout << "thisPoint = " << thisPoint << std::endl;
                       
     // Project to pixel locations                  
-    Vector2 leftProjection  = _leftCameraModel.point_to_pixel(thisPoint);
+    Vector3 nullVec(0,0,0); // Just to use our custom rotation function
+    Vector2 leftProjection  = _leftCameraModel.point_to_pixel_rotated(thisPoint, nullVec, _leftRows[i]);
     Vector2 rightProjection;
     if (_solveWorldFrame)
       rightProjection = _rightCameraRotatedModel.point_to_pixel(thisPoint); // This treats the angles as a quaternion vector!
     else // Camera frame
-      rightProjection = _rightCameraModel.point_to_pixel_rotated(thisPoint, rotVec); // This treats the angles as euler angles!
+      rightProjection = _rightCameraModel.point_to_pixel_rotated(thisPoint, rotVec, _rightRows[i]); // This treats the angles as euler angles!
     
                       
     // Compare to observed pixel locations
@@ -449,18 +450,19 @@ std::vector<double> computeError(domain_type const& x)
 
 /// For a given point, compute the left camera observation.
 /// - Returns false if the point is not visible.
-bool getLeftObservation(const double* const pointParams, double *observation) const
+bool getLeftObservation(const double* const pointParams, double *observation, int guessRow=-1) const
 {
   // Create a point object
   Vector3 thisPoint(pointParams[0], pointParams[1], pointParams[2]);
   Vector2 leftProjection; 
   try // Project the point into the camera
   {
-    leftProjection  = _leftCameraModel.point_to_pixel(thisPoint);
+    Vector3 rotVec(0,0,0); // Left camera not currently rotated
+    leftProjection  = _leftCameraModel.point_to_pixel_rotated(thisPoint, rotVec, guessRow);
   }
-  catch(...) // Handle errors
+  catch(std::exception& e) // Handle errors
   {
-    std::cout << "Warning: Failed to project location: " << thisPoint << ", using previous intersection location." << std::endl;
+    std::cout << "Warning: Failed to project location: " << thisPoint << ", what= ." << e.what() << std::endl;
     return false;
   }
   
@@ -473,7 +475,7 @@ bool getLeftObservation(const double* const pointParams, double *observation) co
 
 /// For a given point, compute the right camera observation.
 /// - Returns false if the point is not visible.
-bool getRightObservation(const double* const cameraParams, const double* const pointParams, double *observation)
+bool getRightObservation(const double* const cameraParams, const double* const pointParams, double *observation, int guessRow=-1)
 {
   // This function returns an error vector for a given set of parameters
 
@@ -496,11 +498,11 @@ bool getRightObservation(const double* const cameraParams, const double* const p
     if (_solveWorldFrame)
       rightProjection = _rightCameraRotatedModel.point_to_pixel(thisPoint);
     else // Camera frame
-      rightProjection = _rightCameraModel.point_to_pixel_rotated(thisPoint, rotVec);
+      rightProjection = _rightCameraModel.point_to_pixel_rotated(thisPoint, rotVec, guessRow);
   }
-  catch(...)
+  catch(std::exception& e)
   {
-    std::cout << "Warning: Failed to project location: " << thisPoint << ", using previous intersection location." << std::endl;
+    std::cout << "Warning: Failed to project location: " << thisPoint << ", what= ." << e.what() << std::endl;
     return false;
   }
 
@@ -554,15 +556,16 @@ result_type operator()( domain_type const& x ) const
     Vector2 leftProjection, rightProjection;
     try
     {
-      leftProjection  = _leftCameraModel.point_to_pixel(thisPoint);
+      Vector3 nullVec(0,0,0);
+      leftProjection  = _leftCameraModel.point_to_pixel_rotated(thisPoint, nullVec, _leftRows[i]);
       if (_solveWorldFrame)
         rightProjection = _rightCameraRotatedModel.point_to_pixel(thisPoint);
       else // Camera frame
-        rightProjection = _rightCameraModel.point_to_pixel_rotated(thisPoint, rotVec);
+        rightProjection = _rightCameraModel.point_to_pixel_rotated(thisPoint, rotVec, _rightRows[i]);
     }
     catch(...)
     {
-      std::cout << "Warning: Failed to project location " << i << ": " << thisPoint << ", using previous intersection location." << std::endl;
+      std::cout << "Warning: Failed to project location " << i << ": " << thisPoint << ", using previous intersection location X_X." << std::endl;
       
       //TODO: Better solution than just using the last location!
       if (i == 0)
@@ -611,7 +614,7 @@ public:  // Functions
   bool operator()(const double* const point, double* residuals) const 
   {
     double observations[2];
-    if (!_baseModel->getLeftObservation(point, observations))
+    if (!_baseModel->getLeftObservation(point, observations, _observedRow))
       return false;
     residuals[0] = observations[0] - _observedRow;
     residuals[1] = observations[1] - _observedCol;
@@ -642,7 +645,7 @@ public:  // Functions
   bool operator()(const double* const camera, const double* const point, double* residuals) const 
   {
     double observations[2];
-    if (!_baseModel->getRightObservation(camera, point, observations))
+    if (!_baseModel->getRightObservation(camera, point, observations, _observedRow))
       return false;
     residuals[0] = observations[0] - _observedRow;
     residuals[1] = observations[1] - _observedCol;

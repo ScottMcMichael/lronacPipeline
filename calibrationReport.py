@@ -57,7 +57,7 @@ def plotPoints(pointList, kml, color, prefix, lineSkip):
     for i in range (0,numPoints, lineSkip):
     
         point = kml.newpoint(name=prefix+str(i), coords=[(pointList[i*3], pointList[i*3+1], pointList[i*3+2])], \
-                              gxaltitudemode= simplekml.GxAltitudeMode.relativetoseafloor)
+                              gxaltitudemode= simplekml.AltitudeMode.absolute)
         point.style = style
         counter = counter + 1
         

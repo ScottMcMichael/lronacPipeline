@@ -312,7 +312,7 @@ public:
 
   /// Additional function to apply an in-camera rotation during this operation
   vw::Vector2
-    point_to_pixel_rotated( vw::Vector3 const& point, vw::Vector3 const& rotAngles) const;
+    point_to_pixel_rotated( vw::Vector3 const& point, vw::Vector3 const& rotAngles, int guessLine=-1) const;
 
 };
 
@@ -382,15 +382,18 @@ EphemerisLMA_rot::operator()( EphemerisLMA_rot::domain_type const& x ) const
   // Not exactly sure about lineoffset .. but ISIS does it
   result[0] = m_focalmap->DetectorLineOffset() - m_focalmap->DetectorLine();
 
+  //std::cout << result << " ";
   return result;
 }
 
 Vector2
-IsisInterfaceLineScanRot::point_to_pixel_rotated( vw::Vector3 const& point, vw::Vector3 const& rotAngles) const 
+IsisInterfaceLineScanRot::point_to_pixel_rotated( vw::Vector3 const& point, vw::Vector3 const& rotAngles, int guessLine) const 
 {
 
   // First seed LMA with an ephemeris time in the middle of the image
   double middle = lines() / 2;
+  if (guessLine >= 0) // Use the input line as a guess if it was passed in
+    middle = guessLine;
   m_detectmap->SetParent( 1, m_alphacube.AlphaLine(middle) );
   double start_e = m_camera->time().Et();
 
@@ -403,10 +406,16 @@ IsisInterfaceLineScanRot::point_to_pixel_rotated( vw::Vector3 const& point, vw::
                                                          start,
                                                          objective,
                                                          status );
-
   // Make sure we found ideal time
-  VW_ASSERT( status > 0,
-             MathErr() << " Unable to project point into linescan camera " );
+  if (status < 0)
+  {
+    //std::cout << "status = " << status << std::endl;
+    //std::cout << "start_e   = " << start_e   << " solution = " << solution_e[0]        << std::endl;
+    std::cout << "objective = " << objective << " result = "   << model(solution_e) << std::endl;
+    std::cout << "Warning: Solver failed to find a solution!" << std::endl;
+  }
+  //VW_ASSERT( status >= 0,
+  //           MathErr() << "Unable to project point into linescan camera , status = " << status );
 
   // Converting now to pixel
   m_camera->setTime(Isis::iTime( solution_e[0] ));
