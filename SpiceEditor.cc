@@ -735,14 +735,14 @@ bool editSpiceFile(const Parameters &params)
     
   } // End of loop through bodies
   
-  printf("Finished looping through kernel data\n");
-  
-  // Unload the kernels
-  for (size_t i=0; i<params.kernelPaths.size(); ++i)
-    unload_c(params.kernelPaths[i].c_str());  
-    
-  printf("Closed kernel\n");
-  
+  printf("Finished looping through kernel data, program finished.\n");
+
+  //// Unload the kernels --> Why does this take forever?
+  //for (size_t i=0; i<params.kernelPaths.size(); ++i)
+  //  unload_c(params.kernelPaths[i].c_str());  
+
+  //printf("Closed kernel\n");
+
   return true;
 }
 

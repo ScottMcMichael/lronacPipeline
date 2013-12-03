@@ -45,6 +45,8 @@ def parseHeadOutput(textPath, cubePath):
     for line in dataFile:
         # Append leftovers from last line and clear left/right whitespace
         workingLine = lastLine + line.strip()
+        lastLine = ''
+        #print '-->  ' + workingLine
 
         #print 'workingLine =' + workingLine
 
@@ -60,6 +62,7 @@ def parseHeadOutput(textPath, cubePath):
         # Check if the current line is cut off with an append character
         if (workingLine[-1] == '-'): # This means ISIS has done a weird truncation to the next line
             lastLine = workingLine[:-1] # Strip trailing - and append next line to it next pass
+            #print '===   ' + lastLine
             continue
 
         # Maintain the current kernel type

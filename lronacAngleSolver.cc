@@ -530,12 +530,12 @@ bool optimizeRotations(Parameters & params)
   
   // TODO: Select solver options
   ceres::Solver::Options solverOptions;
-  solverOptions.max_num_iterations           = 150;
+  solverOptions.max_num_iterations           = 1;
   solverOptions.linear_solver_type           = ceres::DENSE_SCHUR;
   solverOptions.minimizer_progress_to_stdout = true;
   solverOptions.max_num_line_search_direction_restarts = 8;
-  solverOptions.use_nonmonotonic_steps = true; // Allow non-descent steps to try to find global minumum
-  solverOptions.max_num_consecutive_invalid_steps = 15;
+  solverOptions.use_nonmonotonic_steps = false; // Allow non-descent steps to try to find global minumum
+  solverOptions.max_num_consecutive_invalid_steps = 10;
   solverOptions.num_threads = 1; // SPICE cannot handle multiple threads here!
   solverOptions.num_linear_solver_threads = 4; //TODO: Try this out
   //solverOptions.solver_log = "~/data/ceresOutput.txt";
@@ -572,14 +572,21 @@ bool optimizeRotations(Parameters & params)
 #endif
   //@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
-  
+  //printf("Writing final state log to %s\n", finalStatePath.c_str());
+  std::ofstream finalStateFile(finalStatePath.c_str());
+  for (size_t i=0; i<finalParams.size(); ++i)
+    finalStateFile << finalParams[i] << std::endl;
+  finalStateFile.close();
+
+  // The computeError() function calculates the mean euclidean distance from the observation points of the LE and RE cameras for each point.
   //printf("Writing final error log to %s\n", finalErrorPath.c_str());
   std::ofstream finalErrorFile(finalErrorPath.c_str()); 
   double meanFinalError = 0;
   std::vector<double> finalError = lrocClass.computeError(finalParams);
-  Vector<double> finalPredictions = lrocClass(finalParams);
-  Vector<double> rawError(finalPredictions.size());
+  //Vector<double> finalPredictions = lrocClass(finalParams);
+  //Vector<double> rawError(finalPredictions.size());
   //std::ofstream predictionFile("/home/smcmich1/finalPredictions.csv");
+  /*
   for (size_t i=0; i<finalPredictions.size(); ++i)
   {
   //  predictionFile << finalPredictions[i] << std::endl;
@@ -588,6 +595,7 @@ bool optimizeRotations(Parameters & params)
     if (i % 4 == 0)
       meanFinalError += finalError[i/4];
   }
+  */
   
   for (size_t i=0; i<finalError.size(); ++i)
   {   
@@ -595,17 +603,20 @@ bool optimizeRotations(Parameters & params)
     meanFinalError += finalError[i];
   }
   meanFinalError = meanFinalError / finalError.size(); 
-  
-  
+    
   //predictionFile.close();
   finalErrorFile.close();
-  //meanFinalError = meanFinalError / currentError.size(); 
   
-  //printf("Writing final state log to %s\n", finalStatePath.c_str());
-  std::ofstream finalStateFile(finalStatePath.c_str()); 
-  for (size_t i=0; i<finalParams.size(); ++i)
-    finalStateFile << finalParams[i] << std::endl;
-  finalStateFile.close();
+  // Compute the median error
+  std::sort(finalError.begin(), finalError.end());
+  double medianError = 0;
+  size_t centralIndex = finalError.size()/2;
+  if ((finalError.size() % 2) == 0)
+    medianError = (finalError[centralIndex-1] + finalError[centralIndex]) / 2.0;
+  else
+    medianError = finalError[centralIndex];
+  printf("Median final error = %lf\n", medianError);
+  
 
   // Write initial points as GDC coordinates for google earth
   std::ofstream finalGdcCoordFile;

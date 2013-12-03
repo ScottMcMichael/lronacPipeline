@@ -302,7 +302,7 @@ if (inputState.empty()) // Override the stereo results with ground intersections
 }
 else
 {
-  if ((i % 1000) == 0) // Test output
+  if ((i % 100000) == 0) // Display progress
     printf("%d\n", i);
 }
 
@@ -427,6 +427,7 @@ std::vector<double> computeError(domain_type const& x)
     else // Camera frame
       rightProjection = _rightCameraModel.point_to_pixel_rotated(thisPoint, rotVec, _rightRows[i]); // This treats the angles as euler angles!
     
+    //std::cout << "Point: " << thisPoint << " projected to " << leftProjection << ", " << rightProjection << std::endl;
                       
     // Compare to observed pixel locations
     Vector2 leftObsPoint (_leftCols [i], _leftRows [i]);
@@ -444,6 +445,8 @@ std::vector<double> computeError(domain_type const& x)
     errorVector[i] = (leftError + rightError) / 2.0;
   } // End loop through points
   
+  //std::cout << "rotVec = " << rotVec << ", offsetVec = " << offsetVec << std::endl;
+
   return errorVector;
     
 } // end computeError()
@@ -616,6 +619,10 @@ public:  // Functions
     double observations[2];
     if (!_baseModel->getLeftObservation(point, observations, _observedRow))
       return false;
+    //std::ofstream file("/home/smcmich1/logSingleL.csv", std::ofstream::app);
+    ////printf("observations = %lf, %lf\n", observations[0], observations[1]);
+    //file << observations[0] << ", " << observations[1] << std::endl;
+    //file.close();
     residuals[0] = observations[0] - _observedRow;
     residuals[1] = observations[1] - _observedCol;
     return true;
@@ -647,6 +654,10 @@ public:  // Functions
     double observations[2];
     if (!_baseModel->getRightObservation(camera, point, observations, _observedRow))
       return false;
+    //std::ofstream file("/home/smcmich1/logSingleLS.csv", std::ofstream::app);
+    ////printf("observations = %lf, %lf\n", observations[0], observations[1]);
+    //file << observations[0] << ", " << observations[1] << std::endl;
+    //file.close();
     residuals[0] = observations[0] - _observedRow;
     residuals[1] = observations[1] - _observedCol;
     return true;

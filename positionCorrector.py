@@ -161,7 +161,7 @@ def main():
             os.remove(spkDataPath)
 
         # Call lronac spice editor tool to generate modified text file
-        cmd = '/home/smcmich1/repo/StereoPipeline/src/asp/Tools/spiceEditor --offsetCode ' + sideCode + ' --outputPrefix ' + tempDataPrefix + ' --kernels ' + kernelStringList
+        cmd = '/home/smcmich1/repo/lronacPipeline/cmakeBuild/spiceEditor --offsetCode ' + sideCode + ' --outputPrefix ' + tempDataPrefix + ' --kernels ' + kernelStringList
         print cmd
         os.system(cmd)
         if not os.path.exists(spkDataPath):

@@ -107,8 +107,11 @@ set(QT_LIBRARIES  libQt3Support.so
           libQtXml.so )
 
 if(QT_FOUND)
-    message("QT include dirs  " ${QT_INCLUDE_DIRS})
-    include_directories(${QT_INCLUDE_DIRS})
+    message("QT include dirs  ")
+    foreach(f ${QT_INCLUDE_DIRS}) 
+        message("${f}")
+        include_directories("${f}")
+    endforeach(f) 
     link_directories(${QT_LIBRARY_DIR})
 endif(QT_FOUND)
 message("--------------------------------------------------------------")
@@ -192,8 +195,11 @@ endif (OPENMP_FOUND)
 # Add the Ceres library
 set(CERES_LIBRARIES    ${CERES_INSTALL_DIR}/build/lib/libceres.a ${CERES_INSTALL_DIR}/build/lib/libminiglog.a)
 set(CERES_INCLUDE_DIRS ${CERES_INSTALL_DIR}/include ${CERES_INSTALL_DIR}/internal/ceres/miniglog)
-message("${CERES_INCLUDE_DIRS}")
-include_directories("${CERES_INCLUDE_DIRS}")
+foreach(f ${CERES_INCLUDE_DIRS})
+    message("${f}")
+    include_directories("${f}")
+endforeach(f) 
+
 
 
 
@@ -214,6 +220,9 @@ target_link_libraries(lola_compare  ${VISIONWORKBENCH_LIBRARIES})
 
 add_executable(lronacAngleSolver lronacAngleSolver.cc lronacSolverSupport.h lronacSolverModel.h) 
 target_link_libraries(lronacAngleSolver  ${QT_LIBRARIES} ${VISIONWORKBENCH_LIBRARIES} ${StereoPipeline_LIBRARIES}  ${CERES_LIBRARIES} ${SUITESPARSE_LIBRARIES}) 
+
+add_executable(lronacAngleDoubleSolver lronacAngleDoubleSolver.cc lronacSolverSupport.h lronacSolverModelDouble.h) 
+target_link_libraries(lronacAngleDoubleSolver  ${QT_LIBRARIES} ${VISIONWORKBENCH_LIBRARIES} ${StereoPipeline_LIBRARIES}  ${CERES_LIBRARIES} ${SUITESPARSE_LIBRARIES}) 
 
 add_executable(spiceEditor SpiceEditor.cc) 
 target_link_libraries(spiceEditor  ${VISIONWORKBENCH_LIBRARIES} ${StereoPipeline_LIBRARIES}) 

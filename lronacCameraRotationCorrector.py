@@ -133,6 +133,8 @@ def main():
             parser.add_option("--left",  dest="leftPath",  help="Path to LE .cub file")
             parser.add_option("--right", dest="rightPath", help="Path to RE .cub file")
 
+            parser.add_option("--rotation", dest="rotationPath", help="Path to already computed new rotation")
+
             parser.add_option("-g", "--gdcLogPath", dest="gdcLogPath",
                               help="Optional path to save computed GDC points to")
 
@@ -194,22 +196,26 @@ def main():
             print 'Error! Unable to find any IK kernel file in ' + tempTextPath
             return 1
 
-        # Make sure the output path does not already exist
-        rotationAnglePath = os.path.join(tempFolder, "solvedRotationAngles.txt")
-        if os.path.exists(rotationAnglePath):
-            os.remove(rotationAnglePath)
-        
-        # Call lronacSpkParser to generate modified text file
-        gdcText = ''
-        if options.gdcLogPath: # Handle GDC point logging option
-            gdcText = ' --gdcPointsOutPath ' + options.gdcLogPath
-        cmd = '/home/smcmich1/repo/StereoPipeline/src/asp/Tools/lronacAngleSolver --outputPath '+ \
-                  rotationAnglePath + gdcText + ' ' + options.leftPath + ' ' + options.rightPath
-        print cmd
-        os.system(cmd)
-        if not os.path.exists(rotationAnglePath):
-            print 'Error! Failed to solve for rotation angles!'
-            return 1
+        if not options.rotationPath:
+            # Make sure the output path does not already exist
+            rotationAnglePath = os.path.join(tempFolder, "solvedRotationAngles.txt")
+            if os.path.exists(rotationAnglePath):
+                os.remove(rotationAnglePath)
+            
+            # Call lronacSpkParser to generate modified text file
+            gdcText = ''
+            if options.gdcLogPath: # Handle GDC point logging option
+                gdcText = ' --gdcPointsOutPath ' + options.gdcLogPath
+            cmd = '/home/smcmich1/repo/lronacPipeline/cmakeBuild/lronacAngleSolver --outputPath '+ \
+                      rotationAnglePath + gdcText + ' ' + options.leftPath + ' ' + options.rightPath
+            print cmd
+            os.system(cmd)
+            if not os.path.exists(rotationAnglePath):
+                print 'Error! Failed to solve for rotation angles!'
+                return 1
+
+        else: # New rotation provided as a command line argument, skip computation
+            rotationAnglePath = options.rotationPath
         
         # Read the rotation angles
         newRotation = readRotationFile(rotationAnglePath)

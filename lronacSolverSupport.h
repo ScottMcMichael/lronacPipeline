@@ -63,7 +63,10 @@ using std::endl;
 using std::setprecision;
 using std::setw;
 
-
+//###############################################################################################
+//###############################################################################################
+//###############################################################################################
+// Ray/Sphere intersection code
 
 //TODO: Replace this code!!!!
 
@@ -101,205 +104,10 @@ bool raySphereIntersect(const Vector3 &rayOrigin, const Vector3 &rayVector, cons
     return false; // Both intersections are invalid
 }
 
-/*
-//-----------------------------------------------------------------------------------------------------------
-// Copy of class to allow easy insertion of debug statements
-  template <class ImplT>
-  typename ImplT::domain_type levenberg_marquardt_V( LeastSquaresModelBase<ImplT> const& least_squares_model,
-                                                   typename ImplT::domain_type const& seed,
-                                                   typename ImplT::result_type const& observation,
-                                                   int &status,
-                                                   double abs_tolerance = VW_MATH_LM_ABS_TOL,
-                                                   double rel_tolerance = VW_MATH_LM_REL_TOL,
-                                                   double max_iterations = 100) {
-
-    status = optimization::eDidNotConverge;
-
-    const ImplT& model = least_squares_model.impl();
-    bool done = false;
-    double Rinv = 10;
-    double lambda = 0.1;
-
-    typename ImplT::domain_type x_try, x = seed;
-    typename ImplT::result_type h = model(x);
-    typename ImplT::result_type error = model.difference(observation, h);
-    double norm_start = norm_2(error);
-
-    VW_OUT(DebugMessage, "math") << "LM: initial guess for the model is " << seed << std::endl;
-    VW_OUT(VerboseDebugMessage, "math") << "LM: starting error " << error << std::endl;
-    std::cout << "LM: starting error " << error << std::endl;
-    VW_OUT(DebugMessage, "math") << "LM: starting norm is: " << norm_start << std::endl;
-
-    // Solution may already be good enough
-    if (norm_start < abs_tolerance) {
-      status = optimization::eConvergedAbsTolerance;
-      VW_OUT(DebugMessage, "math") << "CONVERGED TO ABSOLUTE TOLERANCE\n";
-      done = true;
-    }
-
-    int outer_iter = 0;
-    while (!done){
-
-      bool shortCircuit = false;
-      outer_iter++;
-      VW_OUT(DebugMessage, "math") << "LM: outer iteration " << outer_iter << "   x = " << x << std::endl;
-      std::cout << "LM: outer iteration " << outer_iter << "   x = " << x << std::endl;
-
-      // Compute the value, derivative, and hessian of the cost function
-      // at the current point.  These remain valid until the parameter
-      // vector changes.
-
-      // expected measurement with new x
-      h = model(x);
-
-      // Difference between observed and predicted and error (2-norm of difference)
-      error = model.difference(observation, h);
-      norm_start = norm_2(error);
-      //VW_OUT(DebugMessage, "math") << "LM: outer iteration starting robust norm: " << norm_start << std::endl;
-
-      // Measurement Jacobian
-      typename ImplT::jacobian_type J = model.jacobian(x);
-
-      Vector<double> del_J = -1.0 * Rinv * (transpose(J) * error);
-
-      std::ofstream delJFile("/home/smcmich1/del_J.csv"); 
-      for (size_t i=0; i<del_J.size(); ++i)
-        delJFile << del_J[i] << std::endl;
-      delJFile.close();
-      
-      // Hessian of cost function (using Gauss-Newton approximation)
-      Matrix<double> hessian = Rinv * (transpose(J) * J);
-
-      int iterations = 0;
-      double norm_try = norm_start+1.0;
-      while (norm_try > norm_start){
-
-        // Increase diagonal elements to dynamically mix gradient
-        // descent and Gauss-Newton.
-        Matrix<double> hessian_lm = hessian;
-        for ( unsigned i=0; i < hessian_lm.rows(); ++i ){
-          hessian_lm(i,i) += hessian_lm(i,i)*lambda + lambda;
-        }
-
-        // Solve for update
-        typename ImplT::domain_type delta_x;
-        if (hessian_lm.rows() <= 2 && det(hessian_lm) > 0.0){
-          // Direct method is more efficient for small matrices, also
-          // here we avoid calling LAPACK which we've seen misbehave
-          // in this situation in a multi-threaded environment.
-          delta_x = inverse(hessian_lm)*del_J;
-        }else{
-          try{
-            // By construction, hessian_lm is symmetric and
-            // positive-definite.
-            delta_x = solve_symmetric(hessian_lm, del_J);
-          }catch ( const ArgumentErr& e ) {
-            // If lambda is very small, the matrix becomes numerically
-            // singular. In that case use the more general
-            // least_squares solver.
-            delta_x = least_squares(hessian_lm, del_J);
-          }
-
-        }
-
-        // update parameter vector
-        x_try = x - delta_x;
-
-        typename ImplT::result_type h_try = model(x_try);
-
-        typename ImplT::result_type error_try = model.difference(observation, h_try);
-        norm_try = norm_2(error_try);
-
-        //VW_OUT(VerboseDebugMessage, "math") << "LM: inner iteration " << iterations << " error is " << error_try << std::endl;
-        //VW_OUT(DebugMessage, "math") << "\tLM: inner iteration " << iterations << " norm is " << norm_try << std::endl;
-        std::cout << "\tLM: inner iteration " << iterations << " norm is " << norm_try << std::endl;
-
-        if (norm_try > norm_start)
-          // Increase lambda and try again
-          lambda *= 10;
-
-        ++iterations; // Sanity check on iterations in this loop
-        if (iterations > 20) {
-          //VW_OUT(DebugMessage, "math") << "\n****LM: too many inner iterations - short circuiting\n" << std::endl;
-          std::cout << "\n****LM: too many inner iterations - short circuiting\n" << std::endl;
-          shortCircuit = true;
-          norm_try = norm_start;
-        }
-        //VW_OUT(DebugMessage, "math") << "\tlambda = " << lambda << std::endl;
-        std::cout << "\tlambda = " << lambda << std::endl;
-        
-        std::ofstream deltaXFile("/home/smcmich1/deltaX.csv"); 
-        for (size_t i=0; i<delta_x.size(); ++i)
-          deltaXFile << delta_x[i] << std::endl;
-        deltaXFile.close();
-
-        std::ofstream finalHessianFile("/home/smcmich1/hessian.csv");
-        finalHessianFile.precision(3);
-        for (int r=0; r<hessian_lm.rows(); ++r)
-        {
-          for (int c=0; c<hessian_lm.cols(); ++c)
-          {
-            finalHessianFile << hessian_lm(r,c) << ", ";
-          }
-          finalHessianFile << std::endl;
-        }
-        finalHessianFile.close();
-        
-      } // End inner loop
-
-      // Percentage change convergence criterion
-      if (((norm_start-norm_try)/norm_start) < rel_tolerance) {
-        status = optimization::eConvergedRelTolerance;
-        VW_OUT(DebugMessage, "math") << "CONVERGED TO RELATIVE TOLERANCE\n";
-        std::cout << "CONVERGED TO RELATIVE TOLERANCE\n";
-        done = true;
-      }
-
-      // Absolute error convergence criterion
-      if (norm_try < abs_tolerance) {
-        status = optimization::eConvergedAbsTolerance;
-        VW_OUT(DebugMessage, "math") << "CONVERGED TO ABSOLUTE TOLERANCE\n";
-        std::cout << "CONVERGED TO ABSOLUTE TOLERANCE\n";
-        done = true;
-      }
-
-      // Max iterations convergence criterion
-      if (outer_iter >= max_iterations) {
-        VW_OUT(DebugMessage, "math") << "REACHED MAX ITERATIONS!";
-        std::cout << "REACHED MAX ITERATIONS!";
-        done = true;
-      }
-
-      // Take trial parameters as new parameters
-      // If we short-circuited the inner loop, then we didn't actually find a
-      // better p, so don't update it.
-      if (!shortCircuit)
-        x = x_try;
-
-      // Take trial error as new error
-      norm_start = norm_try;
-
-      // Decrease lambda
-      lambda /= 10;
-      //VW_OUT(DebugMessage, "math") << "lambda = " << lambda << std::endl;
-      //VW_OUT(DebugMessage, "math") << "LM: end of outer iteration " << outer_iter << " with error " << norm_try << std::endl;
-    
-    } // End outer loop
-    
-    
-    VW_OUT(DebugMessage, "math") << "LM: finished with: " << outer_iter << "\n";
-    std::cout << "LM: finished with: " << outer_iter << "\n";
-    return x;
-  }
-
-}} // end vw::math
-*/
-
-//----------------------------------------------------------------------------------------------------------------
-
-
-
-
+//###############################################################################################
+//###############################################################################################
+//###############################################################################################
+// IsisInterfaceLineScanRot - Class replacment to insert local rotation
 
 namespace asp {
 namespace isis {
@@ -508,6 +316,144 @@ IsisInterfaceLineScanRot::point_to_pixel_rotated( vw::Vector3 const& point, vw::
 
 
 
+
+//###############################################################################################
+//###############################################################################################
+//###############################################################################################
+// IsisInterfaceLineScanRot - Class replacment to insert local rotation
+
+namespace vw {
+namespace camera {
+
+/// This class is useful if you have an existing camera model, and
+/// you want to systematically "tweak" its extrinsic parameters
+/// (position and pose).  This is particularly useful in Bundle
+/// Adjustment.
+class AdjustedCameraModelRot : public CameraModel 
+{
+private:
+  
+  boost::shared_ptr<IsisInterfaceLineScanRot> m_camera;
+  Vector3 m_translation;
+  Quat m_rotation;
+  Quat m_rotation_inverse;
+
+public:
+  AdjustedCameraModelRot(){}
+  
+  AdjustedCameraModelRot(boost::shared_ptr<IsisInterfaceLineScanRot> camera_model) : m_camera(camera_model) 
+  {
+    m_rotation = Quat(math::identity_matrix<3>());
+    m_rotation_inverse = Quat(math::identity_matrix<3>());
+  }
+
+  AdjustedCameraModelRot(boost::shared_ptr<IsisInterfaceLineScanRot> camera_model,
+                      Vector3 const& translation, Quat const& rotation) :
+    m_camera(camera_model), m_translation(translation), m_rotation(rotation), m_rotation_inverse(inverse(rotation)) {}
+
+  virtual ~AdjustedCameraModelRot() {}
+  virtual std::string type() const { return "Adjusted"; }
+
+  Vector3 translation() const { return m_translation; }
+  Quat rotation() const { return m_rotation; }
+  Matrix<double,3,3> rotation_matrix() const { return m_rotation.rotation_matrix(); }
+  //Vector3 axis_angle_rotation() const;
+  //void set_rotation(Quat const&);
+
+  template <class MatrixT>
+  void set_rotation(MatrixBase<MatrixT> const& m) 
+  {
+    m_rotation = Quat(m.impl());
+    m_rotation_inverse = inverse(m_rotation);
+  }
+  template <class VectorT>
+  void set_translation(VectorBase<VectorT> const& v) 
+  {
+    m_translation = v.impl();
+  }
+  template <class VectorT>
+  void set_axis_angle_rotation(VectorBase<VectorT> const& v) 
+  {
+    this->set_rotation( axis_angle_to_quaternion(v.impl()) );
+  }
+
+  //virtual Vector2 point_to_pixel (Vector3 const&) const;
+  //virtual Vector3 pixel_to_vector (Vector2 const&) const;
+  //virtual Vector3 camera_center (Vector2 const&) const;
+  //virtual Quat camera_pose(Vector2 const&) const;
+
+  //void write(std::string const&);
+  //void read(std::string const&);
+
+  //friend std::ostream& operator<<(std::ostream&, AdjustedCameraModel const&);
+  
+Vector3 axis_angle_rotation() const {
+  Quat quat = this->rotation();
+  return quat.axis_angle();
+}
+
+void set_rotation(Quat const& rotation) {
+  m_rotation = rotation;
+  m_rotation_inverse = inverse(m_rotation);
+}
+
+Vector2 point_to_pixel (Vector3 const& point) const {
+  Vector3 offset_pt = point-m_camera->camera_center(Vector2(0,0))-m_translation;
+  Vector3 new_pt = m_rotation_inverse.rotate(offset_pt) + m_camera->camera_center(Vector2(0,0));
+  return m_camera->point_to_pixel(new_pt);
+}
+
+/// New code to support passing local rotation angles into this function
+Vector2 point_to_pixel_rotated( vw::Vector3 const& point, vw::Vector3 const& rotAngles, int guessLine) const
+{
+  Vector3 offset_pt = point-m_camera->camera_center(Vector2(0,0))-m_translation;
+  Vector3 new_pt = m_rotation_inverse.rotate(offset_pt) + m_camera->camera_center(Vector2(0,0));
+  return m_camera->point_to_pixel_rotated(new_pt, rotAngles, guessLine);
+}
+
+Vector3 pixel_to_vector (Vector2 const& pix) const {
+  return m_rotation.rotate(m_camera->pixel_to_vector(pix));
+}
+
+Vector3 camera_center(Vector2 const& pix) const {
+  return m_camera->camera_center(pix) + m_translation;
+}
+
+Quat camera_pose(Vector2 const& pix) const {
+  return m_rotation*m_camera->camera_pose(pix);
+}
+/*
+void write(std::string const& filename) {
+  std::ofstream ostr(filename.c_str());
+  ostr << m_translation[0] << " " << m_translation[1]
+       << " " << m_translation[2] << "\n";
+  ostr << m_rotation.w() << " " << m_rotation.x() << " "
+       << m_rotation.y() << " " << m_rotation.z() << "\n";
+}
+
+void read(std::string const& filename) {
+  Vector4 c;
+  Vector3 pos;
+  std::ifstream istr(filename.c_str());
+  istr >> pos[0] >> pos[1] >> pos[2];
+  istr >> c[0] >> c[1] >> c[2] >> c[3];
+  this->set_translation(pos);
+  this->set_rotation(Quat(c));
+}
+*/
+/*
+std::ostream& camera::operator<<(std::ostream& ostr,
+           AdjustedCameraModel const& cam ) {
+  ostr << "AdjustedCameraModel(Trans: " << cam.m_translation << " Rot: "
+       << cam.m_rotation << " Cam: " << cam.m_camera->type() << ")\n";
+  return ostr;
+}
+*/
+  
+};
+  
+} // end namespace camera
+} // end namespace vw
 
 #endif
 

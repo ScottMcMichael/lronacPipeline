@@ -181,7 +181,8 @@ def main():
             return 1
         else:
             #clockFilePath = kernelDict['SpacecraftClock'][0] # Only deal with a single file
-            clockFilePath = '/home/smcmich1/lro_clkcor_2013246_v00.tsc' #HACK - is other path too long?
+            #clockFilePath = '/home/smcmich1/lro_clkcor_2013246_v00.tsc' #HACK - is other path too long?
+            clockFilePath = '/home/smcmich1/lro_clkcor_2013302_v00.tsc'
 
         if not ('Frame' in kernelDict):
             print 'Error! Unable to find frame kernel file!'
@@ -206,7 +207,7 @@ def main():
 
 #TODO: What is up the kernel unloading step here?
         # Call lronac spice editor tool to generate modified text file
-        cmd = '/home/smcmich1/repo/StereoPipeline/src/asp/Tools/spiceEditor --transformFile ' + options.transformPath + ' --outputPrefix ' + tempDataPrefix + ' --kernels ' + kernelStringList
+        cmd = '/home/smcmich1/repo/lronacPipeline/cmakeBuild/spiceEditor --transformFile ' + options.transformPath + ' --outputPrefix ' + tempDataPrefix + ' --kernels ' + kernelStringList
         print cmd
         os.system(cmd)
         if not os.path.exists(spkDataPath):
@@ -252,16 +253,23 @@ def main():
         if os.path.exists(tempCkPath):
             os.remove(tempCkPath)
 
-        # For unknown reasons there seems to be serious restrictions on directories this will actually write to
-        #tempCkPath = '/tmp/modifiedLrocCk.bc'
+        # For unknown reasons there seems to be serious restrictions on directories this will actually write to.
+        # We work around this by writing to a 'safe' path and copying the output to the desired location.
+        reallyTempCkPath = os.path.join('/tmp/', inputBaseName + '_modifiedLrocCk.bc')  
+        print 'reallyTempCkPath =  ' + reallyTempCkPath
 
-        # Create new SPK file using modified data
-        cmd = '/home/smcmich1/repo/StereoPipeline/src/asp/Tools/msopck ' + msopckConfigPath + ' ' + ckDataPath + '  ' + tempCkPath
+        # Create new CK file using modified data
+        cmd = '/home/smcmich1/repo/StereoPipeline/src/asp/Tools/msopck ' + msopckConfigPath + ' ' + ckDataPath + '  ' + reallyTempCkPath
         print cmd
         os.system(cmd)
-        if not os.path.exists(tempCkPath):
+        if not os.path.exists(reallyTempCkPath):
             print 'Error! Failed to create modified CK file!'
             return 1
+
+        # Copy the CK file to the actual desired location
+        cmd = 'cp ' + reallyTempCkPath + ' ' + tempCkPath
+        print cmd
+        os.system(cmd)
 
 
         #print 'QUITTING EARLY'
