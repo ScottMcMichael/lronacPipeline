@@ -530,7 +530,7 @@ bool optimizeRotations(Parameters & params)
   
   // TODO: Select solver options
   ceres::Solver::Options solverOptions;
-  solverOptions.max_num_iterations           = 1;
+  solverOptions.max_num_iterations           = 50;
   solverOptions.linear_solver_type           = ceres::DENSE_SCHUR;
   solverOptions.minimizer_progress_to_stdout = true;
   solverOptions.max_num_line_search_direction_restarts = 8;

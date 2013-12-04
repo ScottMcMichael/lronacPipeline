@@ -58,7 +58,8 @@ def plotPoints(pointList, kml, color, prefix, lineSkip):
     
         point = kml.newpoint(name=prefix+str(i), coords=[(pointList[i*3], pointList[i*3+1], pointList[i*3+2])], \
                               gxaltitudemode= simplekml.AltitudeMode.absolute)
-        point.style = style
+        point.style   = style
+        point.extrude = 1
         counter = counter + 1
         
 #        # Generate a color based on the error value:  white (low error) <--> red (high error)

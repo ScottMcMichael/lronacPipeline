@@ -207,7 +207,7 @@ def main():
 
 #TODO: What is up the kernel unloading step here?
         # Call lronac spice editor tool to generate modified text file
-        cmd = '/home/smcmich1/repo/lronacPipeline/cmakeBuild/spiceEditor --transformFile ' + options.transformPath + ' --outputPrefix ' + tempDataPrefix + ' --kernels ' + kernelStringList
+        cmd = '/home/smcmich1/repo/lronacPipelineBuild/spiceEditor --transformFile ' + options.transformPath + ' --outputPrefix ' + tempDataPrefix + ' --kernels ' + kernelStringList
         print cmd
         os.system(cmd)
         if not os.path.exists(spkDataPath):
