@@ -118,7 +118,7 @@ def main():
 
         #TODO: Remove or make optional?
         # Call spiceinit on input file
-        cmd = "spiceinit from=" + options.outputPath
+        cmd = "spiceinit attach=true from=" + options.outputPath
         print cmd
         os.system(cmd)
 
@@ -161,7 +161,7 @@ def main():
             os.remove(spkDataPath)
 
         # Call lronac spice editor tool to generate modified text file
-        cmd = '/home/smcmich1/repo/lronacPipeline/cmakeBuild/spiceEditor --offsetCode ' + sideCode + ' --outputPrefix ' + tempDataPrefix + ' --kernels ' + kernelStringList
+        cmd = '/home/smcmich1/repo/lronacPipelineBuild/spiceEditor --offsetCode ' + sideCode + ' --outputPrefix ' + tempDataPrefix + ' --kernels ' + kernelStringList
         print cmd
         os.system(cmd)
         if not os.path.exists(spkDataPath):
@@ -193,7 +193,7 @@ def main():
             return 1
 
         # Re-run spiceinit using the new SPK file
-        cmd = "spiceinit from=" + options.outputPath + " spk=" + tempSpkPath
+        cmd = "spiceinit attach=true from=" + options.outputPath + " spk=" + tempSpkPath
         print cmd
         os.system(cmd)
 

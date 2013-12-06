@@ -54,10 +54,12 @@
 #~/repo/lronacPipeline/calibrationReport.py --input /home/smcmich1/data/stereoCorrectionTest/workingDir/pcAlignOutput/dem-trans_reference.csv --output ~/data/stereoCorrectionTest/movedGdcPoints.kml --name movedGdcPoints --color blue --skip 10000
 
 #***********************************************************************************
-
+echo 'Processing main images'
 
 # Noproj the corrected data
 #noproj from=/home/smcmich1/data/stereoCorrectionTest/M120168714LE.final.cub    to=/home/smcmich1/data/stereoCorrectionTest/M120168714LE.final.noproj.cub    match=/home/smcmich1/data/stereoCorrectionTest/M120168714LE.final.cub specs=/home/smcmich1/data/stereoCorrectionTest/noprojInstruments_fullRes.pvl
+
+echo '2'
 
 #noproj from=/home/smcmich1/data/stereoCorrectionTest/M120168714RE.final.cub    to=/home/smcmich1/data/stereoCorrectionTest/M120168714RE.final.noproj.cub    match=/home/smcmich1/data/stereoCorrectionTest/M120168714LE.final.cub specs=/home/smcmich1/data/stereoCorrectionTest/noprojInstruments_fullRes.pvl
 
@@ -65,19 +67,23 @@ cp /home/smcmich1/data/stereoCorrectionTest/M120168714LE.final.noproj.cub /home/
 
 # TODO: Try using lronacjitreg to better align the two noproj images
 
-handmos from=/home/smcmich1/data/stereoCorrectionTest/M120168714RE.final.noproj.cub mosaic=/home/smcmich1/data/stereoCorrectionTest/M120168714LE.mosaic.cub outsample=1 outline=1 matchbandbin=FALSE priority=ONTOP
+handmos from=/home/smcmich1/data/stereoCorrectionTest/M120168714RE.final.noproj.cub mosaic=/home/smcmich1/data/stereoCorrectionTest/M120168714LE.mosaic.cub outsample=1 outline=3 matchbandbin=FALSE priority=ONTOP
 
 cubenorm from=/home/smcmich1/data/stereoCorrectionTest/M120168714LE.mosaic.cub to=/home/smcmich1/data/stereoCorrectionTest/M120168714LE.mosaic.norm.cub
 
 
+echo 'Processing stereo images'
+
 # Do the same for the stereo pair
 #noproj from=/home/smcmich1/data/stereoCorrectionTest/M120175500LE.final.cub    to=/home/smcmich1/data/stereoCorrectionTest/M120175500LE.final.noproj.cub    match=/home/smcmich1/data/stereoCorrectionTest/M120175500LE.final.cub specs=/home/smcmich1/data/stereoCorrectionTest/noprojInstruments_fullRes.pvl
+
+echo '3'
 
 #noproj from=/home/smcmich1/data/stereoCorrectionTest/M120175500RE.final.cub    to=/home/smcmich1/data/stereoCorrectionTest/M120175500RE.final.noproj.cub    match=/home/smcmich1/data/stereoCorrectionTest/M120175500LE.final.cub specs=/home/smcmich1/data/stereoCorrectionTest/noprojInstruments_fullRes.pvl
 
 cp /home/smcmich1/data/stereoCorrectionTest/M120175500LE.final.noproj.cub /home/smcmich1/data/stereoCorrectionTest/M120175500LE.mosaic.cub
 
-handmos from=/home/smcmich1/data/stereoCorrectionTest/M120175500RE.final.noproj.cub mosaic=/home/smcmich1/data/stereoCorrectionTest/M120175500LE.mosaic.cub outsample=1 outline=1 matchbandbin=FALSE priority=ONTOP
+handmos from=/home/smcmich1/data/stereoCorrectionTest/M120175500RE.final.noproj.cub mosaic=/home/smcmich1/data/stereoCorrectionTest/M120175500LE.mosaic.cub outsample=1 outline=3 matchbandbin=FALSE priority=ONTOP
 
 cubenorm from=/home/smcmich1/data/stereoCorrectionTest/M120175500LE.mosaic.cub to=/home/smcmich1/data/stereoCorrectionTest/M120175500LE.mosaic.norm.cub
 
@@ -96,10 +102,10 @@ stereo --corr-timeout 400 --alignment affineepipolar --subpixel-mode 1 --disable
 #--nodes-list PBS_NODEFILE --processes 4 --threads-multiprocess 16 --threads-singleprocess 32
 
 # Find out the center latitude of the mosaic
-#point2dem --errorimage -o /home/smcmich1/data/stereoCorrectionTest/finalStereo/p2d /home/smcmich1/data/stereoCorrectionTest/finalStereo/output-PC.tif -r moon --tr 1 --t_srs "+proj=eqc +lat_ts=24.62 +lat_0=0 +a=1737400 +b=1737400 +units=m" --nodata -32767
+point2dem --errorimage -o /home/smcmich1/data/stereoCorrectionTest/finalStereo/p2d /home/smcmich1/data/stereoCorrectionTest/finalStereo/output-PC.tif -r moon --tr 1 --t_srs "+proj=eqc +lat_ts=24.62 +lat_0=0 +a=1737400 +b=1737400 +units=m" --nodata -32767
 
 # Create a hillshade image to check if the central errors are gone
-#hillshade /home/smcmich1/data/stereoCorrectionTest/finalStereo/p2d-DEM.tif -o /home/smcmich1/data/stereoCorrectionTest/demHillshade.tif
+hillshade /home/smcmich1/data/stereoCorrectionTest/finalStereo/p2d-DEM.tif -o /home/smcmich1/data/stereoCorrectionTest/demHillshade.tif
 
 
 

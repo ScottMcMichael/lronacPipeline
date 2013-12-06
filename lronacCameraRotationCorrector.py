@@ -225,7 +225,7 @@ def main():
         modifyFrameFile(inputFramePath, tempIkPath, newRotation)
         
         # Re-run spiceinit (on the copied RE file) using the new frame file
-        cmd = "spiceinit from=" + options.outputPath + " fk=" + tempIkPath;
+        cmd = "spiceinit attach=true from=" + options.outputPath + " fk=" + tempIkPath;
         if (options.spkPath): # Add forced SPK path if needed
             cmd = cmd + " spk=" + options.spkPath
         if (options.ckPath): # Add forced CK path if needed

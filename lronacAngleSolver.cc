@@ -309,7 +309,7 @@ bool findMatchingPixels(const Parameters &params, Vector<double> &leftRow, Vecto
     leftRow [p] = ransac_ip1[i][1];
     rightCol[p] = ransac_ip2[i][0];
     rightRow[p] = ransac_ip2[i][1];
-    printf("p: %d, i: %d --> %lf, %lf, %lf, %lf\n", p, i, leftCol[p], leftRow[p], rightCol[p], rightRow[p]);
+    //printf("p: %d, i: %d --> %lf, %lf, %lf, %lf\n", p, i, leftCol[p], leftRow[p], rightCol[p], rightRow[p]);
     pointFile << leftRow[p] - rightRow[p] << ", " << ransac_ip1[i][0] - rightCol[p] << std::endl;
     i+= pointSkip; 
   }

@@ -277,7 +277,7 @@ def main():
 
 
         # Re-run spiceinit using the new SPK and CK file
-        cmd = "spiceinit from=" + options.outputPath + " spk=" + tempSpkPath + " ck=" + tempCkPath
+        cmd = "spiceinit attach=true from=" + options.outputPath + " spk=" + tempSpkPath + " ck=" + tempCkPath
         print cmd
         os.system(cmd)
 

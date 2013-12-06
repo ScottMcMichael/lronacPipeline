@@ -757,7 +757,7 @@ bool optimizeRotations(Parameters & params)
   solverOptions.linear_solver_type           = ceres::SPARSE_SCHUR;
   solverOptions.minimizer_progress_to_stdout = true;
   solverOptions.max_num_line_search_direction_restarts = 8;
-  solverOptions.use_nonmonotonic_steps = true; // Allow non-descent steps to try to find global minumum
+  solverOptions.use_nonmonotonic_steps = false; // Allow non-descent steps to try to find global minimum --> Seems to lead to bad results!
   solverOptions.max_num_consecutive_invalid_steps = 10;
   solverOptions.num_threads = 1; // SPICE cannot handle multiple threads here!
   solverOptions.num_linear_solver_threads = 4; //TODO: Try this out
