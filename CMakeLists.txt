@@ -29,6 +29,9 @@ set(Boost_USE_MULTITHREADED ON )
 set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
 
 
+set(CMAKE_BUILD_TYPE RelWithDebInfo)
+
+
 #==================================================================================
 # Find dependencies
 
