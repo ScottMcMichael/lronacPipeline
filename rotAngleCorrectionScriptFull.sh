@@ -63,13 +63,13 @@ echo '2'
 
 #noproj from=/home/smcmich1/data/stereoCorrectionTest/M120168714RE.final.cub    to=/home/smcmich1/data/stereoCorrectionTest/M120168714RE.final.noproj.cub    match=/home/smcmich1/data/stereoCorrectionTest/M120168714LE.final.cub specs=/home/smcmich1/data/stereoCorrectionTest/noprojInstruments_fullRes.pvl
 
-cp /home/smcmich1/data/stereoCorrectionTest/M120168714LE.final.noproj.cub /home/smcmich1/data/stereoCorrectionTest/M120168714LE.mosaic.cub
+#cp /home/smcmich1/data/stereoCorrectionTest/M120168714LE.final.noproj.cub /home/smcmich1/data/stereoCorrectionTest/M120168714LE.mosaic.cub
 
 # TODO: Try using lronacjitreg to better align the two noproj images
 
-handmos from=/home/smcmich1/data/stereoCorrectionTest/M120168714RE.final.noproj.cub mosaic=/home/smcmich1/data/stereoCorrectionTest/M120168714LE.mosaic.cub outsample=1 outline=3 matchbandbin=FALSE priority=ONTOP
+#handmos from=/home/smcmich1/data/stereoCorrectionTest/M120168714RE.final.noproj.cub mosaic=/home/smcmich1/data/stereoCorrectionTest/M120168714LE.mosaic.cub outsample=1 outline=3 matchbandbin=FALSE priority=ONTOP
 
-cubenorm from=/home/smcmich1/data/stereoCorrectionTest/M120168714LE.mosaic.cub to=/home/smcmich1/data/stereoCorrectionTest/M120168714LE.mosaic.norm.cub
+#cubenorm from=/home/smcmich1/data/stereoCorrectionTest/M120168714LE.mosaic.cub to=/home/smcmich1/data/stereoCorrectionTest/M120168714LE.mosaic.norm.cub
 
 
 echo 'Processing stereo images'
@@ -81,24 +81,24 @@ echo '3'
 
 #noproj from=/home/smcmich1/data/stereoCorrectionTest/M120175500RE.final.cub    to=/home/smcmich1/data/stereoCorrectionTest/M120175500RE.final.noproj.cub    match=/home/smcmich1/data/stereoCorrectionTest/M120175500LE.final.cub specs=/home/smcmich1/data/stereoCorrectionTest/noprojInstruments_fullRes.pvl
 
-cp /home/smcmich1/data/stereoCorrectionTest/M120175500LE.final.noproj.cub /home/smcmich1/data/stereoCorrectionTest/M120175500LE.mosaic.cub
+#cp /home/smcmich1/data/stereoCorrectionTest/M120175500LE.final.noproj.cub /home/smcmich1/data/stereoCorrectionTest/M120175500LE.mosaic.cub
 
-handmos from=/home/smcmich1/data/stereoCorrectionTest/M120175500RE.final.noproj.cub mosaic=/home/smcmich1/data/stereoCorrectionTest/M120175500LE.mosaic.cub outsample=1 outline=3 matchbandbin=FALSE priority=ONTOP
+#handmos from=/home/smcmich1/data/stereoCorrectionTest/M120175500RE.final.noproj.cub mosaic=/home/smcmich1/data/stereoCorrectionTest/M120175500LE.mosaic.cub outsample=1 outline=3 matchbandbin=FALSE priority=ONTOP
 
-cubenorm from=/home/smcmich1/data/stereoCorrectionTest/M120175500LE.mosaic.cub to=/home/smcmich1/data/stereoCorrectionTest/M120175500LE.mosaic.norm.cub
+#cubenorm from=/home/smcmich1/data/stereoCorrectionTest/M120175500LE.mosaic.cub to=/home/smcmich1/data/stereoCorrectionTest/M120175500LE.mosaic.norm.cub
 
 
 # Crop the two images for a faster test
 
-crop from=/home/smcmich1/data/stereoCorrectionTest/M120168714LE.mosaic.norm.cub to=/home/smcmich1/data/stereoCorrectionTest/M120168714LE.mosaic.norm.crop.cub nlines=2000
+#crop from=/home/smcmich1/data/stereoCorrectionTest/M120168714LE.mosaic.norm.cub to=/home/smcmich1/data/stereoCorrectionTest/M120168714LE.mosaic.norm.crop.cub nlines=2000
 
-crop from=/home/smcmich1/data/stereoCorrectionTest/M120175500LE.mosaic.norm.cub to=/home/smcmich1/data/stereoCorrectionTest/M120175500LE.mosaic.norm.crop.cub nlines=2000
+#crop from=/home/smcmich1/data/stereoCorrectionTest/M120175500LE.mosaic.norm.cub to=/home/smcmich1/data/stereoCorrectionTest/M120175500LE.mosaic.norm.crop.cub nlines=2000
 
 # Generate a DEM from the two mosaic images
-#parallel_stereo --corr-timeout 400 --alignment affineepipolar --subpixel-mode 1 --disable-fill-holes /home/smcmich1/data/stereoCorrectionTest/M120168714LE.mosaic.norm.crop.cub /home/smcmich1/data/stereoCorrectionTest/M120175500LE.mosaic.norm.crop.cub ~/data/stereoCorrectionTest/finalStereo/output --processes 8 --threads-multiprocess 4 --threads-singleprocess 32 --compute-error-vector
+parallel_stereo --corr-timeout 400 --alignment affineepipolar --subpixel-mode 1 --disable-fill-holes /home/smcmich1/data/stereoCorrectionTest/M120168714LE.mosaic.norm.cub /home/smcmich1/data/stereoCorrectionTest/M120175500LE.mosaic.norm.cub ~/data/stereoCorrectionTest/finalStereo/output --processes 8 --threads-multiprocess 4 --threads-singleprocess 32 --compute-error-vector
 #--nodes-list PBS_NODEFILE --processes 4 --threads-multiprocess 16 --threads-singleprocess 32
 
-stereo --corr-timeout 400 --alignment affineepipolar --subpixel-mode 1 --disable-fill-holes /home/smcmich1/data/stereoCorrectionTest/M120168714LE.mosaic.norm.crop.cub /home/smcmich1/data/stereoCorrectionTest/M120175500LE.mosaic.norm.crop.cub ~/data/stereoCorrectionTest/finalStereo/output --compute-error-vector
+#stereo --corr-timeout 400 --alignment affineepipolar --subpixel-mode 1 --disable-fill-holes /home/smcmich1/data/stereoCorrectionTest/M120168714LE.mosaic.norm.crop.cub /home/smcmich1/data/stereoCorrectionTest/M120175500LE.mosaic.norm.crop.cub ~/data/stereoCorrectionTest/finalStereo/output --compute-error-vector
 #--nodes-list PBS_NODEFILE --processes 4 --threads-multiprocess 16 --threads-singleprocess 32
 
 # Find out the center latitude of the mosaic

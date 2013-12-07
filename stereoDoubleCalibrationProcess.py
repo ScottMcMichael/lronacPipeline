@@ -87,6 +87,52 @@ def prepareImgFile(inputPath, outputFolder):
 
     return echoCubFile
 
+
+
+
+# Apply the position offset specified in the IK kernel to either an LE or RE camera.
+def applyInterCameraPositionOffset(inputCubePath, outputCubePath, workingDirectory, forceOperation):
+
+    # Quit immediately if the output file already exists
+    if (not forceOperation) and (os.path.exists(outputCubePath)):
+        print 'File ' + outputCubePath + ' already exists, skipping position offset correction.'
+        return True
+
+    # Run the process
+    cmd = '/home/smcmich1/repo/lronacPipeline/positionCorrector.py --keep --input ' + inputCubePath + ' --output ' + outputCubePath + ' --workDir ' + workingDirectory
+    print cmd
+    os.system(cmd)
+
+    # Check to make sure we actually created the file
+    if not os.path.exists(outputCubePath):
+        raise Exception('Position offset correction failed to create output file ' + outputCubePath + ' from input file ' + inputCubePath)
+
+    return True
+
+
+
+# Samples pixels pairs for bundle adjustment from the output of the stereo command.
+# - Returns the output path.
+def extractPixelPairsFromStereoResults(disparityImagePath, outputDirectory, outputFileName, sampleInterval, forceOperation):
+
+    # Quit immediately if the output file already exists
+    outputPixelPath = os.path.join(outputDirectory, outputFileName)
+    if (not forceOperation) and (os.path.exists(outputPixelPath)):
+        print 'File ' + outputPixelPath + ' already exists, skipping pixel pair sampling.'
+        return outputPixelPath
+
+    # Run the process
+    cmd = '/home/smcmich1/repo/lronacPipelineBuild/pixelPairsFromStereo -i ' + disparityImagePath + ' -o ' + outputPixelPath + ' -p ' + str(sampleInterval)
+    print cmd
+    os.system(cmd)
+
+    # Check to make sure we actually created the file
+    if not os.path.exists(outputPixelPath):
+        raise Exception('Pixel sampling failed to create output file ' + outputPixelPath + ' from input file ' + disparityImagePath)
+
+    return outputPixelPath
+
+
 # Applies a planet-centered rotation and correction to the nav data of a cube
 # - If the CK and SPK paths are not specified, paths are automatically generated.
 # - Set forceOperation to run the operation even if the output file already exists
@@ -115,6 +161,73 @@ def applyNavTransform(inputCubePath, outputCubePath, transformMatrixPath, workDi
         raise Exception('Nav transform failed to create output file ' + outputCubePath + ' from input file ' + inputCubePath)
 
     return True
+
+
+# Tries to compute the internal angle between an LE/RE image pair.
+# - Output GDC points serve as a check to make sure the images are in roughly the correct place.
+def checkAdjacentPairAlignment(leftInputPath, rightInputPath, outputDirectory, outputFileName, forceOperation):
+
+    # Quit immediately if the output file already exists
+    outputGdcPath = os.path.join(outputDirectory, outputFileName)
+    if (not forceOperation) and (os.path.exists(outputGdcPath)):
+        return True
+
+    # Run the process
+    cmd = '/home/smcmich1/repo/lronacPipelineBuild/lronacAngleSolver --outputPath dummy.txt --gdcPointsOutPath ' + outputGdcPath + ' ' + leftInputPath + ' ' + rightInputPath
+    print cmd
+    os.system(cmd)
+
+    # Check to make sure we actually created the file
+    if not os.path.exists(outputGdcPath):
+        raise Exception('Adjacency check failed to create output file ' + outputGdcPath + ' from input files ' + leftInputPath + ' and ' + rightInputPath)
+
+    return True
+
+
+# Generate a modified IK kernel to adjust the rotation between an LE/RE camera pair.
+def applyInterCameraPairRotation(leftInputPath, rightInputPath, newRotationPath, outputCubePath, ckPath, spkPath, forceOperation)
+
+    # Quit immediately if the output file already exists
+    if (not forceOperation) and (os.path.exists(outputCubePath)):
+        print 'File ' + outputCubePath + ' already exists, skipping nav transform.'
+        return True
+
+    # Generate the new file
+    cmd = '/home/smcmich1/repo/lronacPipeline/lronacCameraRotationCorrector.py --keep --output ' + outputCubePath + ' --rotation ' + newRotationPath + ' --left ' + leftInputPath + ' --right ' + rightInputPath + ' --ck ' + ckPath + ' --spk ' + spkPath 
+    print cmd
+    os.system(cmd)
+
+    # Check to make sure we actually created the file
+    if not os.path.exists(outputCubePath):
+        raise Exception('Inter-camera rotation failed to create output file ' + outputCubePath + ' from input files ' + leftInputPath + ' and ' + rightInputPath)
+
+    return True
+
+
+# Calls stereo functions to generate a disparity image and returns the path to it.
+def callStereoCorrelation(leftInputPath, rightInputPath, outputPrefix, correlationTimeout, forceOperation):
+
+    # Quit immediately if the output file already exists
+    disparityImagePath = stereoPrefixLeftCross + '-D.tif'
+    if (not forceOperation) and (os.path.exists(disparityImagePath)):
+        print 'File ' + disparityImagePath + ' already exists, skipping stereo computation.'
+        return disparityImagePath
+
+    # Stage 0 (fast)
+    cmd = 'stereo_pprc ' + leftInputPath + ' ' + rightInputPath + ' ' + outputPrefix
+    print cmd
+    os.system(cmd)
+    # Stage 1 (slow!)
+    cmd = 'stereo_corr --cost-mode 0 --corr-timeout ' + str(correlationTimeout) + ' ' + leftInputPath + ' ' + rightInputPath + ' ' + outputPrefix
+    print cmd
+    os.system(cmd)
+
+    # Check to make sure we actually created the file
+    if not os.path.exists(outputCubePath):
+        raise Exception('Stereo processing failed to create output file ' + disparityImagePath + ' from input files ' + leftInputPath + ' and ' + rightInputPath)
+
+    return disparityImagePath
+
 
 #--------------------------------------------------------------------------------
 
@@ -193,44 +306,28 @@ def main():
         spiceInitStereoRightPath = prepareImgFile(options.stereoRight, tempFolder)
 
         # DEBUG: Check angle solver on input LE/RE images!
-        pairGdcCheckPath = os.path.join(tempFolder, 'pairGdcCheckPre.csv')
-        if not os.path.exists(pairGdcCheckPath):
-            #cmd = '/home/smcmich1/repo/StereoPipeline/src/asp/Tools/lronacAngleSolver --outputPath dummy.txt --gdcPointsOutPath ' + pairGdcCheckPath + ' ' + spiceInitLeftPath + ' ' + spiceInitRightPath
-            cmd = '/home/smcmich1/repo/lronacPipelineBuild/lronacAngleSolver --outputPath dummy.txt --gdcPointsOutPath ' + pairGdcCheckPath + ' ' + spiceInitLeftPath + ' ' + spiceInitRightPath
-            print cmd
-            os.system(cmd)
+        checkAdjacentPairAlignment(spiceInitLeftPath, spiceInitRightPath, tempFolder, 'pairGdcCheckPre.csv', False)
+
         #print 'QUITTING EARLY'
         #return 0 
 
-#TODO: Do we need to specify all these SPK files?
         # Apply LE/RE LRONAC position offsets to each of the input files
-        posOffsetCorrectedLeftPath    = os.path.join(tempFolder, 'left.posOffsetCorrected.cub')
-        if not os.path.exists(posOffsetCorrectedLeftPath):
-            thisWorkDir = os.path.join(tempFolder, 'leftPosCorrectDir')
-            cmd = '/home/smcmich1/repo/lronacPipeline/positionCorrector.py --keep --input ' + spiceInitLeftPath + ' --output ' + posOffsetCorrectedLeftPath + ' --workDir ' + thisWorkDir
-            print cmd
-            os.system(cmd)
+        posOffsetCorrectedLeftPath = os.path.join(tempFolder, 'left.posOffsetCorrected.cub')
+        thisWorkDir                = os.path.join(tempFolder, 'leftPosCorrectDir')
+        applyInterCameraPositionOffset(spiceInitLeftPath, posOffsetCorrectedLeftPath, thisWorkDir, False)
 
-        posOffsetCorrectedRightPath    = os.path.join(tempFolder, 'right.posOffsetCorrected.cub')
-        if not os.path.exists(posOffsetCorrectedRightPath):
-            thisWorkDir = os.path.join(tempFolder, 'rightPosCorrectDir')
-            cmd = '/home/smcmich1/repo/lronacPipeline/positionCorrector.py --keep --input ' + spiceInitRightPath + ' --output ' + posOffsetCorrectedRightPath + ' --workDir ' + thisWorkDir
-            print cmd
-            os.system(cmd)
+        posOffsetCorrectedRightPath = os.path.join(tempFolder, 'right.posOffsetCorrected.cub')
+        thisWorkDir                 = os.path.join(tempFolder, 'rightPosCorrectDir')
+        applyInterCameraPositionOffset(spiceInitRightPath, posOffsetCorrectedRightPath, thisWorkDir, False)
 
-        posOffsetCorrectedStereoLeftPath    = os.path.join(tempFolder, 'stereoLeft.posOffsetCorrected.cub')
-        if not os.path.exists(posOffsetCorrectedStereoLeftPath):
-            thisWorkDir = os.path.join(tempFolder, 'stereoLeftPosCorrectDir')
-            cmd = '/home/smcmich1/repo/lronacPipeline/positionCorrector.py --keep --input ' + spiceInitStereoLeftPath + ' --output ' + posOffsetCorrectedStereoLeftPath + ' --workDir ' + thisWorkDir
-            print cmd
-            os.system(cmd)
+        posOffsetCorrectedStereoLeftPath = os.path.join(tempFolder, 'stereoLeft.posOffsetCorrected.cub')
+        thisWorkDir                      = os.path.join(tempFolder, 'stereoLeftPosCorrectDir')
+        applyInterCameraPositionOffset(spiceInitStereoLeftPath, posOffsetCorrectedStereoLeftPath, thisWorkDir, False)
 
-        posOffsetCorrectedStereoRightPath    = os.path.join(tempFolder, 'stereoRight.posOffsetCorrected.cub')
-        if not os.path.exists(posOffsetCorrectedStereoRightPath):
-            thisWorkDir = os.path.join(tempFolder, 'stereoRightPosCorrectDir')
-            cmd = '/home/smcmich1/repo/lronacPipeline/positionCorrector.py --keep --input ' + spiceInitStereoRightPath + ' --output ' + posOffsetCorrectedStereoRightPath + ' --workDir ' + thisWorkDir
-            print cmd
-            os.system(cmd)
+        posOffsetCorrectedStereoRightPath = os.path.join(tempFolder, 'stereoRight.posOffsetCorrected.cub')
+        thisWorkDir                       = os.path.join(tempFolder, 'stereoRightPosCorrectDir')
+        applyInterCameraPositionOffset(spiceInitStereoRightPath, posOffsetCorrectedStereoRightPath,  thisWorkDir, False)
+
 
         # Fail if required files are not present
         if (not os.path.exists(posOffsetCorrectedLeftPath)) or (not os.path.exists(posOffsetCorrectedRightPath)) or (not os.path.exists(posOffsetCorrectedStereoLeftPath)):
@@ -239,70 +336,24 @@ def main():
 
 
         # DEBUG: Check angle solver on input LE/RE images!
-        pairGdcCheckPath = os.path.join(tempFolder, 'pairGdcCheckInitial.csv')
-        if not os.path.exists(pairGdcCheckPath):
-            cmd = '/home/smcmich1/repo/lronacPipelineBuild/lronacAngleSolver --outputPath dummy.txt --gdcPointsOutPath ' + pairGdcCheckPath + ' ' + posOffsetCorrectedLeftPath + ' ' + posOffsetCorrectedRightPath
-            print cmd
-            os.system(cmd)
-        
+        checkAdjacentPairAlignment(posOffsetCorrectedLeftPath, posOffsetCorrectedRightPath, tempFolder, 'pairGdcCheckInitial.csv', False)
+
         #print 'QUITTING EARLY'
         #return 0 
 
 
         # Perform initial stereo step on two LE cubes to generate a large number of point correspondences
         stereoPrefixLeft   = os.path.join(tempFolder, 'stereoOutputLeft')
-        disparityImageLeft = stereoPrefixLeft + '-D.tif'
-        if not os.path.exists(disparityImageLeft):
-            #cmd = 'stereo --entry-point 0 ' + options.leftPath + ' ' + options.rightPath + ' ' + stereoPrefix + ' --compute-low-res-disparity-only'
-            # Stage 0 (fast)
-            cmd = 'stereo_pprc ' + posOffsetCorrectedLeftPath + ' ' + posOffsetCorrectedStereoLeftPath + ' ' + stereoPrefixLeft
-            print cmd
-            os.system(cmd)
-            # Stage 1 (slow!)
-            cmd = 'stereo_corr --cost-mode 0 --corr-timeout 400 ' + posOffsetCorrectedLeftPath + ' ' + posOffsetCorrectedStereoLeftPath + ' ' + stereoPrefixLeft
-            print cmd
-            os.system(cmd)
-        else:
-            print 'Skipping Left stereo step'
-        if (not os.path.exists(disparityImageLeft)):
-            print 'Left stereo processing failed!  Processing stopped.'
-            return 0
+        disparityImageLeft = callStereoCorrelation(posOffsetCorrectedLeftPath, posOffsetCorrectedStereoLeftPath, stereoPrefixLeft, 400, False):
 
         # Perform initial stereo step on two RE cubes to generate a large number of point correspondences
         stereoPrefixRight   = os.path.join(tempFolder, 'stereoOutputRight')
-        disparityImageRight = stereoPrefixRight + '-D.tif'
-        if not os.path.exists(disparityImageRight):
-            #cmd = 'stereo --entry-point 0 ' + options.leftPath + ' ' + options.rightPath + ' ' + stereoPrefix + ' --compute-low-res-disparity-only'
-            # Stage 0 (fast)
-            cmd = 'stereo_pprc ' + posOffsetCorrectedRightPath + ' ' + posOffsetCorrectedStereoRightPath + ' ' + stereoPrefixRight
-            print cmd
-            os.system(cmd)
-            # Stage 1 (slow!)
-            cmd = 'stereo_corr --cost-mode 0 --corr-timeout 400 ' + posOffsetCorrectedRightPath + ' ' + posOffsetCorrectedStereoRightPath + ' ' + stereoPrefixRight
-            print cmd
-            os.system(cmd)
-        else:
-            print 'Skipping Right stereo step'
-        if (not os.path.exists(disparityImageRight)):
-            print 'Right stereo processing failed!  Processing stopped.'
-            return 0
+        disparityImageRight = callStereoCorrelation(posOffsetCorrectedRightPath, posOffsetCorrectedStereoRightPath, stereoPrefixRight, 400, False):
+
 
         # Extract a small number of matching pixel locations from the disparity images ( < 300)
-        pixelPairsLeftSmall = os.path.join(tempFolder, 'stereoPixelPairsLeftSmall.csv')
-        if not os.path.exists(pixelPairsLeftSmall):
-            cmd = '/home/smcmich1/repo/lronacPipelineBuild/pixelPairsFromStereo -i ' + disparityImageLeft + ' -o ' + pixelPairsLeftSmall + ' -p 800'
-            print cmd
-            os.system(cmd)
-        else:
-            print 'Skipping left small pair extraction step'
-
-        pixelPairsRightSmall = os.path.join(tempFolder, 'stereoPixelPairsRightSmall.csv')
-        if not os.path.exists(pixelPairsRightSmall):
-            cmd = '/home/smcmich1/repo/lronacPipelineBuild/pixelPairsFromStereo -i ' + disparityImageRight + ' -o ' + pixelPairsRightSmall + ' -p 800'
-            print cmd
-            os.system(cmd)
-        else:
-            print 'Skipping right small pair extraction step'
+        pixelPairsLeftSmall = extractPixelPairsFromStereoResults(disparityImageLeft, tempFolder, 'stereoPixelPairsLeftSmall.csv', 800, False)
+        pixelPairsRightSmall = extractPixelPairsFromStereoResults(disparityImageRight, tempFolder, 'stereoPixelPairsRightSmall.csv', 800, False)
 
         #print 'QUITTING EARLY'
         #return 0 
@@ -341,57 +392,17 @@ def main():
         
         # First is left in main pair to right in the stereo pair
         stereoPrefixLeftCross   = os.path.join(tempFolder, 'stereoOutputLeftCross')
-        disparityImageLeftCross = stereoPrefixLeftCross + '-D.tif'
-        if not os.path.exists(disparityImageLeftCross):
-            # Stage 0 (fast)
-            cmd = 'stereo_pprc ' + leftPosCorrectedCropped + ' ' + rightStereoPosCorrectedCropped + ' ' + stereoPrefixLeftCross
-            print cmd
-            os.system(cmd)
-            # Stage 1 (slow!)
-            cmd = 'stereo_corr --cost-mode 0 --corr-timeout 100 ' + leftPosCorrectedCropped + ' ' + rightStereoPosCorrectedCropped + ' ' + stereoPrefixLeftCross
-            print cmd
-            os.system(cmd)
-        else:
-            print 'Skipping Left to Right stereo step'
-        if (not os.path.exists(disparityImageLeftCross)):
-            print 'Left Cross stereo processing failed!  Processing stopped.'
-            return 0
+        disparityImageLeftCross = callStereoCorrelation(leftPosCorrectedCropped, rightStereoPosCorrectedCropped, stereoPrefixLeftCross, 100, False):
 
         # Next is left in the stereo pair to right in the main pair
         stereoPrefixRightCross   = os.path.join(tempFolder, 'stereoOutputRightCross')
-        disparityImageRightCross = stereoPrefixRightCross + '-D.tif'
-        if not os.path.exists(disparityImageRightCross):
-            # Stage 0 (fast)
-            cmd = 'stereo_pprc ' + leftStereoPosCorrectedCropped + ' ' + rightPosCorrectedCropped + ' ' + stereoPrefixRightCross
-            print cmd
-            os.system(cmd)
-            # Stage 1 (slow!)
-            cmd = 'stereo_corr --cost-mode 0 --corr-timeout 100 ' + leftStereoPosCorrectedCropped + ' ' + rightPosCorrectedCropped + ' ' + stereoPrefixRightCross
-            print cmd
-            os.system(cmd)
-        else:
-            print 'Skipping Right to Left stereo step'
-        if (not os.path.exists(disparityImageRightCross)):
-            print 'Right to Left stereo processing failed!  Processing stopped.'
-            return 0
+        disparityImageRightCross = callStereoCorrelation(leftStereoPosCorrectedCropped, rightPosCorrectedCropped, stereoPrefixRightCross, 100, False):
 
 
         # Extract a small number of matching pixel locations from the disparity images ( < 300)
-        pixelPairsLeftCrossSmall = os.path.join(tempFolder, 'stereoPixelPairsLeftCrossSmall.csv')
-        if not os.path.exists(pixelPairsLeftCrossSmall):
-            cmd = '/home/smcmich1/repo/lronacPipelineBuild/pixelPairsFromStereo -i ' + disparityImageLeftCross + ' -o ' + pixelPairsLeftCrossSmall + ' -p 400'
-            print cmd
-            os.system(cmd)
-        else:
-            print 'Skipping Left to Right small pair extraction step'
-
-        pixelPairsRightCrossSmall = os.path.join(tempFolder, 'stereoPixelPairsRightCrossSmall.csv')
-        if not os.path.exists(pixelPairsRightCrossSmall):
-            cmd = '/home/smcmich1/repo/lronacPipelineBuild/pixelPairsFromStereo -i ' + disparityImageRightCross + ' -o ' + pixelPairsRightCrossSmall + ' -p 400'
-            print cmd
-            os.system(cmd)
-        else:
-            print 'Skipping Right to Left small pair extraction step'
+        # - The pixels are extracted more densely because there is much less overlap area to work with.
+        pixelPairsLeftCrossSmall = extractPixelPairsFromStereoResults(disparityImageLeftCross, tempFolder, 'stereoPixelPairsLeftCrossSmall.csv', 400, False)
+        pixelPairsRightCrossSmall = extractPixelPairsFromStereoResults(disparityImageRightCross, tempFolder, 'stereoPixelPairsRightCrossSmall.csv', 400, False)
 
 
         #print 'QUITTING EARLY'
@@ -421,26 +432,15 @@ def main():
 
         # Apply the transform to the second camera pair!  The transform is in moon coordinates.
         tempLeftStereoPath = os.path.join(tempFolder, 'leftStereoAdjusted.cub')
-        if not os.path.exists(tempLeftStereoPath):
-            thisWorkDir = os.path.join(tempFolder, 'stereoLeftStereoCorrection/')
-            cmd = '/home/smcmich1/repo/lronacPipeline/rotationCorrector.py --keep --input ' + posOffsetCorrectedStereoLeftPath + ' --output ' + tempLeftStereoPath + ' --transformPath ' + globalTransformPath + ' --workDir ' + thisWorkDir
-            print cmd
-            os.system(cmd) # TODO: Do we need to specify the SPK and CK file paths?
+        thisWorkDir        = os.path.join(tempFolder, 'stereoLeftStereoCorrection/')
+        applyNavTransform(posOffsetCorrectedStereoLeftPath, tempLeftStereoPath, globalTransformPath, thisWorkDir, '', '', false)
 
         tempRightStereoPath = os.path.join(tempFolder, 'rightStereoAdjusted.cub')
-        if not os.path.exists(tempLeftStereoPath):
-            thisWorkDir = os.path.join(tempFolder, 'stereoRightStereoCorrection/')
-            cmd = '/home/smcmich1/repo/lronacPipeline/rotationCorrector.py --keep --input ' + posOffsetCorrectedStereoRightPath + ' --output ' + tempRightStereoPath + ' --transformPath ' + globalTransformPath + ' --workDir ' + thisWorkDir
-            print cmd
-            os.system(cmd) # TODO: Do we need to specify the SPK and CK file paths?
+        thisWorkDir         = os.path.join(tempFolder, 'stereoRightStereoCorrection/')
+        applyNavTransform(posOffsetCorrectedStereoRightPath, tempRightStereoPath, globalTransformPath, thisWorkDir, '', '', false)
 
-        # TODO: Move all this stuff to the double solver?
         # DEBUG: Check angle solver on stereo adjusted LE/RE images!
-        pairGdcCheckPath = os.path.join(tempFolder, 'pairGdcCheckStereo.csv')
-        if not os.path.exists(pairGdcCheckPath):
-            cmd = '/home/smcmich1/repo/lronacPipelineBuild/lronacAngleSolver --outputPath dummy.txt --gdcPointsOutPath ' + pairGdcCheckPath + ' ' + tempLeftStereoPath + ' ' + tempRightStereoPath
-            print cmd
-            os.system(cmd)
+        checkAdjacentPairAlignment(tempLeftStereoPath, tempRightStereoPath, tempFolder, 'pairGdcCheckStereo.csv', False)
 
         #print 'QUITTING EARLY'
         #return 0 
@@ -448,22 +448,10 @@ def main():
 
         # Extract a large number of matching pixel locations (thousands) from the LE/LE and RE/RE stereo.
         # - Right now the skip is rows and columns
-        pixelPairsLeftLarge = os.path.join(tempFolder, 'stereoPixelPairsLeftLarge.csv')
-        if not os.path.exists(pixelPairsLeftLarge):
-            cmd = '/home/smcmich1/repo/lronacPipelineBuild/pixelPairsFromStereo -i ' + disparityImageLeft + ' -o ' + pixelPairsLeftLarge + ' -p 16'
-            print cmd
-            os.system(cmd)
-        else:
-            print 'Skipping left large pair extraction step'
+        pixelPairsLeftLarge = extractPixelPairsFromStereoResults(disparityImageLeft, tempFolder, 'stereoPixelPairsLeftLarge.csv', 16, False)
 
         # TODO: Many changes needed before RE images can be used here!
-#        pixelPairsRightLarge = os.path.join(tempFolder, 'stereoPixelPairsRightLarge.csv')
-#        if not os.path.exists(pixelPairsRightLarge):
-#            cmd = '/home/smcmich1/repo/lronacPipelineBuild/pixelPairsFromStereo -i ' + disparityImageRight + ' -o ' + pixelPairsRightLarge + ' -p 16'
-#            print cmd
-#            os.system(cmd)
-#        else:
-#            print 'Skipping right large pair extraction step'
+        #pixelPairsRightLarge = extractPixelPairsFromStereoResults(disparityImageRight, tempFolder, 'stereoPixelPairsRightLarge.csv', 16, False)
 
         pixelPairsLarge = os.path.join(tempFolder, 'stereoPixelPairsLarge.csv')
         if not os.path.exists(pixelPairsLarge):
@@ -509,56 +497,37 @@ def main():
 
   #NOTE: Currently testing with identify transformation................................
 
-# TODO: Try to identify some kernels we don't need to load in C++ in order to speed position correction up
-#       Also maybe skip the unload step.
-
 
         # Now go back and apply the pc_align computed transform to the left and right input image
         leftCkPath  = os.path.join(tempFolder, 'leftFinalCk.bc') #TODO: Do we need to specify these?
         leftSpkPath = os.path.join(tempFolder, 'leftFinalSpk.bsp')
-        if True:#not os.path.exists(options.outputPathLeft): # Do this no matter what?
-            thisWorkDir = os.path.join(tempFolder, 'leftFullCorrection')
-            cmd = '/home/smcmich1/repo/lronacPipeline/rotationCorrector.py --keep --input ' + posOffsetCorrectedLeftPath + ' --output ' + options.outputPathLeft + ' --transformPath ' + transformMatrixFile + ' --workDir ' + thisWorkDir + ' --ck ' + leftCkPath + ' --spk ' + leftSpkPath
-            print cmd
-            os.system(cmd)
+        thisWorkDir = os.path.join(tempFolder, 'leftFullCorrection')
+        applyNavTransform(posOffsetCorrectedLeftPath, options.outputPathLeft, transformMatrixFile, thisWorkDir, leftCkPath, leftSpkPath, false)
 
         tempRightPath = os.path.join(tempFolder, 'partial_corrected_RE.cub')
         rightCkPath   = os.path.join(tempFolder, 'rightFinalCk.bc') # Need these later to pass to internal angle correction function
         rightSpkPath  = os.path.join(tempFolder, 'rightFinalSpk.bsp')
-        if True:#not os.path.exists(tempRightPath):
-            thisWorkDir = os.path.join(tempFolder, 'rightFullCorrection/')
-            cmd = '/home/smcmich1/repo/lronacPipeline/rotationCorrector.py --keep --input ' + posOffsetCorrectedRightPath + ' --output ' + tempRightPath + ' --transformPath ' + transformMatrixFile + ' --workDir ' + thisWorkDir + ' --ck ' + rightCkPath + ' --spk ' + rightSpkPath
-            print cmd
-            os.system(cmd)
+        thisWorkDir   = os.path.join(tempFolder, 'rightFullCorrection/')
+        applyNavTransform(posOffsetCorrectedRightPath, tempRightPath, transformMatrixFile, thisWorkDir, rightCkPath, rightSpkPath, false)
+
 
         # Do the same correction for the stereo-left and stereo-right images
         leftStereoCkPath  = os.path.join(tempFolder, 'leftStereoFinalCk.bc') #msopck can't handle the default kernel paths
         leftStereoSpkPath = os.path.join(tempFolder, 'leftStereoFinalSpk.bsp')
-        if True:#not os.path.exists(options.outputPathStereoLeft):
-            thisWorkDir = os.path.join(tempFolder, 'leftStereoFullCorrection')
-            cmd = '/home/smcmich1/repo/lronacPipeline/rotationCorrector.py --keep --input ' + tempLeftStereoPath + ' --output ' + options.outputPathStereoLeft + ' --transformPath ' + transformMatrixFile + ' --workDir ' + thisWorkDir + ' --ck ' + leftStereoCkPath + ' --spk ' + leftStereoSpkPath
-            print cmd
-            os.system(cmd)
+        thisWorkDir       = os.path.join(tempFolder, 'leftStereoFullCorrection')
+        applyNavTransform(tempLeftStereoPath, options.outputPathStereoLeft, transformMatrixFile, thisWorkDir, leftStereoCkPath, leftStereoSpkPath, false)
 
         tempRightStereoPath2 = os.path.join(tempFolder, 'partial_corrected_stereo_RE.cub')
-        rightStereoCkPath   = os.path.join(tempFolder, 'rightStereoFinalCk.bc') # Need these later to pass to internal angle correction function
-        rightStereoSpkPath  = os.path.join(tempFolder, 'rightStereoFinalSpk.bsp')
-        if True:#not os.path.exists(tempRightPath):
-            thisWorkDir = os.path.join(tempFolder, 'rightStereoFullCorrection/')
-            cmd = '/home/smcmich1/repo/lronacPipeline/rotationCorrector.py --keep --input ' + tempRightStereoPath + ' --output ' + tempRightStereoPath2 + ' --transformPath ' + transformMatrixFile + ' --workDir ' + thisWorkDir + ' --ck ' + rightStereoCkPath + ' --spk ' + rightStereoSpkPath
-            print cmd
-            os.system(cmd)
-
-        ## TODO: Re-run the point computations to see if they match the pc_align output!
+        rightStereoCkPath    = os.path.join(tempFolder, 'rightStereoFinalCk.bc') # Need these later to pass to internal angle correction function
+        rightStereoSpkPath   = os.path.join(tempFolder, 'rightStereoFinalSpk.bsp')
+        thisWorkDir          = os.path.join(tempFolder, 'rightStereoFullCorrection/')
+        applyNavTransform(tempRightStereoPath, tempRightStereoPath2, transformMatrixFile, thisWorkDir, rightStereoCkPath, rightStereoSpkPath, false)
 
         # At this point the left images are hopefully in the correct position and we can apply the offset of the RE cameras
 
         # DEBUG: Check angle solver on stereo adjusted LE/RE images!
-        pairGdcCheckPath = os.path.join(tempFolder, 'pairGdcCheckMidStereo.csv')
-        if not os.path.exists(pairGdcCheckPath):
-            cmd = '/home/smcmich1/repo/lronacPipelineBuild/lronacAngleSolver --outputPath dummy.txt --gdcPointsOutPath ' + pairGdcCheckPath + ' ' + options.outputPathStereoLeft + ' ' + tempRightStereoPath2
-            print cmd
-            os.system(cmd)
+        checkAdjacentPairAlignment(options.outputPathStereoLeft, tempRightStereoPath2, tempFolder, 'pairGdcCheckMidStereo.csv', False)
+
 
 
         #print 'QUITTING EARLY'
@@ -567,30 +536,16 @@ def main():
         # Apply local transforms to both pairs of images!
 
         # Apply the local rotation to the adjusted RE cube
-        if True:#not os.path.exists(options.outputPathRight):
-            cmd = '/home/smcmich1/repo/lronacPipeline/lronacCameraRotationCorrector.py --keep --output ' + options.outputPathRight + ' --rotation ' + localRotationPath + ' --left ' + options.outputPathLeft + ' --right ' + tempRightPath + ' --ck ' + rightCkPath + ' --spk ' + rightSpkPath 
-            print cmd
-            os.system(cmd)
+        applyInterCameraPairRotation(options.outputPathLeft, tempRightPath, localRotationPath, options.outputPathRight, rightCkPath, rightSpkPath, False)
 
         # Apply the local rotation to the adjusted stereo RE cube
-        if True:#not os.path.exists(options.outputPathStereoRight):
-            cmd = '/home/smcmich1/repo/lronacPipeline/lronacCameraRotationCorrector.py --keep --output ' + options.outputPathStereoRight + ' --rotation ' + stereoRotationPath + ' --left ' + options.outputPathStereoLeft + ' --right ' + tempRightStereoPath2 + ' --ck ' + rightStereoCkPath + ' --spk ' + rightStereoSpkPath 
-            print cmd
-            os.system(cmd)
+        applyInterCameraPairRotation(options.outputPathStereoLeft, tempRightStereoPath2, stereoRotationPath, options.outputPathStereoRight, rightStereoCkPath, rightStereoSpkPath, False)
 
         # DEBUG: Check angle solver on adjusted LE/RE images!
-        pairGdcCheckPath = os.path.join(tempFolder, 'pairGdcCheckFinal.csv')
-        if True:#not os.path.exists(pairGdcCheckPath):
-            cmd = '/home/smcmich1/repo/lronacPipelineBuild/lronacAngleSolver --outputPath dummy.txt --gdcPointsOutPath ' + pairGdcCheckPath + ' ' + options.outputPathLeft + ' ' + options.outputPathRight
-            print cmd
-            os.system(cmd)
+        checkAdjacentPairAlignment(options.outputPathLeft, options.outputPathRight, tempFolder, 'pairGdcCheckFinal.csv', False)
 
         # DEBUG: Check angle solver on stereo adjusted LE/RE images!
-        pairGdcCheckPath = os.path.join(tempFolder, 'pairGdcCheckFinalStereo.csv')
-        if True:#not os.path.exists(pairGdcCheckPath):
-            cmd = '/home/smcmich1/repo/lronacPipelineBuild/lronacAngleSolver --outputPath dummy.txt --gdcPointsOutPath ' + pairGdcCheckPath + ' ' + options.outputPathStereoLeft + ' ' + options.outputPathStereoRight
-            print cmd
-            os.system(cmd)
+        checkAdjacentPairAlignment(options.outputPathStereoLeft, options.outputPathStereoRight, tempFolder, 'pairGdcCheckFinalStereo.csv', False)
 
 
         # Clean up temporary files
