@@ -21,7 +21,7 @@
 #~/repo/lronacPipeline/stereoCalibrationProcess.py --left /home/smcmich1/data/ARISTARCHU2/M120168714LE.IMG --right /home/smcmich1/data/ARISTARCHU2/M120168714RE.IMG --stereo-left /home/smcmich1/data/ARISTARCHU2/M120175500LE.IMG --stereo-right /home/smcmich1/data/ARISTARCHU2/M120175500RE.IMG --lola ~/data/ARISTARCHU2/RDR_310E312E_23N26NPointPerRow_csv_table.csv --keep --outputL ~/data/stereoCorrectionTest/M120168714LE.final.cub --outputR ~/data/stereoCorrectionTest/M120168714RE.final.cub --outputSL ~/data/stereoCorrectionTest/M120175500LE.final.cub --outputSR ~/data/stereoCorrectionTest/M120175500RE.final.cub --workDir ~/data/stereoCorrectionTest/workingDir
 
 # --- Version with a single larger SBA step -----------
-#~/repo/lronacPipeline/stereoDoubleCalibrationProcess.py --left /home/smcmich1/data/ARISTARCHU2/M120168714LE.IMG --right /home/smcmich1/data/ARISTARCHU2/M120168714RE.IMG --stereo-left /home/smcmich1/data/ARISTARCHU2/M120175500LE.IMG --stereo-right /home/smcmich1/data/ARISTARCHU2/M120175500RE.IMG --lola ~/data/ARISTARCHU2/RDR_310E312E_23N26NPointPerRow_csv_table.csv --keep --outputL ~/data/stereoCorrectionTest/M120168714LE.final.cub --outputR ~/data/stereoCorrectionTest/M120168714RE.final.cub --outputSL ~/data/stereoCorrectionTest/M120175500LE.final.cub --outputSR ~/data/stereoCorrectionTest/M120175500RE.final.cub --workDir ~/data/stereoCorrectionTest/workingDir
+~/repo/lronacPipeline/stereoDoubleCalibrationProcess.py --left /home/smcmich1/data/ARISTARCHU2/M120168714LE.IMG --right /home/smcmich1/data/ARISTARCHU2/M120168714RE.IMG --stereo-left /home/smcmich1/data/ARISTARCHU2/M120175500LE.IMG --stereo-right /home/smcmich1/data/ARISTARCHU2/M120175500RE.IMG --lola ~/data/ARISTARCHU2/RDR_310E312E_23N26NPointPerRow_csv_table.csv --keep --outputL ~/data/stereoCorrectionTest/M120168714LE.final.cub --outputR ~/data/stereoCorrectionTest/M120168714RE.final.cub --outputSL ~/data/stereoCorrectionTest/M120175500LE.final.cub --outputSR ~/data/stereoCorrectionTest/M120175500RE.final.cub --workDir ~/data/stereoCorrectionTest/workingDir
 
 # Draw test output
 #~/repo/lronacPipeline/calibrationReport.py --input ~/data/stereoCorrectionTest/workingDir/pairGdcCheckPre.csv --output ~/data/stereoCorrectionTest/pairGdcCheckPreCeres700.kml --name pairCheck --color blue
@@ -90,22 +90,22 @@ echo '3'
 
 # Crop the two images for a faster test
 
-#crop from=/home/smcmich1/data/stereoCorrectionTest/M120168714LE.mosaic.norm.cub to=/home/smcmich1/data/stereoCorrectionTest/M120168714LE.mosaic.norm.crop.cub nlines=2000
+#crop from=/home/smcmich1/data/stereoCorrectionTest/M120168714LE.mosaic.norm.cub to=/home/smcmich1/data/stereoCorrectionTest/M120168714LE.mosaic.norm.crop.cub nlines=20000
 
-#crop from=/home/smcmich1/data/stereoCorrectionTest/M120175500LE.mosaic.norm.cub to=/home/smcmich1/data/stereoCorrectionTest/M120175500LE.mosaic.norm.crop.cub nlines=2000
+#crop from=/home/smcmich1/data/stereoCorrectionTest/M120175500LE.mosaic.norm.cub to=/home/smcmich1/data/stereoCorrectionTest/M120175500LE.mosaic.norm.crop.cub nlines=20000
 
 # Generate a DEM from the two mosaic images
-parallel_stereo --corr-timeout 400 --alignment affineepipolar --subpixel-mode 1 --disable-fill-holes /home/smcmich1/data/stereoCorrectionTest/M120168714LE.mosaic.norm.cub /home/smcmich1/data/stereoCorrectionTest/M120175500LE.mosaic.norm.cub ~/data/stereoCorrectionTest/finalStereo/output --processes 8 --threads-multiprocess 4 --threads-singleprocess 32 --compute-error-vector
+#parallel_stereo --corr-timeout 400 --alignment affineepipolar --subpixel-mode 1 --disable-fill-holes /home/smcmich1/data/stereoCorrectionTest/M120168714LE.mosaic.norm.crop.cub /home/smcmich1/data/stereoCorrectionTest/M120175500LE.mosaic.norm.crop.cub ~/data/stereoCorrectionTest/finalStereo/output --processes 8 --threads-multiprocess 4 --threads-singleprocess 32 --compute-error-vector
 #--nodes-list PBS_NODEFILE --processes 4 --threads-multiprocess 16 --threads-singleprocess 32
 
 #stereo --corr-timeout 400 --alignment affineepipolar --subpixel-mode 1 --disable-fill-holes /home/smcmich1/data/stereoCorrectionTest/M120168714LE.mosaic.norm.crop.cub /home/smcmich1/data/stereoCorrectionTest/M120175500LE.mosaic.norm.crop.cub ~/data/stereoCorrectionTest/finalStereo/output --compute-error-vector
 #--nodes-list PBS_NODEFILE --processes 4 --threads-multiprocess 16 --threads-singleprocess 32
 
 # Find out the center latitude of the mosaic
-point2dem --errorimage -o /home/smcmich1/data/stereoCorrectionTest/finalStereo/p2d /home/smcmich1/data/stereoCorrectionTest/finalStereo/output-PC.tif -r moon --tr 1 --t_srs "+proj=eqc +lat_ts=24.62 +lat_0=0 +a=1737400 +b=1737400 +units=m" --nodata -32767
+#point2dem --errorimage -o /home/smcmich1/data/stereoCorrectionTest/finalStereo/p2d /home/smcmich1/data/stereoCorrectionTest/finalStereo/output-PC.tif -r moon --tr 1 --t_srs "+proj=eqc +lat_ts=24.62 +lat_0=0 +a=1737400 +b=1737400 +units=m" --nodata -32767
 
 # Create a hillshade image to check if the central errors are gone
-hillshade /home/smcmich1/data/stereoCorrectionTest/finalStereo/p2d-DEM.tif -o /home/smcmich1/data/stereoCorrectionTest/demHillshade.tif
+#hillshade /home/smcmich1/data/stereoCorrectionTest/finalStereo/p2d-DEM.tif -o /home/smcmich1/data/stereoCorrectionTest/demHillshade.tif
 
 
 

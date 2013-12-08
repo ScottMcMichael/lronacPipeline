@@ -161,7 +161,7 @@ def main():
             os.remove(spkDataPath)
 
         # Call lronac spice editor tool to generate modified text file
-        cmd = '/home/smcmich1/repo/lronacPipelineBuild/spiceEditor --offsetCode ' + sideCode + ' --outputPrefix ' + tempDataPrefix + ' --kernels ' + kernelStringList
+        cmd = 'spiceEditor --offsetCode ' + sideCode + ' --outputPrefix ' + tempDataPrefix + ' --kernels ' + kernelStringList
         print cmd
         os.system(cmd)
         if not os.path.exists(spkDataPath):
@@ -185,7 +185,7 @@ def main():
         #TODO: Need to make sure this is stored as an absolute path!!!!!!!!!!!!!
 
         # Create new SPK file using modified data
-        cmd = '/home/smcmich1/repo/StereoPipeline/src/asp/Tools/mkspk -setup ' + mkspkConfigPath + ' -input ' + spkDataPath + ' -output ' + tempSpkPath
+        cmd = 'mkspk -setup ' + mkspkConfigPath + ' -input ' + spkDataPath + ' -output ' + tempSpkPath
         print cmd
         os.system(cmd)
         if not os.path.exists(tempSpkPath):

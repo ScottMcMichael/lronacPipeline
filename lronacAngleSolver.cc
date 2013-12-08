@@ -28,19 +28,12 @@
 
 #include <vw/InterestPoint.h>
 #include <vw/Image/MaskViews.h>
-//#include <boost/accumulators/accumulators.hpp>
-//#include <boost/accumulators/statistics.hpp>
 #include <vw/FileIO/DiskImageResource.h>
 #include <vw/FileIO/DiskImageView.h>
 #include <vw/Stereo/PreFilter.h>
-//#include <vw/Stereo/CorrelationView.h>
-//#include <vw/Stereo/CostFunctions.h>
-//#include <vw/Stereo/DisparityMap.h>
 
 #include <vw/Stereo/Correlate.h>
 
-//#include <asp/Core/DemDisparity.h>
-//#include <asp/Core/LocalHomography.h>
 
 #include <vw/Stereo/StereoModel.h>
 #include <asp/IsisIO/IsisCameraModel.h> //::point_to_pixel>
@@ -82,7 +75,6 @@ struct Parameters : asp::BaseOptions
 
   bool initialOnly; ///< If true only compute starting state, don't run the solver.
   
-  //std::vector<double> initialValues; ///< Starting state parameters
   std::string initialValuePath;
 
   int  cropWidth; ///< Specifies image overlap for use with ipfind
@@ -197,11 +189,8 @@ bool findMatchingPixels(const Parameters &params, Vector<double> &leftRow, Vecto
   printf("Left  input image size: %d rows, %d cols\n", left_disk_image.rows(),  left_disk_image.cols());
   printf("Right input image size: %d rows, %d cols\n", right_disk_image.rows(), right_disk_image.cols());
   
-  //const int imageWidth      = std::min(left_disk_image.cols(), right_disk_image.cols());
   const int imageHeight     = std::min(left_disk_image.rows(), right_disk_image.rows());
   const int imageTopRow     = 0;
-  //const int imageMidPointX  = imageWidth / 2;
-  //const int cropStartX      = imageMidPointX - (params.cropWidth/2);
 
   // Restrict processing to the border of the images
   // - Since both images were nproj'd the overlap areas should be in about the same spots.
@@ -287,7 +276,6 @@ bool findMatchingPixels(const Parameters &params, Vector<double> &leftRow, Vecto
   // Now that we have correspondence points, feed them into an angular solver.
 
   // This value is governed by how slow the solver gets with large numbers of points
-  // TODO: Fiddle with values to get this number higher?
   const int TARGET_NUM_POINTS = 200;
 
   // Convert the matching points into the correct format
@@ -398,7 +386,7 @@ bool optimizeRotations(Parameters & params)
   }
 
 
-  //TODO: Move these
+  /*
   std::string initialErrorPath    = "/home/smcmich1/initialAngleError.csv";
   std::string finalErrorPath      = "/home/smcmich1/finalAngleError.csv";
   std::string initialStatePath    = "/home/smcmich1/initialAngleState.csv";
@@ -406,6 +394,7 @@ bool optimizeRotations(Parameters & params)
   std::string finalStateDiffPath  = "/home/smcmich1/finalAngleStateDiff.csv";
   std::string initialGdcCoordPath = "/home/smcmich1/initialGdcPoints.csv";
   std::string finalGdcCoordPath   = "/home/smcmich1/finalGdcPoints.csv";
+  */
   
   // Set up georeference class with default moon datum
   vw::cartography::Datum datum("D_MOON");
@@ -424,41 +413,44 @@ bool optimizeRotations(Parameters & params)
   //  initialPredFile << initialPredictions[i] << std::endl;
   //initialPredFile.close();
    
-  
+  /*
   //printf("Writing initial state log to %s\n", initialStatePath.c_str());
   std::ofstream initialStateFile(initialStatePath.c_str()); 
   for (size_t i=0; i<initialState.size(); ++i)
     initialStateFile << initialState[i] << std::endl;
   initialStateFile.close();
+  */
   
   // Write initial points as GDC coordinates for google earth
   std::ofstream initialGdcCoordFile;
   if (params.initialOnly) // Write to output GDC file
-    initialGdcCoordFile.open(params.gdcPointsOutPath.c_str());
-  else // Use debug file path
-    initialGdcCoordFile.open(initialGdcCoordPath.c_str());
-  for (size_t i=0; i<numMatchedPts; ++i)
   {
-    // Convert from GCC to GDC
-    Vector3 gccPoint(initialState[startOfPts+ 3*i], initialState[startOfPts+ 3*i+1], initialState[startOfPts+ 3*i+2]);
-    Vector3 gdcCoord = datum.cartesian_to_geodetic(gccPoint);
-    initialGdcCoordFile.precision(12);
-    // Write lat, lon, height so pc_align tool can read these files
-    initialGdcCoordFile << gdcCoord[1] << ", " << gdcCoord[0] << ", " << gdcCoord[2] << std::endl;
+    initialGdcCoordFile.open(params.gdcPointsOutPath.c_str());
+
+    for (size_t i=0; i<numMatchedPts; ++i)
+    {
+      // Convert from GCC to GDC
+      Vector3 gccPoint(initialState[startOfPts+ 3*i], initialState[startOfPts+ 3*i+1], initialState[startOfPts+ 3*i+2]);
+      Vector3 gdcCoord = datum.cartesian_to_geodetic(gccPoint);
+      initialGdcCoordFile.precision(12);
+      // Write lat, lon, height so pc_align tool can read these files
+      initialGdcCoordFile << gdcCoord[1] << ", " << gdcCoord[0] << ", " << gdcCoord[2] << std::endl;
+    }
+    initialGdcCoordFile.close();
   }
-  initialGdcCoordFile.close();
-  
+
+
   // Compute the initial error - euclidean point distance
   //printf("Writing initial error log to %s\n", initialErrorPath.c_str());
-  std::ofstream initialErrorFile(initialErrorPath.c_str()); 
+  //std::ofstream initialErrorFile(initialErrorPath.c_str());
   double meanInitialError = 0;  
   std::vector<double> currentError = lrocClass.computeError(initialState);
   for (size_t i=0; i<currentError.size(); ++i)
   {   
-    initialErrorFile << currentError[i] << std::endl;
+    //initialErrorFile << currentError[i] << std::endl;
     meanInitialError += currentError[i];
   }
-  initialErrorFile.close();
+  //initialErrorFile.close();
   meanInitialError = meanInitialError / currentError.size();
   printf("Mean point error before optimization = %lf\n", meanInitialError);
   
@@ -572,15 +564,17 @@ bool optimizeRotations(Parameters & params)
 #endif
   //@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
+  /*
   //printf("Writing final state log to %s\n", finalStatePath.c_str());
   std::ofstream finalStateFile(finalStatePath.c_str());
   for (size_t i=0; i<finalParams.size(); ++i)
     finalStateFile << finalParams[i] << std::endl;
   finalStateFile.close();
+  */
 
   // The computeError() function calculates the mean euclidean distance from the observation points of the LE and RE cameras for each point.
   //printf("Writing final error log to %s\n", finalErrorPath.c_str());
-  std::ofstream finalErrorFile(finalErrorPath.c_str()); 
+  //std::ofstream finalErrorFile(finalErrorPath.c_str());
   double meanFinalError = 0;
   std::vector<double> finalError = lrocClass.computeError(finalParams);
   //Vector<double> finalPredictions = lrocClass(finalParams);
@@ -599,13 +593,13 @@ bool optimizeRotations(Parameters & params)
   
   for (size_t i=0; i<finalError.size(); ++i)
   {   
-    finalErrorFile << finalError[i] << std::endl;
+    //finalErrorFile << finalError[i] << std::endl;
     meanFinalError += finalError[i];
   }
   meanFinalError = meanFinalError / finalError.size(); 
     
   //predictionFile.close();
-  finalErrorFile.close();
+  //finalErrorFile.close();
   
   // Compute the median error
   std::sort(finalError.begin(), finalError.end());
@@ -620,25 +614,28 @@ bool optimizeRotations(Parameters & params)
 
   // Write initial points as GDC coordinates for google earth
   std::ofstream finalGdcCoordFile;
-  if (params.gdcPointsOutPath.empty())
-    finalGdcCoordFile.open(finalGdcCoordPath.c_str()); // TODO: Remove debug default
-  else
-    finalGdcCoordFile.open(params.gdcPointsOutPath.c_str());
-  for (size_t i=0; i<numMatchedPts; ++i)
+  if (params.gdcPointsOutPath.size() > 0)
   {
-    // Convert from GCC to GDC
-    Vector3 gccPoint(finalParams[startOfPts+ 3*i], finalParams[startOfPts+ 3*i+1], finalParams[startOfPts+ 3*i+2]);
-    Vector3 gdcCoord = datum.cartesian_to_geodetic(gccPoint);
-    finalGdcCoordFile.precision(12);
-    // Write lat, lon, height so pc_align tool can read these files
-    finalGdcCoordFile << gdcCoord[1] << ", " << gdcCoord[0] << ", " << gdcCoord[2] << std::endl;
-  }
-  finalGdcCoordFile.close();
 
+    finalGdcCoordFile.open(params.gdcPointsOutPath.c_str());
+    for (size_t i=0; i<numMatchedPts; ++i)
+    {
+      // Convert from GCC to GDC
+      Vector3 gccPoint(finalParams[startOfPts+ 3*i], finalParams[startOfPts+ 3*i+1], finalParams[startOfPts+ 3*i+2]);
+      Vector3 gdcCoord = datum.cartesian_to_geodetic(gccPoint);
+      finalGdcCoordFile.precision(12);
+      // Write lat, lon, height so pc_align tool can read these files
+      finalGdcCoordFile << gdcCoord[1] << ", " << gdcCoord[0] << ", " << gdcCoord[2] << std::endl;
+    }
+    finalGdcCoordFile.close();
+  }
+
+  /*
   std::ofstream finalStateDiffFile(finalStateDiffPath.c_str()); 
   for (size_t i=0; i<finalParams.size(); ++i)
     finalStateDiffFile << finalParams[i] - initialState[i] << std::endl;
   finalStateDiffFile.close();
+  */
   
   printf("Mean point error after optimization = %lf\n", meanFinalError);
   printf("Mean error change = %lf\n", meanFinalError - meanInitialError);

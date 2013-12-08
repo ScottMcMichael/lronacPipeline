@@ -207,7 +207,7 @@ def main():
 
 #TODO: What is up the kernel unloading step here?
         # Call lronac spice editor tool to generate modified text file
-        cmd = '/home/smcmich1/repo/lronacPipelineBuild/spiceEditor --transformFile ' + options.transformPath + ' --outputPrefix ' + tempDataPrefix + ' --kernels ' + kernelStringList
+        cmd = 'spiceEditor --transformFile ' + options.transformPath + ' --outputPrefix ' + tempDataPrefix + ' --kernels ' + kernelStringList
         print cmd
         os.system(cmd)
         if not os.path.exists(spkDataPath):
@@ -232,7 +232,7 @@ def main():
             os.remove(tempSpkPath)
 
         # Create new SPK file using modified data
-        cmd = '/home/smcmich1/repo/StereoPipeline/src/asp/Tools/mkspk -setup ' + mkspkConfigPath + ' -input ' + spkDataPath + ' -output ' + tempSpkPath
+        cmd = 'mkspk -setup ' + mkspkConfigPath + ' -input ' + spkDataPath + ' -output ' + tempSpkPath
         print cmd
         os.system(cmd)
         if not os.path.exists(tempSpkPath):
@@ -259,7 +259,7 @@ def main():
         print 'reallyTempCkPath =  ' + reallyTempCkPath
 
         # Create new CK file using modified data
-        cmd = '/home/smcmich1/repo/StereoPipeline/src/asp/Tools/msopck ' + msopckConfigPath + ' ' + ckDataPath + '  ' + reallyTempCkPath
+        cmd = 'msopck ' + msopckConfigPath + ' ' + ckDataPath + '  ' + reallyTempCkPath
         print cmd
         os.system(cmd)
         if not os.path.exists(reallyTempCkPath):

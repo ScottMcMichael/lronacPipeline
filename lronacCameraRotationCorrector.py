@@ -20,6 +20,8 @@ import sys
 
 import os, glob, optparse, re, shutil, subprocess, string, time
 
+import IsisTools
+
 def man(option, opt, value, parser):
     print >>sys.stderr, parser.usage
     print >>sys.stderr, '''\
@@ -85,42 +87,8 @@ def readRotationFile(rotFilePath):
 
     return rotData
 
-# TODO: Replace this with call to IsisTools!
-# Parses the output from head [cube path]
-def parseHeadOutput(textPath):
-
-    isisDataFolder = os.environ['ISIS3DATA']
-
-    # Search each line in the folder for a required kernel file
-    dataFile = open(textPath, 'r')
-    lastLine = ''
-    for line in dataFile:
-        # Append leftovers from last line and clear left/right whitespace
-        workingLine = lastLine + line.strip()
-        #print 'workingLine =' + workingLine
-        if (workingLine.find('/kernels/fk/lro_frames_') >= 0): # This should week out all other kernels
-            m = re.search('\$[a-zA-Z0-9/._\-]*', workingLine)
-            if m: # Path found
-                if (m.group(0)[-1] == '-'): # This means ISIS has done a weird truncation to the next line
-                    lastLine = m.group(0)[:-1] # Strip trailing - and append next line to it
-                else: # Valid match
-                    #print 'found kernel path ' + m.group(0)
-                    kernelPath = os.path.join(isisDataFolder, m.group(0)[1:])
-
-                    if not os.path.exists(kernelPath): # Make sure the kernel file exists
-                        print 'Error! Specified kernel file ' + kernelPath + ' does not exist!'
-                        return [] # Fail if we get a miss
-                    
-                    return kernelPath # We are only looking for this one kernel file
-            else: 
-               print 'Failed to find kernel in line: ' + line
-               
-    # Failed to find the frame kernel!
-    return []
-
 #--------------------------------------------------------------------------------
 
-#TODO: Support for file based logging of results
 
 def main():
 
@@ -191,7 +159,8 @@ def main():
 
         # Parse output looking for the IK frame file
         print 'Looking for source frame file...'
-        inputFramePath = parseHeadOutput(tempTextPath)
+        kernels = IsisTools.parseHeadOutput(tempTextPath, options.outputPath)
+        inputFramePath = kernels['Frame']
         if not inputFramePath:
             print 'Error! Unable to find any IK kernel file in ' + tempTextPath
             return 1
@@ -206,7 +175,7 @@ def main():
             gdcText = ''
             if options.gdcLogPath: # Handle GDC point logging option
                 gdcText = ' --gdcPointsOutPath ' + options.gdcLogPath
-            cmd = '/home/smcmich1/repo/lronacPipeline/cmakeBuild/lronacAngleSolver --outputPath '+ \
+            cmd = 'lronacAngleSolver --outputPath '+ \
                       rotationAnglePath + gdcText + ' ' + options.leftPath + ' ' + options.rightPath
             print cmd
             os.system(cmd)

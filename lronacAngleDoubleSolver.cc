@@ -16,7 +16,7 @@
 // __END_LICENSE__
 
 
-/// \file lronacAngleSolver.cc
+/// \file lronacAngleDoubleSolver.cc
 ///
 
 #include <iostream>
@@ -28,19 +28,12 @@
 
 #include <vw/InterestPoint.h>
 #include <vw/Image/MaskViews.h>
-//#include <boost/accumulators/accumulators.hpp>
-//#include <boost/accumulators/statistics.hpp>
 #include <vw/FileIO/DiskImageResource.h>
 #include <vw/FileIO/DiskImageView.h>
 #include <vw/Stereo/PreFilter.h>
-//#include <vw/Stereo/CorrelationView.h>
-//#include <vw/Stereo/CostFunctions.h>
-//#include <vw/Stereo/DisparityMap.h>
 
 #include <vw/Stereo/Correlate.h>
 
-//#include <asp/Core/DemDisparity.h>
-//#include <asp/Core/LocalHomography.h>
 
 #include <vw/Stereo/StereoModel.h>
 #include <asp/IsisIO/IsisCameraModel.h> //::point_to_pixel>

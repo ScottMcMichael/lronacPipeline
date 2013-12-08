@@ -21,6 +21,8 @@ import sys
 import os, glob, optparse, re, shutil, subprocess, string, time
 
 
+#TODO: Move some of these to a non-ISIS python file!
+
 def man(option, opt, value, parser):
     print >>sys.stderr, parser.usage
     print >>sys.stderr, '''\
@@ -30,7 +32,7 @@ Contains utilities for working with ISIS data files.
 
 
 def parseHeadOutput(textPath, cubePath):
-    """Parses the output from head [cube path] and returns a list of all kernels"""
+    """Parses the output from head [cube path] and returns a dictionary containing all kernels"""
 
     kernelDict = dict()
 
@@ -130,7 +132,7 @@ def getKernelsFromCube(cubePath, tempFolder):
 
     return kernelList # Success!
 
-# TODO: Move this to another module!
+
 def readPositions(positionFilePath):
     """Reads in a list of GDC coordinates from a pc_align or LOLA RDR file"""
 
@@ -175,5 +177,108 @@ def readPositions(positionFilePath):
 
     #print pointList
     return pointList
+
+# Reads the output file from a lronacjitreg call and returns [meanSampleOffset, meanLineOffset]
+def readJitregFile(filePath):
+    # Fail if the input file is not present
+    if not os.path.isfile(filePath):
+        raise Exception('File ' + filePath + ' is missing!')
+
+    averages = [0.0, 0.0]
+
+    f = open(filePath,'r')
+    for line in f:
+        if ( line.rfind("Average Sample Offset:") >= 0 ):
+            index       = line.rfind("Offset:");
+            index_e     = line.rfind("StdDev:");
+            crop        = line[index+7:index_e];
+            if crop == " NULL ": # Check for null value
+                raise Exception('Null sample offset in file ' + flat)
+            averages[0] = float(crop);
+        elif ( line.rfind("Average Line Offset:") >= 0 ):
+            index       = line.rfind("Offset:");
+            index_e     = line.rfind("StdDev:");
+            crop        = line[index+7:index_e];
+            if crop == "   NULL ": # Check for null value
+                raise Exception('Null sample offset in file ' + flat)
+            averages[1] = float(crop);
+        elif ( line.rfind("Using IpFind result only:") >= 0 ):
+            index       = line.rfind("only:");
+            if (line[index + 7] == 1):
+                print "Warning: This result based only on IpFind search."
+    print str(averages)
+    return averages
+
+
+# Generates a .pvl file needed to use noproj with an LRONAC camera pair.
+# - Can generate a version for either full or half sample resolution files.
+def writeLronacPvlFile(outputPath, isHalfRes):
+
+    if os.path.exists(outputPath):
+        print outputPath + ' already exists, using existing file.'
+        return True
+    else: # Need to write the file
+        print 'Generating LRONAC compatible .pvl file ' + outputPath
+
+    f = open(outputPath, 'w')
+
+    f.write('Object = IdealInstrumentsSpecifications\n');
+    f.write('  UserName     = auto\n');
+    f.write('  Created      = 2013-07-18T13:42:00\n');
+    f.write('  LastModified = 2013-07-18T13:42:00\n\n');
+    f.write('  Group = "LUNAR RECONNAISSANCE ORBITER/NACL"\n');
+
+    if not isHalfRes: # Full resolution camera
+        f.write('     TransY = 16.8833\n')
+        f.write('     ItransS = -2411.9\n')
+        f.write('     TransX = 0.6475\n')
+        f.write('     ItransL = -92.5\n')
+        f.write('     DetectorSamples = 10000\n')
+    else: # Half resolution camera
+        f.write('     TransY = 16.8833\n')
+        f.write('     ItransS = -4823.8\n')     # Halved
+        f.write('     TransX = 0.6475\n')
+        f.write('     ItransL = -185\n')       # Halved
+        f.write('     DetectorSamples = 5000\n') # Halved
+
+    f.write('  End_Group\n\n')
+    f.write('End_Object\n')
+    f.write('End')
+
+    f.close()
+
+# Calls caminfo on a mosaic and returns the CenterLatitude value
+def getCubeCenterLatitude(cubePath, workDir='tmp'):
+
+    # Make sure the requested file is present
+    if not os.path.exists(cubePath):
+        raise Exception('File ' + cubePath + ' does not exist!')
+
+    # Call caminfo (from ISIS) on the input cube to find out the CenterLatitude value
+    camInfoOuputPath = workDir + "/camInfoOutput.txt"
+    cmd = 'caminfo from=' + cubePath + ' to=' + camInfoOuputPath
+    os.system(cmd)
+
+    if not os.path.exists(camInfoOuputPath):
+        raise Exception('Call to caminfo failed on file ' + cubePath)
+
+    # Read in the output file to extract the CenterLatitude value
+    centerLatitude = -9999
+    infoFile       = open(camInfoOuputPath, 'r')
+    for line in infoFile:
+        if (line.find('CenterLatitude') >= 0):
+            eqPt   = line.find('=')
+            numStr = line[eqPt+2:]
+            centerLatitude = float(numStr)
+            break
+    # Make sure we found the desired value
+    if (centerLatitude == -9999):          
+        raise Exception("Unable to find CenterLatitude from file " + cubePath)
+
+    # Clean up temporary file
+    os.remove(camInfoOuputPath)
+
+    return centerLatitude # Return the latitude we found
+
 
 
