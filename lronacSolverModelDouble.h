@@ -42,7 +42,7 @@
 
 #include <stereo.h>
 
-#include <IsisInterfaceLineScan.h>
+#include <IsisInterfaceLineScanRot.h>
 #include <lronacSolverSupport.h>
 
 

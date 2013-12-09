@@ -51,7 +51,7 @@
 #include <vw/Math/EulerAngles.h>
 
 #include <asp/Core/IntegralAutoGainDetector.h>
-#include <asp/IsisIO/IsisInterfaceLineScan.h>
+#include <IsisInterfaceLineScanRot.h>
 
 #include <stereo.h>
 

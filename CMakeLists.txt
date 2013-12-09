@@ -221,10 +221,10 @@ target_link_libraries(lola_compare  ${VISIONWORKBENCH_LIBRARIES})
 
 
 
-add_executable(lronacAngleSolver IsisInterfaceLineScan.h IsisInterfaceLineScan.cc lronacAngleSolver.cc lronacSolverSupport.h lronacSolverModel.h) 
+add_executable(lronacAngleSolver IsisInterfaceLineScanRot.h IsisInterfaceLineScanRot.cc lronacAngleSolver.cc lronacSolverSupport.h lronacSolverModel.h) 
 target_link_libraries(lronacAngleSolver  ${QT_LIBRARIES} ${VISIONWORKBENCH_LIBRARIES} ${StereoPipeline_LIBRARIES}  ${CERES_LIBRARIES} ${SUITESPARSE_LIBRARIES}) 
 
-add_executable(lronacAngleDoubleSolver IsisInterfaceLineScan.h IsisInterfaceLineScan.cc lronacAngleDoubleSolver.cc lronacSolverSupport.h lronacSolverModelDouble.h) 
+add_executable(lronacAngleDoubleSolver IsisInterfaceLineScanRot.h IsisInterfaceLineScanRot.cc lronacAngleDoubleSolver.cc lronacSolverSupport.h lronacSolverModelDouble.h) 
 target_link_libraries(lronacAngleDoubleSolver  ${QT_LIBRARIES} ${VISIONWORKBENCH_LIBRARIES} ${StereoPipeline_LIBRARIES}  ${CERES_LIBRARIES} ${SUITESPARSE_LIBRARIES}) 
 
 add_executable(spiceEditor SpiceEditor.cc) 

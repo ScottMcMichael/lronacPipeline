@@ -42,7 +42,7 @@
 
 #include <asp/Core/IntegralAutoGainDetector.h>
 //#include <asp/IsisIO/IsisInterfaceLineScan.h>
-#include <IsisInterfaceLineScan.h>
+#include <IsisInterfaceLineScanRot.h>
 
 #include <stereo.h>
 

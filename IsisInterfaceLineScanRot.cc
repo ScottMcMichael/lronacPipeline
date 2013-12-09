@@ -17,7 +17,7 @@
 
 
 // ASP
-#include <IsisInterfaceLineScan.h>
+#include <IsisInterfaceLineScanRot.h>
 #include <iTime.h>
 #include <vw/Math/EulerAngles.h>
 
