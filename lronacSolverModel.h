@@ -19,6 +19,9 @@
 /// \file lronacSolverModel.cc
 ///
 
+#ifndef __LRONACPIPELINE_SOLVERMODEL_H__
+#define __LRONACPIPELINE_SOLVERMODEL_H__
+
 #include <iostream>
 
 #include <iTime.h> // Isis time class
@@ -80,40 +83,40 @@ class LrocPairModel : public vw::math::LeastSquaresModelBase<LrocPairModel>
 {
 public:  // Definitions ------------------------------------------------------------------------------
 
-/// * Defines a result_type that is the type returned by
-///   evaluating the functor.  Typically Vector<float> or
-///   Vector<double>
-typedef Vector<double> result_type;
+  /// * Defines a result_type that is the type returned by
+  ///   evaluating the functor.  Typically Vector<float> or
+  ///   Vector<double>
+  typedef Vector<double> result_type;
 
-/// * Defines a domain_type that is the type of the search
-///   space.  Often a Vector<foo>, but can reflect other
-///   topologies if needed.
-typedef Vector<double> domain_type;
+  /// * Defines a domain_type that is the type of the search
+  ///   space.  Often a Vector<foo>, but can reflect other
+  ///   topologies if needed.
+  typedef Vector<double> domain_type;
 
 
-/// * Defines a jacobian_type corresponding to the space of
-///   jacobian matrices.  Typically Matrix<foo>.
-typedef Matrix<double> jacobian_type;
+  /// * Defines a jacobian_type corresponding to the space of
+  ///   jacobian matrices.  Typically Matrix<foo>.
+  typedef Matrix<double> jacobian_type;
 
 private: // Variables ---------------------------------------------------------------------------
 
-// Camera models
-asp::isis::IsisInterfaceLineScanRot _leftCameraModel;
-asp::isis::IsisInterfaceLineScanRot _rightCameraModel;
+  // Camera models
+  IsisInterfaceLineScanRot _leftCameraModel;
+  IsisInterfaceLineScanRot _rightCameraModel;
 
-bool _solveWorldFrame;
-bool _includePosition; // Currently only works if solveWorldFrame is true!
+  bool _solveWorldFrame;
+  bool _includePosition; // Currently only works if solveWorldFrame is true!
 
-mutable vw::camera::AdjustedCameraModel _rightCameraRotatedModel;
+  mutable vw::camera::AdjustedCameraModel _rightCameraRotatedModel;
 
-//TODO: Modify this class so that the rays from this task can be used!
-vw::stereo::StereoModel         _stereoModel;
+  //TODO: Modify this class so that the rays from this task can be used!
+  vw::stereo::StereoModel         _stereoModel;
 
-// Observation records
-Vector<double> _leftRows;
-Vector<double> _rightRows;
-Vector<double> _leftCols;
-Vector<double> _rightCols;
+  // Observation records
+  Vector<double> _leftRows;
+  Vector<double> _rightRows;
+  Vector<double> _leftCols;
+  Vector<double> _rightCols;
 
 public: // Functions  -----------------------------------------------------------------------------------
 
@@ -665,7 +668,7 @@ public:  // Functions
 }; // end struct RightCostFunctor
 
 
-
+#endif
 
 
 

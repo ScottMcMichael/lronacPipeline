@@ -20,11 +20,12 @@
 ///
 /// Line Scan Camera Interface with ISIS
 ///
-#ifndef __ASP_ISIS_INTERFACE_LINESCAN_H__
-#define __ASP_ISIS_INTERFACE_LINESCAN_H__
+#ifndef __LRONACPIPELINE_INTERFACE_LINESCAN_H__
+#define __LRONACPIPELINE_INTERFACE_LINESCAN_H__
 
 // VW & ASP
 #include <vw/Math/LevenbergMarquardt.h>
+#include <vw/Camera/CameraModel.h>
 #include <asp/IsisIO/IsisInterface.h>
 
 // Isis
@@ -33,17 +34,16 @@
 #include <CameraFocalPlaneMap.h>
 #include <AlphaCube.h>
 
-namespace asp {
-namespace isis {
 
-  class IsisInterfaceLineScan : public IsisInterface {
+  class IsisInterfaceLineScanRot : public asp::isis::IsisInterface, public vw::camera::CameraModel {
 
   public:
-    IsisInterfaceLineScan( std::string const& file );
+    IsisInterfaceLineScanRot(const std::string &file );
 
-    virtual ~IsisInterfaceLineScan() {}
+    virtual ~IsisInterfaceLineScanRot() {}
 
     virtual std::string type()  { return "LineScan"; }
+    virtual std::string type() const { return "LineScan"; }
 
     // Standard Methods
     //-------------------------------------------------
@@ -57,10 +57,10 @@ namespace isis {
     virtual vw::Quat
       camera_pose( vw::Vector2 const& pix = vw::Vector2(1,1) ) const;
 
-    /// Hack function to apply an in-camera rotation during this operation
-    virtual vw::Vector2
-      point_to_pixel_rotated( vw::Vector3 const& point, vw::Vector3 const& rotAngles) const;
-      
+    /// Additional function to apply an in-camera rotation during this operation
+    vw::Vector2
+      point_to_pixel_rotated( vw::Vector3 const& point, vw::Vector3 const& rotAngles, int guessLine=-1) const;
+
   protected:
 
     // Custom Variables
@@ -79,6 +79,6 @@ namespace isis {
                   bool calc=false ) const;
   };
 
-}}
 
-#endif//__ASP_ISIS_INTERFACE_LINESCAN_H__
+
+#endif//__LRONACPIPELINE_INTERFACE_LINESCAN_H__

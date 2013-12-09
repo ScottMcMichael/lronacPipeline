@@ -31,37 +31,20 @@
 
 #include <vw/InterestPoint.h>
 #include <vw/Image/MaskViews.h>
-//#include <boost/accumulators/accumulators.hpp>
-//#include <boost/accumulators/statistics.hpp>
 #include <vw/FileIO/DiskImageResource.h>
 #include <vw/FileIO/DiskImageView.h>
 #include <vw/Stereo/PreFilter.h>
-//#include <vw/Stereo/CorrelationView.h>
-//#include <vw/Stereo/CostFunctions.h>
-//#include <vw/Stereo/DisparityMap.h>
-
 #include <vw/Stereo/Correlate.h>
-
-//#include <asp/Core/DemDisparity.h>
-//#include <asp/Core/LocalHomography.h>
-
 #include <vw/Stereo/StereoModel.h>
 #include <asp/IsisIO/IsisCameraModel.h> //::point_to_pixel>
 #include <vw/Math/LevenbergMarquardt.h>
 #include <vw/Math/EulerAngles.h>
 
 #include <asp/Core/IntegralAutoGainDetector.h>
-#include <asp/IsisIO/IsisInterfaceLineScan.h>
+//#include <asp/IsisIO/IsisInterfaceLineScan.h>
+#include <IsisInterfaceLineScan.h>
 
 #include <stereo.h>
-
-using namespace vw;
-using namespace vw::stereo;
-using namespace asp::isis;
-using namespace asp;
-using std::endl;
-using std::setprecision;
-using std::setw;
 
 //###############################################################################################
 //###############################################################################################
@@ -71,7 +54,7 @@ using std::setw;
 //TODO: Replace this code!!!!
 
 
-bool raySphereIntersect(const Vector3 &rayOrigin, const Vector3 &rayVector, const double radius, Vector3 &intersection)
+bool raySphereIntersect(const vw::Vector3 &rayOrigin, const vw::Vector3 &rayVector, const double radius, vw::Vector3 &intersection)
 {
     // Get two points on the ray
     double xA = rayOrigin[0]; 
@@ -108,11 +91,11 @@ bool raySphereIntersect(const Vector3 &rayOrigin, const Vector3 &rayVector, cons
 //###############################################################################################
 //###############################################################################################
 // IsisInterfaceLineScanRot - Class replacment to insert local rotation
-
+/*
 namespace asp {
 namespace isis {
 
-class IsisInterfaceLineScanRot : public asp::isis::IsisInterfaceLineScan 
+class IsisInterfaceLineScanRot : public asp::isis::IsisInterfaceLineScan
 {
 public:
   IsisInterfaceLineScanRot( std::string const& file ) : asp::isis::IsisInterfaceLineScan(file) {}
@@ -251,7 +234,7 @@ IsisInterfaceLineScanRot::point_to_pixel_rotated( vw::Vector3 const& point, vw::
   
   
   // Add in input offsets
-  Vector3 offsetAngles = /*instAngles +*/ rotAngles;
+  Vector3 offsetAngles =  rotAngles;
   vw::math::Matrix<double,3,3> R_offset = vw::math::euler_to_rotation_matrix(offsetAngles[0], offsetAngles[1], offsetAngles[2], "xyz");
   // Try partial rotation solution.
   //vw::math::Matrix<double,3,3> R_offset = vw::math::euler_to_rotation_matrix(offsetAngles[0], offsetAngles[1], 0, "xyz");
@@ -314,7 +297,7 @@ IsisInterfaceLineScanRot::point_to_pixel_rotated( vw::Vector3 const& point, vw::
 } // end namespace isis
 } // end namespace asp
 
-
+*/
 
 
 //###############################################################################################
@@ -322,57 +305,57 @@ IsisInterfaceLineScanRot::point_to_pixel_rotated( vw::Vector3 const& point, vw::
 //###############################################################################################
 // IsisInterfaceLineScanRot - Class replacment to insert local rotation
 
-namespace vw {
-namespace camera {
+//namespace vw {
+//namespace camera {
 
 /// This class is useful if you have an existing camera model, and
 /// you want to systematically "tweak" its extrinsic parameters
 /// (position and pose).  This is particularly useful in Bundle
 /// Adjustment.
-class AdjustedCameraModelRot : public CameraModel 
+class AdjustedCameraModelRot : public vw::camera::CameraModel
 {
 private:
   
   boost::shared_ptr<IsisInterfaceLineScanRot> m_camera;
-  Vector3 m_translation;
-  Quat m_rotation;
-  Quat m_rotation_inverse;
+  vw::Vector3 m_translation;
+  vw::Quat m_rotation;
+  vw::Quat m_rotation_inverse;
 
 public:
   AdjustedCameraModelRot(){}
   
   AdjustedCameraModelRot(boost::shared_ptr<IsisInterfaceLineScanRot> camera_model) : m_camera(camera_model) 
   {
-    m_rotation = Quat(math::identity_matrix<3>());
-    m_rotation_inverse = Quat(math::identity_matrix<3>());
+    m_rotation         = vw::Quat(vw::math::identity_matrix<3>());
+    m_rotation_inverse = vw::Quat(vw::math::identity_matrix<3>());
   }
 
   AdjustedCameraModelRot(boost::shared_ptr<IsisInterfaceLineScanRot> camera_model,
-                      Vector3 const& translation, Quat const& rotation) :
+                      vw::Vector3 const& translation, vw::Quat const& rotation) :
     m_camera(camera_model), m_translation(translation), m_rotation(rotation), m_rotation_inverse(inverse(rotation)) {}
 
   virtual ~AdjustedCameraModelRot() {}
   virtual std::string type() const { return "Adjusted"; }
 
-  Vector3 translation() const { return m_translation; }
-  Quat rotation() const { return m_rotation; }
-  Matrix<double,3,3> rotation_matrix() const { return m_rotation.rotation_matrix(); }
+  vw::Vector3 translation() const { return m_translation; }
+  vw::Quat rotation() const { return m_rotation; }
+  vw::Matrix<double,3,3> rotation_matrix() const { return m_rotation.rotation_matrix(); }
   //Vector3 axis_angle_rotation() const;
   //void set_rotation(Quat const&);
 
   template <class MatrixT>
-  void set_rotation(MatrixBase<MatrixT> const& m) 
+  void set_rotation(vw::MatrixBase<MatrixT> const& m)
   {
     m_rotation = Quat(m.impl());
     m_rotation_inverse = inverse(m_rotation);
   }
   template <class VectorT>
-  void set_translation(VectorBase<VectorT> const& v) 
+  void set_translation(vw::VectorBase<VectorT> const& v)
   {
     m_translation = v.impl();
   }
   template <class VectorT>
-  void set_axis_angle_rotation(VectorBase<VectorT> const& v) 
+  void set_axis_angle_rotation(vw::VectorBase<VectorT> const& v)
   {
     this->set_rotation( axis_angle_to_quaternion(v.impl()) );
   }
@@ -387,39 +370,39 @@ public:
 
   //friend std::ostream& operator<<(std::ostream&, AdjustedCameraModel const&);
   
-Vector3 axis_angle_rotation() const {
-  Quat quat = this->rotation();
+  vw::Vector3 axis_angle_rotation() const {
+  vw::Quat quat = this->rotation();
   return quat.axis_angle();
 }
 
-void set_rotation(Quat const& rotation) {
+void set_rotation(vw::Quat const& rotation) {
   m_rotation = rotation;
   m_rotation_inverse = inverse(m_rotation);
 }
 
-Vector2 point_to_pixel (Vector3 const& point) const {
-  Vector3 offset_pt = point-m_camera->camera_center(Vector2(0,0))-m_translation;
-  Vector3 new_pt = m_rotation_inverse.rotate(offset_pt) + m_camera->camera_center(Vector2(0,0));
+vw::Vector2 point_to_pixel (vw::Vector3 const& point) const {
+  vw::Vector3 offset_pt = point-m_camera->camera_center(vw::Vector2(0,0))-m_translation;
+  vw::Vector3 new_pt = m_rotation_inverse.rotate(offset_pt) + m_camera->camera_center(vw::Vector2(0,0));
   return m_camera->point_to_pixel(new_pt);
 }
 
 /// New code to support passing local rotation angles into this function
-Vector2 point_to_pixel_rotated( vw::Vector3 const& point, vw::Vector3 const& rotAngles, int guessLine) const
+vw::Vector2 point_to_pixel_rotated( vw::Vector3 const& point, vw::Vector3 const& rotAngles, int guessLine) const
 {
-  Vector3 offset_pt = point-m_camera->camera_center(Vector2(0,0))-m_translation;
-  Vector3 new_pt = m_rotation_inverse.rotate(offset_pt) + m_camera->camera_center(Vector2(0,0));
+  vw::Vector3 offset_pt = point-m_camera->camera_center(vw::Vector2(0,0))-m_translation;
+  vw::Vector3 new_pt = m_rotation_inverse.rotate(offset_pt) + m_camera->camera_center(vw::Vector2(0,0));
   return m_camera->point_to_pixel_rotated(new_pt, rotAngles, guessLine);
 }
 
-Vector3 pixel_to_vector (Vector2 const& pix) const {
+vw::Vector3 pixel_to_vector (vw::Vector2 const& pix) const {
   return m_rotation.rotate(m_camera->pixel_to_vector(pix));
 }
 
-Vector3 camera_center(Vector2 const& pix) const {
+vw::Vector3 camera_center(vw::Vector2 const& pix) const {
   return m_camera->camera_center(pix) + m_translation;
 }
 
-Quat camera_pose(Vector2 const& pix) const {
+vw::Quat camera_pose(vw::Vector2 const& pix) const {
   return m_rotation*m_camera->camera_pose(pix);
 }
 /*
@@ -452,8 +435,8 @@ std::ostream& camera::operator<<(std::ostream& ostr,
   
 };
   
-} // end namespace camera
-} // end namespace vw
+//} // end namespace camera
+//} // end namespace vw
 
 #endif
 

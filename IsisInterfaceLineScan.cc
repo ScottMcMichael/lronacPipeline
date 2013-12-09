@@ -17,16 +17,15 @@
 
 
 // ASP
-#include <asp/IsisIO/IsisInterfaceLineScan.h>
+#include <IsisInterfaceLineScan.h>
 #include <iTime.h>
 #include <vw/Math/EulerAngles.h>
 
 using namespace vw;
-using namespace asp;
-using namespace asp::isis;
+
 
 // Construct
-IsisInterfaceLineScan::IsisInterfaceLineScan( std::string const& filename ) : IsisInterface(filename), m_alphacube( *m_label ) {
+IsisInterfaceLineScanRot::IsisInterfaceLineScanRot(const std::string &filename ) : IsisInterface(filename), m_alphacube( *m_label ) {
 
   // Gutting Isis::Camera
   m_distortmap = m_camera->DistortionMap();
@@ -36,7 +35,7 @@ IsisInterfaceLineScan::IsisInterfaceLineScan( std::string const& filename ) : Is
 
 // Custom Function to help avoid over invoking the deeply buried
 // functions of Isis::Sensor
-void IsisInterfaceLineScan::SetTime( Vector2 const& px, bool calc ) const {
+void IsisInterfaceLineScanRot::SetTime( Vector2 const& px, bool calc ) const {
   if ( px != m_c_location ) {
     m_c_location = px;
     m_detectmap->SetParent( m_alphacube.AlphaSample(px[0]),
@@ -109,7 +108,7 @@ EphemerisLMA::operator()( EphemerisLMA::domain_type const& x ) const {
 }
 
 Vector2
-IsisInterfaceLineScan::point_to_pixel( Vector3 const& point ) const {
+IsisInterfaceLineScanRot::point_to_pixel( Vector3 const& point ) const {
 
   // First seed LMA with an ephemeris time in the middle of the image
   double middle = lines() / 2;
@@ -238,11 +237,13 @@ EphemerisLMA_rot::operator()( EphemerisLMA::domain_type const& x ) const {
 
 /// Hack function to insert an additional camera rotation into this function 
 Vector2
-IsisInterfaceLineScan::point_to_pixel_rotated( vw::Vector3 const& point, vw::Vector3 const& rotAngles) const 
+IsisInterfaceLineScanRot::point_to_pixel_rotated( vw::Vector3 const& point, vw::Vector3 const& rotAngles, int guessLine) const
 {
 
   // First seed LMA with an ephemeris time in the middle of the image
   double middle = lines() / 2;
+  if (guessLine >= 0) // Use the input line as a guess if it was passed in
+    middle = guessLine;
   m_detectmap->SetParent( 1, m_alphacube.AlphaLine(middle) );
   double start_e = m_camera->time().Et();
 
@@ -349,7 +350,7 @@ IsisInterfaceLineScan::point_to_pixel_rotated( vw::Vector3 const& point, vw::Vec
 
 
 Vector3
-IsisInterfaceLineScan::pixel_to_vector( Vector2 const& pix ) const {
+IsisInterfaceLineScanRot::pixel_to_vector( Vector2 const& pix ) const {
   Vector2 px = pix + Vector2(1,1);
   SetTime( px, true );
 
@@ -368,14 +369,14 @@ IsisInterfaceLineScan::pixel_to_vector( Vector2 const& pix ) const {
 }
 
 Vector3
-IsisInterfaceLineScan::camera_center( Vector2 const& pix ) const {
+IsisInterfaceLineScanRot::camera_center( Vector2 const& pix ) const {
   Vector2 px = pix + Vector2(1,1);
   SetTime( px, true );
   return m_center;
 }
 
 Quat
-IsisInterfaceLineScan::camera_pose( Vector2 const& pix ) const {
+IsisInterfaceLineScanRot::camera_pose( Vector2 const& pix ) const {
   Vector2 px = pix + Vector2(1,1);
   SetTime( px, true );
   return m_pose;
