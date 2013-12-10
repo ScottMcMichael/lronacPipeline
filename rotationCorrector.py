@@ -68,11 +68,22 @@ def makeSpkSetupFile(leapSecondFilePath, outputPath):
 
 
 # Creates the required msopck setup file if it does not already exist
-def makeCkSetupFile(leapSecondFilePath, clockFilePath, frameFilePath, outputPath):
+def makeCkSetupFile(leapSecondFilePath, clockFilePath, frameFilePath, outputPath, tempFolder):
 
     # If the file already exists, delete it and rewrite it.
     if os.path.exists(outputPath):
         os.remove(outputPath)
+
+    # The program can't handle long paths so we need to replace them with short symlinks
+    leapFileName = os.path.basename(leapSecondFilePath)
+    clockFileName = os.path.basename(clockFilePath)
+    frameFileName = os.path.basename(frameFilePath)
+    leapSymPath = os.path.join('/tmp', leapFileName)
+    clockSymPath = os.path.join('/tmp', clockFileName)
+    frameSymPath = os.path.join('/tmp', frameFileName)
+    os.system('ln -s ' + leapSecondFilePath + ' ' + leapSymPath)
+    os.system('ln -s ' + clockFilePath + ' ' + clockSymPath)
+    os.system('ln -s ' + frameFilePath + ' ' + frameSymPath)
 
     f = open(outputPath, 'w')
     f.write("\\begindata\n")
@@ -83,9 +94,9 @@ def makeCkSetupFile(leapSecondFilePath, clockFilePath, frameFilePath, outputPath
     f.write("REFERENCE_FRAME_NAME = 'J2000'\n")
     f.write("ANGULAR_RATE_PRESENT = 'NO'\n")
     f.write("PRODUCER_ID          = 'Lronac Pipeline'\n")
-    f.write("LSK_FILE_NAME        = '" + leapSecondFilePath + "'\n")
-    f.write("SCLK_FILE_NAME       = '" + clockFilePath + "'\n")
-    f.write("FRAMES_FILE_NAME     = '" + frameFilePath + "'\n")
+    f.write("LSK_FILE_NAME        = '" + leapSymPath + "'\n")
+    f.write("SCLK_FILE_NAME       = '" + clockSymPath + "'\n")
+    f.write("FRAMES_FILE_NAME     = '" + frameSymPath + "'\n")
     f.write("CK_SEGMENT_ID        = 'CK_MATRICES'\n")
 #        f.write("INPUT_DATA_FILE   = 'spkDataFile.txt'")
 #        f.write("OUTPUT_SPK_FILE   = '/home/smcmich1/testSpkFile.bsp'")
@@ -180,9 +191,9 @@ def main():
             print 'Error! Unable to find clock kernel file!'
             return 1
         else:
-            #clockFilePath = kernelDict['SpacecraftClock'][0] # Only deal with a single file
+            clockFilePath = kernelDict['SpacecraftClock'][0] # Only deal with a single file
             #clockFilePath = '/home/smcmich1/lro_clkcor_2013246_v00.tsc' #HACK - is other path too long?
-            clockFilePath = '/home/smcmich1/lro_clkcor_2013302_v00.tsc'
+            #clockFilePath = '/home/smcmich1/lro_clkcor_2013302_v00.tsc'
 
         if not ('Frame' in kernelDict):
             print 'Error! Unable to find frame kernel file!'
@@ -242,7 +253,7 @@ def main():
         # Write the config file needed for the msopck function
         print 'Writing msopck config file...'
         msopckConfigPath = os.path.join(tempFolder, "ckConfig.txt")
-        makeCkSetupFile(leapSecondFilePath, clockFilePath, frameFilePath, msopckConfigPath)
+        makeCkSetupFile(leapSecondFilePath, clockFilePath, frameFilePath, msopckConfigPath, tempFolder)
 
         # If the file already exists, delete it and rewrite it.
         if options.ckPath:

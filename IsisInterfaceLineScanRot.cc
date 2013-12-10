@@ -230,6 +230,7 @@ EphemerisLMA_rot::operator()( EphemerisLMA::domain_type const& x ) const {
   // Not exactly sure about lineoffset .. but ISIS does it
   result[0] = m_focalmap->DetectorLineOffset() - m_focalmap->DetectorLine();
 
+  //std::cout << result << " ";
   return result;
 }
 
@@ -256,10 +257,16 @@ IsisInterfaceLineScanRot::point_to_pixel_rotated( vw::Vector3 const& point, vw::
                                                          start,
                                                          objective,
                                                          status );
-
   // Make sure we found ideal time
-  VW_ASSERT( status > 0,
-             MathErr() << " Unable to project point into linescan camera " );
+  if (status < 0)
+  {
+    //std::cout << "status = " << status << std::endl;
+    //std::cout << "start_e   = " << start_e   << " solution = " << solution_e[0]        << std::endl;
+    std::cout << "objective = " << objective << " result = "   << model(solution_e) << std::endl;
+    std::cout << "Warning: Solver failed to find a solution!" << std::endl;
+  }
+  //VW_ASSERT( status >= 0,
+  //           MathErr() << "Unable to project point into linescan camera , status = " << status );
 
   // Converting now to pixel
   m_camera->setTime(Isis::iTime( solution_e[0] ));
@@ -287,11 +294,11 @@ IsisInterfaceLineScanRot::point_to_pixel_rotated( vw::Vector3 const& point, vw::
   
   
   // Add in input offsets
-  Vector3 offsetAngles = /*instAngles +*/ rotAngles;
+  Vector3 offsetAngles =  rotAngles;
   vw::math::Matrix<double,3,3> R_offset = vw::math::euler_to_rotation_matrix(offsetAngles[0], offsetAngles[1], offsetAngles[2], "xyz");
   // Try partial rotation solution.
   //vw::math::Matrix<double,3,3> R_offset = vw::math::euler_to_rotation_matrix(offsetAngles[0], offsetAngles[1], 0, "xyz");
-	  
+    
   // Existing offset matrix (from the fk file) = instrument(bad)_from_sc
   // New offset matrix (from input params) = instrument(good)_from_instrument(bad)
   
@@ -313,9 +320,9 @@ IsisInterfaceLineScanRot::point_to_pixel_rotated( vw::Vector3 const& point, vw::
   m_pose = Quat(R_body*transpose(R_offset * R_inst)); // Trial 12
   
   //std::cout << "R_body   = " << R_body << std::endl;
-  std::cout << "R_inst   = " << R_inst << std::endl;
-  std::cout << "R_offset = " << R_offset << std::endl;
-  std::cout << "R_offset*R_inst = " << R_offset*R_inst << std::endl;
+  //std::cout << "R_inst   = " << R_inst << std::endl;
+  //std::cout << "R_offset = " << R_offset << std::endl;
+  //std::cout << "R_offset*R_inst = " << R_offset*R_inst << std::endl;
   //std::cout << "pose     = " << m_pose << std::endl;
   //vw::math::Matrix<double,3,3> R_final = R_body*transpose(R_offset * R_inst);
   

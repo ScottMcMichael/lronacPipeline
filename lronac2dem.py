@@ -126,7 +126,7 @@ def main():
 
     try:
         try:
-            usage = "usage: rotationCorrector.py [--output <path>][--manual]\n  "
+            usage = "usage: lronac2dem.py [--output <path>][--manual]\n  "
             parser = optparse.OptionParser(usage=usage)
             parser.add_option("--left",  dest="leftPath",  help="Path to LE .IMG file")
             parser.add_option("--right", dest="rightPath", help="Path to RE .IMG file")
@@ -134,17 +134,17 @@ def main():
             
             parser.add_option("--stereo-left", dest="stereoLeft", help="Path to LE .IMG file with overlapping view of --left file")
             parser.add_option("--stereo-right", dest="stereoRight", help="Path to RE .IMG file with overlapping view of --right file")
-  
+
             # The default working directory path is kind of ugly...
             parser.add_option("--workDir", dest="workDir",  help="Folder to store temporary files in")
             parser.add_option("--lola",    dest="lolaPath", help="Path to LOLA DEM")
 
             parser.add_option("--prefix",  dest="prefix",        help="Output prefix.")
 
-            parser.add_option("--outputL",  dest="outputPathLeft",        help="Where to write the output LE file.")
-            parser.add_option("--outputR",  dest="outputPathRight",       help="Where to write the output RE file.")
-            parser.add_option("--outputSL", dest="outputPathStereoLeft",  help="Where to write the output Stereo LE file.")
-            parser.add_option("--outputSR", dest="outputPathStereoRight", help="Where to write the output Stereo RE file.")
+    #            parser.add_option("--outputL",  dest="outputPathLeft",        help="Where to write the output LE file.")
+    #            parser.add_option("--outputR",  dest="outputPathRight",       help="Where to write the output RE file.")
+    #            parser.add_option("--outputSL", dest="outputPathStereoLeft",  help="Where to write the output Stereo LE file.")
+    #            parser.add_option("--outputSR", dest="outputPathStereoRight", help="Where to write the output Stereo RE file.")
 
 
             parser.add_option("--manual", action="callback", callback=man,
@@ -155,6 +155,16 @@ def main():
 
             if not options.leftPath: 
                 parser.error("Need left input path")
+            if not options.rightPath: 
+                parser.error("Need right input path")
+            if not options.stereoLeft: 
+                parser.error("Need stereo left input path")
+            if not options.stereoRight: 
+                parser.error("Need stereo right input path")
+            if not options.lolaPath: 
+                parser.error("Need LOLA data path")
+            if not options.prefix: 
+                parser.error("Need output prefix")            
 
         except optparse.OptionError, msg:
             raise Usage(msg)
@@ -184,9 +194,11 @@ def main():
 
         # Correct all four input images at once
         if not os.path.exists(leftCorrectedPath):
-            cmd = '~/repo/lronacPipeline/stereoDoubleCalibrationProcess.py --left ' + options.leftPath + ' --right ' +  options.rightPath + ' --stereo-left ' + options.stereoLeft + ' --stereo-right ' + options.stereoRight + ' --lola ' + options.lolaPath + ' --keep --outputL ' + leftCorrectedPath + ' --outputR ' + rightCorrectedPath + ' --outputSL ' + leftStereoCorrectedPath + ' --outputSR ' + rightStereoCorrectedPath + ' --workDir ' + options.workDir
+            cmd = 'stereoDoubleCalibrationProcess.py --left ' + options.leftPath + ' --right ' +  options.rightPath + ' --stereo-left ' + options.stereoLeft + ' --stereo-right ' + options.stereoRight + ' --lola ' + options.lolaPath + ' --keep --outputL ' + leftCorrectedPath + ' --outputR ' + rightCorrectedPath + ' --outputSL ' + leftStereoCorrectedPath + ' --outputSR ' + rightStereoCorrectedPath + ' --workDir ' + options.workDir
             print cmd
             os.system(cmd)
+        if not os.path.exists(leftCorrectedPath):
+            raise Exception('Failed to run stereo calibration process!')
 
         # Convert GDC output files into KML plots 
         # - This is just to help with debugging
@@ -270,8 +282,8 @@ def main():
 
 
         # Clean up temporary files
-#        if not options.keep:
-#            os.remove(tempTextPath)
+    #        if not options.keep:
+    #            os.remove(tempTextPath)
 
       
 
@@ -280,14 +292,9 @@ def main():
         print "Finished in " + str(endTime - startTime) + " seconds."
         return 0
 
-    except Usage, err:
+    except err:
         print >>sys.stderr, err.msg
         return 2
 
 if __name__ == "__main__":
     sys.exit(main())
-
-
-
-
-

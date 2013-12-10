@@ -370,11 +370,11 @@ def main():
 #        retrieveLolaFile(12.0, 12.1, 10.0, 10.1, '~/repot/lronacPipeline')
 
 
-#        getDataList('/home/smcmich1/repo/lronacPipeline/logFile.txt')
+        getDataList('/byss/moon/lronacPipeline_V2/dataLocations.txt')
 	
         # Download all of the data we need 
         print 'Retrieving data files'
-        retrieveDataFiles('/home/smcmich1/repo/lronacPipeline/logFile_small.txt', options.inputFolder)
+#        retrieveDataFiles('/home/smcmich1/repo/lronacPipeline/logFile_small.txt', options.inputFolder)
 
         endTime = time.time()
 

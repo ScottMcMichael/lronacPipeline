@@ -215,7 +215,7 @@ def callStereoCorrelation(leftInputPath, rightInputPath, outputPrefix, correlati
     os.system(cmd)
 
     # Check to make sure we actually created the file
-    if not os.path.exists(outputCubePath):
+    if not os.path.exists(disparityImagePath):
         raise Exception('Stereo processing failed to create output file ' + disparityImagePath + ' from input files ' + leftInputPath + ' and ' + rightInputPath)
 
     return disparityImagePath
@@ -396,12 +396,15 @@ def main():
         else:
             print 'Skipping stereo transform calculation step'
 
+
         # Apply the planet-centered rotation/translation to both cameras in the stereo pair.
         # - This corrects the stereo pair relative to the main pair.
         # - The RE relative to LE corrections are performed later for convenience.
         leftStereoAdjustedPath = os.path.join(tempFolder, 'leftStereoAdjusted.cub')
         thisWorkDir            = os.path.join(tempFolder, 'stereoLeftStereoCorrection/')
         applyNavTransform(posOffsetCorrectedStereoLeftPath, leftStereoAdjustedPath, globalTransformPath, thisWorkDir, '', '', False)
+
+#        raise Exception('Buggin out!')
 
         rightStereoAdjustedPath = os.path.join(tempFolder, 'rightStereoAdjusted.cub')
         thisWorkDir             = os.path.join(tempFolder, 'stereoRightStereoCorrection/')

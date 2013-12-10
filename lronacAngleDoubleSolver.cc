@@ -753,7 +753,7 @@ bool optimizeRotations(Parameters & params)
   solverOptions.use_nonmonotonic_steps = false; // Allow non-descent steps to try to find global minimum --> Seems to lead to bad results!
   solverOptions.max_num_consecutive_invalid_steps = 10;
   solverOptions.num_threads = 1; // SPICE cannot handle multiple threads here!
-  solverOptions.num_linear_solver_threads = 4; //TODO: Try this out
+  solverOptions.num_linear_solver_threads = 8; //TODO: Try this out
   //solverOptions.solver_log = "~/data/ceresOutput.txt";
   // There are many more options to play with!
   
@@ -762,10 +762,10 @@ bool optimizeRotations(Parameters & params)
   ceres::Solver::Summary summary;
   ceres::Solve(solverOptions, &problem, &summary);
   
-  std::ofstream ceresLog("/home/smcmich1/data/ceresOutput2.txt");
+  //std::ofstream ceresLog("/home/smcmich1/data/ceresOutput2.txt");
   std::cout << summary.FullReport() << "\n";
-  ceresLog << summary.FullReport();
-  ceresLog.close();
+  //ceresLog << summary.FullReport();
+  //ceresLog.close();
 
   printf("All done with the Ceres solver!\n");
 
