@@ -20,6 +20,8 @@ import sys
 
 import os, glob, optparse, re, shutil, subprocess, string, time
 
+import IsisTools
+
 def man(option, opt, value, parser):
     print >>sys.stderr, parser.usage
     print >>sys.stderr, '''\
@@ -47,7 +49,7 @@ def generateKmlFromGdcPoints(inputFolder, outputFolder, filename, pointSkip, col
         return True
 
     # Generate the new file
-    cmd = 'calibrationReport.py --input ' + inputPath + ' --output ' + outputFilename + ' --name ' + kmlName +  ' --skip ' + str(pointSkip) + ' --color ' + color
+    cmd = 'calibrationReport.py --input ' + inputPath + ' --output ' + outputPath + ' --name ' + kmlName +  ' --skip ' + str(pointSkip) + ' --color ' + color
     print cmd
     os.system(cmd)
 
@@ -81,10 +83,14 @@ def noprojCubePair(inputCube, outputCube, matchCube, pvlPath, forceOperation):
 # Creates a mosaic from two noproj'd input cubes.
 def createMosaic(leftCube, rightCube, outputCube, workDir, forceOperation):
 
+    print '1'
+
     # Quit immediately if the output file already exists
     if (not forceOperation) and (os.path.exists(outputCube)):
         print 'File ' + outputCube + ' already exists, skipping mosaic creation.'
         return True
+
+    print '2'
 
     # Call lronacjitreg to determine any remaining offset between the two input files
     jitRegOutputPath = os.path.join(workDir, 'jitregResults.txt')
@@ -100,10 +106,11 @@ def createMosaic(leftCube, rightCube, outputCube, workDir, forceOperation):
     cmd = 'cp ' + leftCube + ' ' + mosaicCube
     print cmd
     os.system(cmd)
-
+    print '3'
+    
     # TODO: Try out more advanced ISIS mosaic merging functions!
     # Create the mosaic, applying offsets from jitreg (converting into handmos conventions)
-    cmd = 'handmos from= ' + rightCube + ' mosaic= ' + mosaicCube + ' outsample= ' + str(1 - jitRegOffsets(0)) + ' outline= ' + str(1 - jitRegOffsets(1)) + ' matchbandbin=FALSE priority=ontop'
+    cmd = 'handmos from= ' + rightCube + ' mosaic= ' + mosaicCube + ' outsample= ' + str(int(round(1 - jitRegOffsets[0]))) + ' outline= ' + str(int(round(1 - jitRegOffsets[1]))) + ' matchbandbin=FALSE priority=ontop'
     print cmd
     os.system(cmd)
 
@@ -204,20 +211,23 @@ def main():
         # - This is just to help with debugging
         generateKmlFromGdcPoints(options.workDir, tempFolder, 'pairGdcCheckInitial.csv',          1,      'blue', False)
         generateKmlFromGdcPoints(options.workDir, tempFolder, 'pairGdcCheckFinal.csv',            1,      'red',  False)
-        generateKmlFromGdcPoints(options.workDir, tempFolder, 'gdcPointsCheckFinalRot.csv',       1,      'blue', False)
-        generateKmlFromGdcPoints(options.workDir, tempFolder, 'gdcPointsCheckFinalRotStereo.csv', 1,      'blue', False)
+        generateKmlFromGdcPoints(options.workDir, tempFolder, 'pairGdcCheckFinalStereo.csv',       1,      'blue', False)
+        generateKmlFromGdcPoints(options.workDir, tempFolder, 'pairGdcCheckMidStereo.csv', 1,      'blue', False)
         generateKmlFromGdcPoints(options.workDir, tempFolder, 'gdcPointsLarge.csv',               100000, 'blue', False)
         #generateKmlFromGdcPoints(options.workDir, tempFolder, 'dem-trans_source.csv',             'blue', False)
-        generateKmlFromGdcPoints(options.workDir, tempFolder, 'dem-trans_reference.csv',          100000, 'red',  False)
+        generateKmlFromGdcPoints(os.path.join(options.workDir, 'pcAlignOutput'), tempFolder, 'dem-trans_reference.csv',          100000, 'red',  False)
+
+        print 'Finished generating KML plots'
 
         # Generate a PVL file that we need for noproj
         pvlPath   = os.path.join(tempFolder, 'noprojInstruments_fullRes.pvl')
         isHalfRes = False # TODO: Check to see if this is true!
+        print 'Writing PVL'
         IsisTools.writeLronacPvlFile(pvlPath, isHalfRes)
 
 
         # Noproj the corrected data
-
+        print 'Starting noproj calls'
         leftNoprojPath        = os.path.join(tempFolder, 'leftFinalCorrected.noproj.cub')
         rightNoprojPath       = os.path.join(tempFolder, 'rightFinalCorrected.noproj.cub')
         leftStereoNoprojPath  = os.path.join(tempFolder, 'leftStereoFinalCorrected.noproj.cub')
@@ -232,15 +242,31 @@ def main():
         # Combine the noproj files to make a mosaic.
         # - This also takes care of the cubenorm step.
         # - This step takes a while.
-
+        print 'Starting mosaic calls'
         mainMosaicPath      = os.path.join(tempFolder, 'mainMosaic.cub')
         stereoMosaicPath    = os.path.join(tempFolder, 'stereoMosaic.cub')
         mainMosaicWorkDir   = os.path.join(tempFolder, 'mainMosaicWorkDir/')
         stereoMosaicWorkDir = os.path.join(tempFolder, 'stereoMosaicWorkDir/')
+        if not os.path.exists(mainMosaicWorkDir):
+            os.mkdir(mainMosaicWorkDir)
+        if not os.path.exists(stereoMosaicWorkDir):
+            os.mkdir(stereoMosaicWorkDir)
 
-        createMosaic(leftNoprojPath,       rightNoprojPath,       mainMosaicPath,   mainMosaicWorkDir,   forceOperation)
-        createMosaic(leftStereoNoprojPath, rightStereoNoprojPath, stereoMosaicPath, stereoMosaicWorkDir, forceOperation)
+        createMosaic(leftNoprojPath,       rightNoprojPath,       mainMosaicPath,   mainMosaicWorkDir,   False)
+        createMosaic(leftStereoNoprojPath, rightStereoNoprojPath, stereoMosaicPath, stereoMosaicWorkDir, False)
 
+        # For testing, crop the mosaic that will be passed into the stereo function to reduce processing time
+        cropHeight = 2000
+        mainMosaicCroppedPath   = os.path.join(tempFolder, 'mainMosaicCropped.cub')
+        stereoMosaicCroppedPath = os.path.join(tempFolder, 'stereoMosaicCropped.cub')
+        if not os.path.exists(mainMosaicCroppedPath):
+            cmd = 'crop from= ' + mainMosaicPath   + ' to= ' + mainMosaicCroppedPath + ' nlines= ' + str(cropHeight)
+            print cmd
+            os.system(cmd)
+        if not os.path.exists(stereoMosaicCroppedPath):
+            cmd = 'crop from= ' + stereoMosaicPath + ' to= ' + stereoMosaicCroppedPath + ' nlines= ' + str(cropHeight)
+            print cmd
+            os.system(cmd)
 
         # Call stereo to generate a point cloud from the two images
         # - This step takes a really long time.
@@ -248,7 +274,7 @@ def main():
         stereoOutputPrefix = os.path.join(tempFolder, 'stereoWorkDir/stereo')
         pointCloudPath     = stereoOutputPrefix + '-PC.tif'
         if not os.path.exists(pointCloudPath):
-            cmd = 'parallel_stereo --corr-timeout 400 --alignment affineepipolar --subpixel-mode 1 --disable-fill-holes ' +  mainMosaicPath + ' ' + stereoMosaicPath + ' ' + stereoWorkDir + ' --processes 8 --threads-multiprocess 4 --threads-singleprocess 32 --compute-error-vector'
+            cmd = 'parallel_stereo --corr-timeout 400 --alignment affineepipolar --subpixel-mode 1 --disable-fill-holes ' +  mainMosaicCroppedPath + ' ' + stereoMosaicCroppedPath + ' ' + stereoOutputPrefix + ' --processes 8 --threads-multiprocess 4 --threads-singleprocess 32 --compute-error-vector'
             print cmd
             os.system(cmd)
             #--nodes-list PBS_NODEFILE --processes 4 --threads-multiprocess 16 --threads-singleprocess 32
@@ -259,9 +285,10 @@ def main():
         centerLat = IsisTools.getCubeCenterLatitude(mainMosaicPath, tempFolder)
 
         # Generate a DEM
-        demPath = os.path.join(outputFolder, 'outputDEM.tif')
+        demPrefix = os.path.join(outputFolder, 'p2d')
+        demPath   = demPrefix + '-DEM.tif'
         if not os.path.exists(demPath):
-            cmd = 'point2dem --errorimage -o ' + demPath + ' ' + pointCloudPath + ' -r moon --tr 1 --t_srs "+proj=eqc +lat_ts=' + str(centerLat) + ' +lat_0=0 +a=1737400 +b=1737400 +units=m" --nodata -32767'
+            cmd = 'point2dem --errorimage -o ' + demPrefix + ' ' + pointCloudPath + ' -r moon --tr 1 --t_srs "+proj=eqc +lat_ts=' + str(centerLat) + ' +lat_0=0 +a=1737400 +b=1737400 +units=m" --nodata -32767'
             print cmd
             os.system(cmd)
         else:
@@ -269,7 +296,7 @@ def main():
 
         # Create a hillshade image to check if the central errors are gone
         hillshadePath = os.path.join(outputFolder, 'outputHillshade.tif')
-        if not os.path.exists(demPath):
+        if not os.path.exists(hillshadePath):
             cmd = 'hillshade ' + demPath + ' -o ' + hillshadePath
             print cmd
             os.system(cmd)

@@ -121,7 +121,7 @@ def main():
         # Save kml document
         kml.save(options.outputPath)
 
-        print "Finished"
+        print "Finished calibrationReport"
         return 0
 
     except Usage, err:
