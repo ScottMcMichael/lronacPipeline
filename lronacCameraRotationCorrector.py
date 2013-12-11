@@ -154,16 +154,16 @@ def main():
         print cmd
         os.system(cmd)
         if not os.path.exists(tempTextPath):
-            print 'Error! Failed to extract cube kernel data!'
-            return 1
+            raise Exception('Failed to extract cube kernel data!')
+
 
         # Parse output looking for the IK frame file
         print 'Looking for source frame file...'
         kernels = IsisTools.parseHeadOutput(tempTextPath, options.outputPath)
-        inputFramePath = kernels['Frame']
-        if not inputFramePath:
-            print 'Error! Unable to find any IK kernel file in ' + tempTextPath
-            return 1
+        inputFramePath = kernels['Frame'][0]
+        if not os.path.exists(inputFramePath):
+            raise Exception('Unable to find any IK kernel file in ' + tempTextPath)
+            
 
         if not options.rotationPath:
             # Make sure the output path does not already exist
@@ -180,8 +180,7 @@ def main():
             print cmd
             os.system(cmd)
             if not os.path.exists(rotationAnglePath):
-                print 'Error! Failed to solve for rotation angles!'
-                return 1
+                raise Exception('Failed to solve for rotation angles!')
 
         else: # New rotation provided as a command line argument, skip computation
             rotationAnglePath = options.rotationPath

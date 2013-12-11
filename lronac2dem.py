@@ -83,14 +83,12 @@ def noprojCubePair(inputCube, outputCube, matchCube, pvlPath, forceOperation):
 # Creates a mosaic from two noproj'd input cubes.
 def createMosaic(leftCube, rightCube, outputCube, workDir, forceOperation):
 
-    print '1'
 
     # Quit immediately if the output file already exists
     if (not forceOperation) and (os.path.exists(outputCube)):
         print 'File ' + outputCube + ' already exists, skipping mosaic creation.'
         return True
 
-    print '2'
 
     # Call lronacjitreg to determine any remaining offset between the two input files
     jitRegOutputPath = os.path.join(workDir, 'jitregResults.txt')
@@ -106,7 +104,6 @@ def createMosaic(leftCube, rightCube, outputCube, workDir, forceOperation):
     cmd = 'cp ' + leftCube + ' ' + mosaicCube
     print cmd
     os.system(cmd)
-    print '3'
     
     # TODO: Try out more advanced ISIS mosaic merging functions!
     # Create the mosaic, applying offsets from jitreg (converting into handmos conventions)
@@ -147,12 +144,6 @@ def main():
             parser.add_option("--lola",    dest="lolaPath", help="Path to LOLA DEM")
 
             parser.add_option("--prefix",  dest="prefix",        help="Output prefix.")
-
-    #            parser.add_option("--outputL",  dest="outputPathLeft",        help="Where to write the output LE file.")
-    #            parser.add_option("--outputR",  dest="outputPathRight",       help="Where to write the output RE file.")
-    #            parser.add_option("--outputSL", dest="outputPathStereoLeft",  help="Where to write the output Stereo LE file.")
-    #            parser.add_option("--outputSR", dest="outputPathStereoRight", help="Where to write the output Stereo RE file.")
-
 
             parser.add_option("--manual", action="callback", callback=man,
                               help="Read the manual.")
@@ -200,7 +191,7 @@ def main():
         correct = os.path.join(tempFolder, 'rightStereoFinalCorrected.cub')
 
         # Correct all four input images at once
-        if not os.path.exists(leftCorrectedPath):
+        if True:#not os.path.exists(leftCorrectedPath):
             cmd = 'stereoDoubleCalibrationProcess.py --left ' + options.leftPath + ' --right ' +  options.rightPath + ' --stereo-left ' + options.stereoLeft + ' --stereo-right ' + options.stereoRight + ' --lola ' + options.lolaPath + ' --keep --outputL ' + leftCorrectedPath + ' --outputR ' + rightCorrectedPath + ' --outputSL ' + leftStereoCorrectedPath + ' --outputSR ' + rightStereoCorrectedPath + ' --workDir ' + options.workDir
             print cmd
             os.system(cmd)
@@ -213,17 +204,18 @@ def main():
         generateKmlFromGdcPoints(options.workDir, tempFolder, 'pairGdcCheckFinal.csv',            1,      'red',  False)
         generateKmlFromGdcPoints(options.workDir, tempFolder, 'pairGdcCheckFinalStereo.csv',       1,      'blue', False)
         generateKmlFromGdcPoints(options.workDir, tempFolder, 'pairGdcCheckMidStereo.csv', 1,      'blue', False)
-        generateKmlFromGdcPoints(options.workDir, tempFolder, 'gdcPointsLarge.csv',               100000, 'blue', False)
+        generateKmlFromGdcPoints(options.workDir, tempFolder, 'gdcPointsLarge.csv',               1000, 'blue', False)
         #generateKmlFromGdcPoints(options.workDir, tempFolder, 'dem-trans_source.csv',             'blue', False)
-        generateKmlFromGdcPoints(os.path.join(options.workDir, 'pcAlignOutput'), tempFolder, 'dem-trans_reference.csv',          100000, 'red',  False)
+        generateKmlFromGdcPoints(os.path.join(options.workDir, 'pcAlignOutput'), tempFolder, 'dem-trans_reference.csv',   1000, 'red',  False)
 
         print 'Finished generating KML plots'
 
         # Generate a PVL file that we need for noproj
         pvlPath   = os.path.join(tempFolder, 'noprojInstruments_fullRes.pvl')
         isHalfRes = False # TODO: Check to see if this is true!
-        print 'Writing PVL'
-        IsisTools.writeLronacPvlFile(pvlPath, isHalfRes)
+        if not os.path.exists(pvlPath):
+            print 'Writing PVL'
+            IsisTools.writeLronacPvlFile(pvlPath, isHalfRes)
 
 
         # Noproj the corrected data
@@ -235,7 +227,7 @@ def main():
 
         noprojCubePair(leftCorrectedPath,        leftNoprojPath,        leftCorrectedPath,       pvlPath, False)
         noprojCubePair(rightCorrectedPath,       rightNoprojPath,       leftCorrectedPath,       pvlPath, False)
-        noprojCubePair(rightCorrectedPath,       leftStereoNoprojPath,  leftStereoCorrectedPath, pvlPath, False)
+        noprojCubePair(leftStereoCorrectedPath,  leftStereoNoprojPath,  leftStereoCorrectedPath, pvlPath, False)
         noprojCubePair(rightStereoCorrectedPath, rightStereoNoprojPath, leftStereoCorrectedPath, pvlPath, False)
 
 
@@ -267,6 +259,8 @@ def main():
             cmd = 'crop from= ' + stereoMosaicPath + ' to= ' + stereoMosaicCroppedPath + ' nlines= ' + str(cropHeight)
             print cmd
             os.system(cmd)
+
+#        raise Exception('Buggin out!')
 
         # Call stereo to generate a point cloud from the two images
         # - This step takes a really long time.

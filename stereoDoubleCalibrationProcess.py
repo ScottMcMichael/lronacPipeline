@@ -433,9 +433,10 @@ def main():
         # Extract just the global rotation/translation parameters from the solved parameters
         # - These are needed to be passed into the old version of the lronacAngleSolver
         justGlobalParamsPath = sbaOutputPrefix + "-finalParamState-cropped.csv"
-        cmd = "sed -n '4,9p;9q' " + solvedParamsPath + " > " + justGlobalParamsPath
-        print cmd
-        os.system(cmd)
+        if not os.path.exists(justGlobalParamsPath):
+            cmd = "sed -n '4,9p;9q' " + solvedParamsPath + " > " + justGlobalParamsPath
+            print cmd
+            os.system(cmd)
 
         # Compute the 3d coordinates for each pixel pair using the rotation and offset computed earlier
         # - All this step does is use stereo intersection to determine a lat/lon/alt coordinate for each pixel pair in the large data set.  No optimization is performed.
@@ -507,7 +508,6 @@ def main():
         # DEBUG: Check angle solver on stereo adjusted LE/RE images!
         checkAdjacentPairAlignment(options.outputPathStereoLeft, options.outputPathStereoRight, tempFolder, 'pairGdcCheckFinalStereo.csv', False)
 
-
         # All finished!  We should have a fully calibrated version of each of the four input files.
 
         # Clean up temporary files
@@ -515,10 +515,6 @@ def main():
 #            os.remove(tempTextPath)
 
         # --- Usability ---
-        # TODO: Test all these changes!
-        # TODO: Need to fix the leap second kernel issue in rotationCorrector
-        # TODO: Replace rotAngleCorrectionScriptFull.sh with the python script lronac2dem.py
-        # TODO: Test on lunokhod2
         # TODO: Check for half-size pairs, handle accordingly
 
         # --- Accuracy improvement ---
