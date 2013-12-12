@@ -54,8 +54,10 @@ def generateKmlFromGdcPoints(inputFolder, outputFolder, filename, pointSkip, col
     os.system(cmd)
 
     # Check to make sure we actually created the file
+    # - Don't throw an exception here since this is only a debug step
     if not os.path.exists(outputPath):
-        raise Exception('Kml point generation failed to create output file ' + outputPath + ' from input file ' + inputPath)
+        print '=======> WARNING: Kml point generation failed to create output file ' + outputPath + ' from input file ' + inputPath
+        return False
 
     return True
 
@@ -143,7 +145,9 @@ def main():
             parser.add_option("--workDir", dest="workDir",  help="Folder to store temporary files in")
             parser.add_option("--lola",    dest="lolaPath", help="Path to LOLA DEM")
 
-            parser.add_option("--prefix",  dest="prefix",        help="Output prefix.")
+            parser.add_option("--prefix",  dest="prefix",   help="Output prefix.")
+
+            parser.add_option("--crop",  dest="cropAmount", help="Crops the output image to reduce processing time.")
 
             parser.add_option("--manual", action="callback", callback=man,
                               help="Read the manual.")
@@ -205,7 +209,7 @@ def main():
         generateKmlFromGdcPoints(options.workDir, tempFolder, 'pairGdcCheckFinalStereo.csv',       1,      'blue', False)
         generateKmlFromGdcPoints(options.workDir, tempFolder, 'pairGdcCheckMidStereo.csv', 1,      'blue', False)
         generateKmlFromGdcPoints(options.workDir, tempFolder, 'gdcPointsLarge.csv',               1000, 'blue', False)
-        #generateKmlFromGdcPoints(options.workDir, tempFolder, 'dem-trans_source.csv',             'blue', False)
+        generateKmlFromGdcPoints(options.workDir, tempFolder, 'dem-trans_source.csv',             'blue', False)
         generateKmlFromGdcPoints(os.path.join(options.workDir, 'pcAlignOutput'), tempFolder, 'dem-trans_reference.csv',   1000, 'red',  False)
 
         print 'Finished generating KML plots'
@@ -248,19 +252,23 @@ def main():
         createMosaic(leftStereoNoprojPath, rightStereoNoprojPath, stereoMosaicPath, stereoMosaicWorkDir, False)
 
         # For testing, crop the mosaic that will be passed into the stereo function to reduce processing time
-        cropHeight = 2000
-        mainMosaicCroppedPath   = os.path.join(tempFolder, 'mainMosaicCropped.cub')
-        stereoMosaicCroppedPath = os.path.join(tempFolder, 'stereoMosaicCropped.cub')
-        if not os.path.exists(mainMosaicCroppedPath):
-            cmd = 'crop from= ' + mainMosaicPath   + ' to= ' + mainMosaicCroppedPath + ' nlines= ' + str(cropHeight)
-            print cmd
-            os.system(cmd)
-        if not os.path.exists(stereoMosaicCroppedPath):
-            cmd = 'crop from= ' + stereoMosaicPath + ' to= ' + stereoMosaicCroppedPath + ' nlines= ' + str(cropHeight)
-            print cmd
-            os.system(cmd)
+        if (options.cropAmount > 0):
+            mainMosaicCroppedPath   = os.path.join(tempFolder, 'mainMosaicCropped.cub')
+            stereoMosaicCroppedPath = os.path.join(tempFolder, 'stereoMosaicCropped.cub')
+            if not os.path.exists(mainMosaicCroppedPath):
+                cmd = 'crop from= ' + mainMosaicPath   + ' to= ' + mainMosaicCroppedPath + ' nlines= ' + str(cropHeight)
+                print cmd
+                os.system(cmd)
+            if not os.path.exists(stereoMosaicCroppedPath):
+                cmd = 'crop from= ' + stereoMosaicPath + ' to= ' + stereoMosaicCroppedPath + ' nlines= ' + str(cropHeight)
+                print cmd
+                os.system(cmd)
+            stereoInputLeft  = mainMosaicCroppedPath
+            stereoInputRight = stereoMosaicCroppedPath
+        else:
+            stereoInputLeft  = mainMosaicPath
+            stereoInputRight = stereoMosaicPath
 
-#        raise Exception('Buggin out!')
 
         # Call stereo to generate a point cloud from the two images
         # - This step takes a really long time.
@@ -268,7 +276,7 @@ def main():
         stereoOutputPrefix = os.path.join(tempFolder, 'stereoWorkDir/stereo')
         pointCloudPath     = stereoOutputPrefix + '-PC.tif'
         if not os.path.exists(pointCloudPath):
-            cmd = 'parallel_stereo --corr-timeout 400 --alignment affineepipolar --subpixel-mode 1 --disable-fill-holes ' +  mainMosaicCroppedPath + ' ' + stereoMosaicCroppedPath + ' ' + stereoOutputPrefix + ' --processes 8 --threads-multiprocess 4 --threads-singleprocess 32 --compute-error-vector'
+            cmd = 'parallel_stereo --corr-timeout 400 --alignment affineepipolar --subpixel-mode 1 --disable-fill-holes ' +  stereoInputLeft + ' ' + stereoInputRight + ' ' + stereoOutputPrefix + ' --processes 8 --threads-multiprocess 4 --threads-singleprocess 32 --compute-error-vector'
             print cmd
             os.system(cmd)
             #--nodes-list PBS_NODEFILE --processes 4 --threads-multiprocess 16 --threads-singleprocess 32

@@ -133,8 +133,7 @@ def main():
 
         # Find the leap second file
         if not ('LeapSecond' in kernelDict):
-            print 'Error! Unable to find leap second file!'
-            return 1
+            raise Exception('Error! Unable to find leap second file!')
         else:
             leapSecondFilePath = kernelDict['LeapSecond'][0] # Only deal with a single file
             
@@ -165,8 +164,7 @@ def main():
         print cmd
         os.system(cmd)
         if not os.path.exists(spkDataPath):
-            print 'Error! Failed to create modified SPK data!'
-            return 1
+            raise Exception('Failed to create modified SPK data!')
 
         # Write the config file needed for the mkspk function
         print 'Writing mkspk config file...'
@@ -189,8 +187,7 @@ def main():
         print cmd
         os.system(cmd)
         if not os.path.exists(tempSpkPath):
-            print 'Error! Failed to create modified SPK file!'
-            return 1
+            raise Exception('Failed to create modified SPK file!')
 
         # Re-run spiceinit using the new SPK file
         cmd = "spiceinit attach=true from=" + options.outputPath + " spk=" + tempSpkPath

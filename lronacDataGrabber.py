@@ -117,6 +117,9 @@ def retrieveLolaFile(minLat, maxLat, minLon, maxLon, outputFolder):
 
     queryUrl = lolaUrl + baseQuery + locationParams
     print queryUrl
+    
+    print ' --> Lola data retrieval disabled until website issues are worked out!'
+    return False
 
     # Parse the response
     parsedPage = BeautifulSoup(urllib2.urlopen((queryUrl)).read())
@@ -235,17 +238,22 @@ def getDataList(outputFilePath):
                 demLink = 'NOT_FOUND'
 
             # Get the lat/lon boundaries
-            tableTop     = demPage.find(attrs={"class": "presentable_data"})
+            # - The exact position within the HTML is semi-random so we have to check the text
+            tableTop     = demPage.find(attrs={"class": "presentable_data"})           
             positionNode = tableTop.contents[1]   
             rows         = positionNode.findAll('tr')
-
-            cols   = rows[0].findAll('td')
-            maxLon = cols[1].string
-            maxLat = cols[3].string
-
-            cols   = rows[1].findAll('td')
-            minLat = cols[1].string
-            minLon = cols[3].string
+            
+            for i in range(0,3): # For each of three rows of interest
+                cols = rows[i].findAll('td')
+                for j in range(0, 3, 2): # Hit indices 0 and 2
+                    if   (cols[j].string.find('Minimum Latitude') >= 0):
+                        minLat = cols[j+1].string
+                    elif (cols[j].string.find('Maximum Latitude') >= 0):
+                        maxLat = cols[j+1].string
+                    elif (cols[j].string.find('Western-most Longitude') >= 0):
+                        minLon = cols[j+1].string
+                    elif (cols[j].string.find('Eastern-most Longitude') >= 0):
+                        maxLon = cols[j+1].string
 
         else:
             demLink = p # Record the full URL so it is easier to check why we failed to find the DEM
@@ -331,7 +339,7 @@ def retrieveDataFiles(logPath, outputDir):
             minLon = float(line[10:])
         elif (line.find('Max lon') >= 0): # The last BB entry, download the LOLA data file
             maxLon = float(line[10:])            
-#            retrieveLolaFile(minLat, maxLat, minLon, maxLon, currentOutputFolder)
+            retrieveLolaFile(minLat, maxLat, minLon, maxLon, currentOutputFolder)
 
 
 
@@ -350,8 +358,10 @@ def main():
             parser = optparse.OptionParser(usage=usage)
             parser.set_defaults(lowMem =False)
 #            parser.set_defaults(threads=4)
-            parser.add_option("-i", "--input-folder", dest="inputFolder",
-                              help="Specifies the folder to operate on.")
+            parser.add_option("-i", "--inputFile", dest="inputFile",
+                              help="Specifies the data list file to read from.")
+            parser.add_option("-o", "--output-folder", dest="outputFolder",
+                              help="Specifies the folder to copy the data to.")
             parser.add_option("--manual", action="callback", callback=man,
                               help="Read the manual.")
             (options, args) = parser.parse_args()
@@ -369,12 +379,13 @@ def main():
 
 #        retrieveLolaFile(12.0, 12.1, 10.0, 10.1, '~/repot/lronacPipeline')
 
+#TODO: Fix the lat/lon coordinates being saved!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-        getDataList('/byss/moon/lronacPipeline_V2/dataLocations.txt')
+#        getDataList(options.inputFile)
 	
         # Download all of the data we need 
         print 'Retrieving data files'
-#        retrieveDataFiles('/home/smcmich1/repo/lronacPipeline/logFile_small.txt', options.inputFolder)
+        retrieveDataFiles(options.inputFile, options.outputFolder)
 
         endTime = time.time()
 

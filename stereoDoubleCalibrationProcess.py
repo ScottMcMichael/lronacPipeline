@@ -205,14 +205,11 @@ def callStereoCorrelation(leftInputPath, rightInputPath, outputPrefix, correlati
         print 'File ' + disparityImagePath + ' already exists, skipping stereo computation.'
         return disparityImagePath
 
-    # Stage 0 (fast)
-    cmd = 'stereo_pprc ' + leftInputPath + ' ' + rightInputPath + ' ' + outputPrefix
+    # Use parallel stereo call, steps 0 and 1 only.  Other options to try and increase speed.
+    cmd = 'parallel_stereo --compute-error-vector --entry-point 0 --stop-point 2 --alignment affineepipolar --subpixel-mode 1 --disable-fill-holes --processes 8 --threads-multiprocess 4 --threads-singleprocess 32 --cost-mode 0 --corr-timeout ' + str(correlationTimeout) + ' ' + leftInputPath + ' ' + rightInputPath + ' ' + outputPrefix
     print cmd
     os.system(cmd)
-    # Stage 1 (slow!)
-    cmd = 'stereo_corr --cost-mode 0 --corr-timeout ' + str(correlationTimeout) + ' ' + leftInputPath + ' ' + rightInputPath + ' ' + outputPrefix
-    print cmd
-    os.system(cmd)
+
 
     # Check to make sure we actually created the file
     if not os.path.exists(disparityImagePath):
@@ -220,6 +217,12 @@ def callStereoCorrelation(leftInputPath, rightInputPath, outputPrefix, correlati
 
     return disparityImagePath
 
+# Counts the number of lines in a file
+def getFileLineCount(filePath):
+    with open(filePath) as f:
+        for i, l in enumerate(f):
+            pass
+    return i + 1
 
 #==========================================================================================
 
@@ -234,7 +237,7 @@ def main():
             parser.add_option("--left",  dest="leftPath",  help="Path to LE .IMG file")
             parser.add_option("--right", dest="rightPath", help="Path to RE .IMG file")
             
-            parser.add_option("--stereo-left", dest="stereoLeft", help="Path to LE .IMG file with overlapping view of --left file")
+            parser.add_option("--stereo-left",  dest="stereoLeft",  help="Path to LE .IMG file with overlapping view of --left file")
             parser.add_option("--stereo-right", dest="stereoRight", help="Path to RE .IMG file with overlapping view of --right file")
   
             # The default working directory path is kind of ugly...
@@ -253,7 +256,6 @@ def main():
                               help="Do not delete the temporary files.")
             (options, args) = parser.parse_args()
 
-            #TODO: Use default and required tags above!
             if not options.leftPath: 
                 parser.error("Need left input path")
             if not options.rightPath: 
@@ -320,11 +322,11 @@ def main():
         checkAdjacentPairAlignment(posOffsetCorrectedLeftPath, posOffsetCorrectedRightPath, tempFolder, 'pairGdcCheckInitial.csv', False)
 
         # Perform initial stereo step on two LE cubes to generate a large number of point correspondences
-        stereoPrefixLeft   = os.path.join(tempFolder, 'stereoOutputLeft')
+        stereoPrefixLeft   = os.path.join(tempFolder, 'stereoOutputLeft/out')
         disparityImageLeft = callStereoCorrelation(posOffsetCorrectedLeftPath, posOffsetCorrectedStereoLeftPath, stereoPrefixLeft, 400, False)
 
         # Perform initial stereo step on two RE cubes to generate a large number of point correspondences
-        stereoPrefixRight   = os.path.join(tempFolder, 'stereoOutputRight')
+        stereoPrefixRight   = os.path.join(tempFolder, 'stereoOutputRight/out')
         disparityImageRight = callStereoCorrelation(posOffsetCorrectedRightPath, posOffsetCorrectedStereoRightPath, stereoPrefixRight, 400, False)
 
 
@@ -364,18 +366,41 @@ def main():
         # - Timeouts are shorter on these since there is probably less image overlap
         
         # First is left in main pair to right in the stereo pair
-        stereoPrefixLeftCross   = os.path.join(tempFolder, 'stereoOutputLeftCross')
-        disparityImageLeftCross = callStereoCorrelation(leftPosCorrectedCropped, rightStereoPosCorrectedCropped, stereoPrefixLeftCross, 100, False)
+        stereoPrefixLeftCross   = os.path.join(tempFolder, 'stereoOutputLeftCross/out')
+        try:
+            disparityImageLeftCross = callStereoCorrelation(leftPosCorrectedCropped, rightStereoPosCorrectedCropped, stereoPrefixLeftCross, 100, False)
+            usingLeftCross = True
+        except:
+            print 'Failed to find left-cross match, ignoring this data source.'
+            usingLeftCross = False
 
         # Next is left in the stereo pair to right in the main pair
-        stereoPrefixRightCross   = os.path.join(tempFolder, 'stereoOutputRightCross')
-        disparityImageRightCross = callStereoCorrelation(leftStereoPosCorrectedCropped, rightPosCorrectedCropped, stereoPrefixRightCross, 100, False)
-
+        stereoPrefixRightCross   = os.path.join(tempFolder, 'stereoOutputRightCross/out')
+        try:
+            disparityImageRightCross = callStereoCorrelation(leftStereoPosCorrectedCropped, rightPosCorrectedCropped, stereoPrefixRightCross, 100, False)
+            usingRightCross = True
+        except:
+            print 'Failed to find right-cross match, ignoring this data source.'
+            usingRightCross = False
 
         # Extract a small number of matching pixel locations from the disparity images ( < 300 pairs)
         # - The pixels are extracted more densely because there is much less overlap area to work with.
-        pixelPairsLeftCrossSmall = extractPixelPairsFromStereoResults(disparityImageLeftCross, tempFolder, 'stereoPixelPairsLeftCrossSmall.csv', 400, False)
-        pixelPairsRightCrossSmall = extractPixelPairsFromStereoResults(disparityImageRightCross, tempFolder, 'stereoPixelPairsRightCrossSmall.csv', 400, False)
+        if usingLeftCross:
+            pixelPairsLeftCrossSmall = extractPixelPairsFromStereoResults(disparityImageLeftCross, tempFolder, 'stereoPixelPairsLeftCrossSmall.csv', 400, False)
+            numLeftCrossPairs = getFileLineCount(pixelPairsLeftCrossSmall)
+        if usingRightCross:
+            pixelPairsRightCrossSmall = extractPixelPairsFromStereoResults(disparityImageRightCross, tempFolder, 'stereoPixelPairsRightCrossSmall.csv', 400, False)
+            numRightCrossPairs = getFileLineCount(pixelPairsRightCrossSmall)
+
+        # Left and right cross pixels may not be used depending on the image overlap
+        # - If a small number of pixel pairs was found that suggests we may have a high ratio of bad pixels
+        leftCrossString  = ''
+        rightCrossString = ''
+        if usingLeftCross and (numLeftCrossPairs > 100):
+            leftCrossString  = ' --matchingPixelsLeftCrossPath '  + pixelPairsLeftCrossSmall
+        if usingRightCross and (numRightCrossPairs > 100):
+            rightCrossString = ' --matchingPixelsRightCrossPath ' + pixelPairsRightCrossSmall
+
 
         # Compute all rotations and translations between the four cubes
         # - Computes the following transforms:
@@ -389,7 +414,7 @@ def main():
         stereoRotationPath  = sbaOutputPrefix + "-stereoLocalRotationMatrix.csv"
         solvedParamsPath    = sbaOutputPrefix + "-finalParamState.csv"
         if not os.path.exists(globalTransformPath):
-            cmd = 'lronacAngleDoubleSolver --outputPrefix ' + sbaOutputPrefix + ' --matchingPixelsLeftPath ' + pixelPairsLeftSmall + ' --matchingPixelsRightPath ' + pixelPairsRightSmall + ' --matchingPixelsLeftCrossPath ' + pixelPairsLeftCrossSmall +  ' --matchingPixelsRightCrossPath ' + pixelPairsRightCrossSmall + ' ' + posOffsetCorrectedLeftPath + ' ' + posOffsetCorrectedRightPath + ' ' + posOffsetCorrectedStereoLeftPath + ' ' + posOffsetCorrectedStereoRightPath
+            cmd = 'lronacAngleDoubleSolver --outputPrefix ' + sbaOutputPrefix + ' --matchingPixelsLeftPath ' + pixelPairsLeftSmall + ' --matchingPixelsRightPath ' + pixelPairsRightSmall + leftCrossString + rightCrossString + ' ' + posOffsetCorrectedLeftPath + ' ' + posOffsetCorrectedRightPath + ' ' + posOffsetCorrectedStereoLeftPath + ' ' + posOffsetCorrectedStereoRightPath
             #cmd = '/home/smcmich1/repo/lronacPipelineBuild/lronacAngleDoubleSolver --outputPrefix ' + sbaOutputPrefix + ' --matchingPixelsLeftPath ' + pixelPairsLeftSmall + ' --matchingPixelsRightPath ' + pixelPairsRightSmall + ' ' + posOffsetCorrectedLeftPath + ' ' + posOffsetCorrectedRightPath + ' ' + posOffsetCorrectedStereoLeftPath + ' ' + posOffsetCorrectedStereoRightPath
             print cmd
             os.system(cmd)
@@ -404,8 +429,6 @@ def main():
         thisWorkDir            = os.path.join(tempFolder, 'stereoLeftStereoCorrection/')
         applyNavTransform(posOffsetCorrectedStereoLeftPath, leftStereoAdjustedPath, globalTransformPath, thisWorkDir, '', '', False)
 
-#        raise Exception('Buggin out!')
-
         rightStereoAdjustedPath = os.path.join(tempFolder, 'rightStereoAdjusted.cub')
         thisWorkDir             = os.path.join(tempFolder, 'stereoRightStereoCorrection/')
         applyNavTransform(posOffsetCorrectedStereoRightPath, rightStereoAdjustedPath, globalTransformPath, thisWorkDir, '', '', False)
@@ -415,7 +438,7 @@ def main():
 
         # Extract a large number of matching pixel locations (many thousands) from the LE/LE and RE/RE.
         # - The skip number is a row and column skip.
-        pixelPairsLeftLarge = extractPixelPairsFromStereoResults(disparityImageLeft, tempFolder, 'stereoPixelPairsLeftLarge.csv', 16, False)
+        pixelPairsLeftLarge = extractPixelPairsFromStereoResults(disparityImageLeft, tempFolder, 'stereoPixelPairsLeftLarge.csv', 20, False)
 
         # TODO: Many changes needed before RE images can be used here!
         #pixelPairsRightLarge = extractPixelPairsFromStereoResults(disparityImageRight, tempFolder, 'stereoPixelPairsRightLarge.csv', 16, False)
@@ -456,12 +479,15 @@ def main():
         pcAlignTransformPath  = pcAlignOutputPrefix + '-inverse-transform.txt'
         if not os.path.exists(pcAlignTransformPath):
             # TODO: Confirm which input order works best
-            #cmd = 'pc_align --highest-accuracy --max-displacement 600 --datum D_MOON --max-num-reference-points 25000000 --save-transformed-source-points ' + options.lolaPath + ' ' + largeGdcFile + ' -o ' + pcAlignOutputPrefix + ' --compute-translation-only'
-            cmd = 'pc_align --highest-accuracy --max-displacement 600 --datum D_MOON --save-inv-transformed-reference-points ' + largeGdcFile + ' ' + options.lolaPath + ' -o ' + pcAlignOutputPrefix + ' --compute-translation-only'
+            #cmd = 'pc_align --highest-accuracy --max-displacement 1500 --datum D_MOON --max-num-reference-points 25000000 --save-transformed-source-points ' + options.lolaPath + ' ' + largeGdcFile + ' -o ' + pcAlignOutputPrefix + ' --compute-translation-only'
+            cmd = 'pc_align --highest-accuracy --max-displacement 1500 --datum D_MOON --save-inv-transformed-reference-points ' + largeGdcFile + ' ' + options.lolaPath + ' -o ' + pcAlignOutputPrefix + ' --compute-translation-only'
             print cmd
             os.system(cmd)
         else:
             print 'Skipping pc_align step'
+            
+        if not os.path.exists(pcAlignTransformPath):
+            raise Exception('pc_align call failed!')
 
         # Now go back and apply the pc_align computed transform to all four cameras.
         # - This step corrects the four camera positions relative to the LOLA data.
