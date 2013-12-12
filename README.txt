@@ -1,8 +1,33 @@
 
-Build instructions:
+
+======= Build instructions =======
+
+- Make sure your StereoPipeline installation is up to date.
+
+- Install the CERES solver library.  Look in ceresInstallScript.sh for hints if you need to install manually.
+
+- Check out the lronacPipeline repository:
+git clone https://github.com/ScottMcMichael/lronacPipeline.git
+cd lronacPipeline
+
+- Edit CMakeLists.txt to point to the correct BaseSystem, visionworkbench, StereoPipeline, CERES, and SuiteSparse installations.
+
+- Build lronacPipeline:
+mkdir build
+cd build
+cmake ..
+make
+
+- Add lronacPipeline and lronacPipeline/build to your path.
 
 
-Running the LRONAC Pipeline:
+======= Running the LRONAC Pipeline =======
+
+- To generate a fully corrected DEM, call lronac2dem.py similar to this:
+
+lronac2dem.py --left /byss/moon/lronacPipeline_V2/BHABHAPLAIN/M112646261LE.IMG --right /byss/moon/lronacPipeline_V2/BHABHAPLAIN/M112646261RE.IMG --stereo-left /byss/moon/lronacPipeline_V2/BHABHAPLAIN/M112653051LE.IMG --stereo-right /byss/moon/lronacPipeline_V2/BHABHAPLAIN/M112653051RE.IMG --lola /byss/moon/lronacPipeline_V2/BHABHAPLAIN/lolaRdrPts.csv --workDir /byss/moon/lronacPipeline_V2/BHABHAPLAIN/workdir --prefix /byss/moon/lronacPipeline_V2/BHABHAPLAIN/results/output
+
+Note that you need the two pairs of LRONAC IMG files plus the LOLA data covering the expected region.  You can obtain the files manually or you can use lronacDataGrabber to find them on the ASU LRONAC website.
 
 
 
@@ -10,9 +35,9 @@ Running the LRONAC Pipeline:
 
 ----- Configuration files -----
 
-ceresInstallScript.sh = Notes to help in installing CERES on a Linux machine with no admin access
-CMakeLists.txt = Main build script for lronacPipeline
-FindStereoPipeline.cmake = Cmake function to help with the build.
+ceresInstallScript.sh     = Notes to help in installing CERES on a Linux machine with no admin access
+CMakeLists.txt            = Main build script for lronacPipeline
+FindStereoPipeline.cmake  = Cmake function to help with the build.
 FindVisionWorkbench.cmake = Cmake function to help with the build.
 
 
