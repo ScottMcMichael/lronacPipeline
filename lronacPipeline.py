@@ -139,12 +139,8 @@ def makeDem(demFolder):
     numThreads = 2
 
     #TODO: These should be passed into lronac2mosaic.py!
-#    mosaicNameA = os.path.splitext(leftImgA)[0] + '.lronaccal.lronacecho.posCorrected.noproj.mosaic.norm.cub'
-#    mosaicNameB = os.path.splitext(leftImgB)[0] + '.lronaccal.lronacecho.posCorrected.noproj.mosaic.norm.cub'
-
-    # TEST -> directly use stereo corrector output
-    mosaicNameA  = '/home/smcmich1/data/stereoCorrectionTest/M120168714LE.mosaic.transOnly.cub'
-    mosaicNameB  = '/home/smcmich1/data/stereoCorrectionTest2/M120175500LE.mosaic.transonly.cub'
+    mosaicNameA = os.path.splitext(leftImgA)[0] + '.lronaccal.lronacecho.posCorrected.noproj.mosaic.norm.cub'
+    mosaicNameB = os.path.splitext(leftImgB)[0] + '.lronaccal.lronacecho.posCorrected.noproj.mosaic.norm.cub'
 
     # Merge the two LRONAC pairs 
 #    keepstring = ' --keep' # Keeping temp files
