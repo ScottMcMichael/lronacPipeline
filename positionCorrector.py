@@ -116,18 +116,6 @@ def main():
         print cmd
         os.system(cmd)
 
-        #TODO: Remove or make optional?
-        # Call spiceinit on input file
-        cmd = "spiceinit attach=true from=" + options.outputPath
-        print cmd
-        os.system(cmd)
-
-        #DEBUG
-        #campPath = os.path.join(outputFolder, "campt_orig.txt") 
-        #cmd = "campt from=" + options.outputPath + " > "+campPath
-        #print cmd
-        #os.system(cmd)
-
         # Retrieve a list of all the kernels needed by the input cube file
         kernelDict = IsisTools.getKernelsFromCube(options.outputPath, tempFolder)
 
@@ -144,13 +132,25 @@ def main():
             for i in v: # Iterate through type lists
                 kernelStringList = kernelStringList + ' ' + str(i)
 
+
         # Determine if the input file is LE or RE
         lePos = options.inputPath.rfind('LE')
         rePos = options.inputPath.rfind('RE')
+
+        # Set the offsets from LRO spacecraft to the LRONAC cameras in meters
         if (lePos > rePos):
-            sideCode = '0' # LE
+            lronacOffset = [1.3462, 0.8890, -0.1778] # LE
         else: 
-            sideCode = '1' # RE
+            lronacOffset = [1.0160, 0.8890, -0.1778] # RE
+
+        # Write out a file containing the LRONAC camera offset
+        lronacOffsetPath = os.path.join(tempFolder, "lronacCameraOffset.csv")
+        f = open(lronacOffsetPath, 'w')
+        f.write('1 0 0 ' + str(lronacOffset[0]))
+        f.write('0 1 0 ' + str(lronacOffset[1]))
+        f.write('0 0 1 ' + str(lronacOffset[2]))
+        f.write('0 0 0 1')
+        f.close()
 
 
         # Make sure the SPK data path does not already exist
@@ -160,7 +160,7 @@ def main():
             os.remove(spkDataPath)
 
         # Call lronac spice editor tool to generate modified text file
-        cmd = 'spiceEditor --offsetCode ' + sideCode + ' --outputPrefix ' + tempDataPrefix + ' --kernels ' + kernelStringList
+        cmd = 'spiceEditor --transformType 1 --transformFile ' + lronacOffsetPath + ' --outputPrefix ' + tempDataPrefix + ' --kernels ' + kernelStringList
         print cmd
         os.system(cmd)
         if not os.path.exists(spkDataPath):
@@ -194,21 +194,11 @@ def main():
         print cmd
         os.system(cmd)
 
-
-        #DEBUG
-        #campPath = os.path.join(outputFolder, "campt_modified.txt") 
-        #cmd = "campt from=" + options.outputPath + " > "+campPath
-        #print cmd
-        #os.system(cmd)
-
         # Clean up temporary files
         if not options.keep:
             #os.remove(tempTextPath)
             os.remove(spkDataPath)
             os.remove(mkspkConfigPath)
-            #if not options.spkPath: # Really need to keep the SPK file around
-            #    os.remove(tempSpkPath)
-      
 
         endTime = time.time()
 

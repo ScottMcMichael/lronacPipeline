@@ -49,6 +49,7 @@ struct Parameters : asp::BaseOptions
   std::string  ckDataOutputPath;
   std::vector<std::string>  kernelPaths;
   std::string  transformFile;
+  int          transformType;
 };
 
 
@@ -57,11 +58,11 @@ bool handle_arguments(int argc, char* argv[], Parameters &opt)
   std::string outputPrefix;
   po::options_description general_options("Options");
   general_options.add_options()
-    ("offsetCode",  po::value(&opt.offsetCode)->default_value(0), "Choose instrument: 0 = LE, 1 = RE")
+    ("outputPrefix",  po::value(&outputPrefix)->default_value(""), "Output prefix")
     ("kernels", po::value<std::vector<std::string> >(&opt.kernelPaths)->multitoken(), "Paths to all required kernel files")
-    ("transformFile", po::value<std::string>(&opt.transformFile)->default_value(""), "Path to pc_align global transform to apply")
-
-    ("outputPrefix",  po::value(&outputPrefix)->default_value(""), "Output prefix");
+    ("transformFile", po::value<std::string>(&opt.transformFile)->default_value(""), "Path to 3x4 matrix containing transform to apply (pc_align-style)")
+    ("transformType", po::value<int>(&opt.transformType)->default_value(0), "Code to indicate how the transform is applied (0 = global, 1 = local = translation only!)");
+    
 
   general_options.add( asp::BaseOptionsDescription(opt) );
 
@@ -75,9 +76,10 @@ bool handle_arguments(int argc, char* argv[], Parameters &opt)
     asp::check_command_line( argc, argv, opt, general_options, general_options,
                              positional, positional_desc, usage );
 
-  if ( !vm.count("kernels") || !vm.count("outputPrefix"))
-    vw_throw( vw::ArgumentErr() << "Requires kernels and output path in order to proceed.\n\n"
+  if ( !vm.count("kernels") || !vm.count("outputPrefix") || !vm.count("transformFile"))
+    vw_throw( vw::ArgumentErr() << "Requires kernels, transform file, and output path in order to proceed.\n\n"
               << usage << general_options );
+
 
   // Finish paths to CK and SPK output data files
   opt.spkDataOutputPath = outputPrefix + "-spkData.txt";
@@ -168,14 +170,28 @@ bool editSpiceFile(const Parameters &params)
   for (size_t i=0; i<params.kernelPaths.size(); ++i)
     furnsh_c(params.kernelPaths[i].c_str());
   
+  const bool localTransform = (params.transformType > 0);
+
+  // Load the transform to apply
+
+  // Global transforms get stored here
   SpiceDouble planetFixed_from_planet_R[3][3];
   SpiceDouble planetFixed_from_planet_T[3];
-  if (!params.transformFile.empty())// Load the transform (it is in planet-space)
+  if (!localTransform)
   {
     if (!loadThreeByFourTransform(params.transformFile, planetFixed_from_planet_R, planetFixed_from_planet_T))
       return false;
   }
   
+  // Local transforms get stored here
+  SpiceDouble dummyRot[3][3];
+  SpiceDouble lronacOffset[3];
+  if (localTransform)
+  {
+    if (!loadThreeByFourTransform(params.transformFile, dummyRot, lronacOffset))
+      return false;
+  }
+
   SpiceChar timeString[51];
   SPICEDOUBLE_CELL(cover, 2000);
   SpiceDouble b, e;  
@@ -376,20 +392,19 @@ bool editSpiceFile(const Parameters &params)
         pxform_c(J2000_FRAME_STRING.c_str(), MOON_FRAME_STRING.c_str(), et, planet_from_J2000_R);
         // This matrix converts J2000 orientations to LRO orientations at et
 
-        // Offsets from LRO spacecraft to the LRONAC cameras in kilometers
-        SpiceDouble  lronacOffsetL[3] = {0.0013462, 0.0008890, -0.0001778}; 
-        SpiceDouble  lronacOffsetR[3] = {0.0010160, 0.0008890, -0.0001778}; 
-
         SpiceDouble  newPosition[3];
         if (params.transformFile.empty()) // Apply existing lronac position offset
         {
-          SpiceDouble  instOffset_J2000Frame[3];
-          // Now need to convert the LRONAC offsets (spacecraft to frame) into J2000 coordinates
+          // Convert the LRONAC offset from meters to kilometers
+          SpiceDouble lronacOffsetKm[3];
+          lronacOffsetKm[0] = lronacOffset[0] / 1000.0;
+          lronacOffsetKm[1] = lronacOffset[1] / 1000.0;
+          lronacOffsetKm[2] = lronacOffset[2] / 1000.0;
+          
+          SpiceDouble instOffset_J2000Frame[3];
+          // Now need to convert the LRONAC offset (spacecraft to frame) into J2000 coordinates
           // - Multiply by the inverted rotation matrix to go from spacecraft frame to J2000 frame
-          if (params.offsetCode == 0)
-            mtxv_c(spacecraft_from_J2000_R, lronacOffsetL, instOffset_J2000Frame);
-          else
-            mtxv_c(spacecraft_from_J2000_R, lronacOffsetR, instOffset_J2000Frame);
+          mtxv_c(spacecraft_from_J2000_R, lronacOffsetKm, instOffset_J2000Frame);
           for (int r=0; r<3; ++r) // Add the rotated offset to the original coordinate
             newPosition[r] = state[r] + instOffset_J2000Frame[r]; // Adding km to km here
         }

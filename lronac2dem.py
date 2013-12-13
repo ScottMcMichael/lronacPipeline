@@ -29,7 +29,9 @@ Generates a stereo DEM from two LRONAC pairs, trying to use LOLA data for increa
 '''
     sys.exit()
 
-
+class Usage(Exception):
+    def __init__(self, msg):
+        self.msg = msg
 
 #--------------------------------------------------------------------------------
 
@@ -321,7 +323,7 @@ def main():
         print "Finished in " + str(endTime - startTime) + " seconds."
         return 0
 
-    except err:
+    except Usage, err:
         print >>sys.stderr, err.msg
         return 2
 
