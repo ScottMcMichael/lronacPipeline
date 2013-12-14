@@ -91,45 +91,40 @@ bool handle_arguments(int argc, char* argv[],
 { 
   po::options_description general_options("Options");
   general_options.add_options()
-    ("outputPrefix",            po::value      (&opt.outputPrefix           )->default_value(""),     "Output prefix to use")
-    ("initialOnly",             po::bool_switch(&opt.initialOnly            )->default_value(false),  "Just compute initial state (don't solve)")
-    ("initialValues",           po::value      (&opt.initialValuePath       )->default_value(""),     "Path to file containing state parameter values (probably from previous output)")
-    ("crop-width",              po::value      (&opt.cropWidth              )->default_value(200),    "Crop images to this width before disparity search")
-    ("matchingPixelsLeftPath",  po::value      (&opt.matchingLeftPointsPath )->default_value(""),     "Path to left-leftS stereo pixel file")
-    ("matchingPixelsRightPath", po::value      (&opt.matchingRightPointsPath)->default_value(""),     "Path to right-rightS stereo pixel file")
-    ("matchingPixelsLeftCrossPath",  po::value (&opt.matchingLeftCrossPointsPath )->default_value(""),     "Path to left-rightS stereo pixel file")
-    ("matchingPixelsRightCrossPath", po::value (&opt.matchingRightCrossPointsPath)->default_value(""),     "Path to right-leftS stereo pixel file");
+    ("outputPrefix",                 po::value      (&opt.outputPrefix                )->required(),            "Output prefix to use")
+    ("initialOnly",                  po::bool_switch(&opt.initialOnly                 )->default_value(false),  "Just compute initial state (don't solve)")
+    ("initialValues",                po::value      (&opt.initialValuePath            )->default_value(""),     "Path to file containing state parameter values (probably from previous output)")
+    ("crop-width",                   po::value      (&opt.cropWidth                   )->default_value(200),    "Crop images to this width before disparity search")
+    ("matchingPixelsLeftPath",       po::value      (&opt.matchingLeftPointsPath      )->default_value(""),     "Path to left-leftS stereo pixel file")
+    ("matchingPixelsRightPath",      po::value      (&opt.matchingRightPointsPath     )->default_value(""),     "Path to right-rightS stereo pixel file")
+    ("matchingPixelsLeftCrossPath",  po::value      (&opt.matchingLeftCrossPointsPath )->default_value(""),     "Path to left-rightS stereo pixel file")
+    ("matchingPixelsRightCrossPath", po::value      (&opt.matchingRightCrossPointsPath)->default_value(""),     "Path to right-leftS stereo pixel file")
+    ("leftCubePath",                 po::value      (&opt.leftFilePath                )->default_value(""),     "Path to left input cube")
+    ("rightCubePath",                po::value      (&opt.rightFilePath               )->default_value(""),     "Path to right input cube")
+    ("leftStereoCubePath",           po::value      (&opt.leftStereoFilePath          )->default_value(""),     "Path to left stereo input cube")
+    ("rightStereoCubePath",          po::value      (&opt.rightStereoFilePath         )->default_value(""),     "Path to right stereo input cube");
   
   general_options.add( asp::BaseOptionsDescription(opt) );
     
   po::options_description positional("");
-  positional.add_options()
-    ("left",        po::value(&opt.leftFilePath))
-    ("right",       po::value(&opt.rightFilePath))
-    ("leftStereo",  po::value(&opt.leftStereoFilePath))
-    ("rightStereo", po::value(&opt.rightStereoFilePath));
     
   po::positional_options_description positional_desc;
-  positional_desc.add("left",        1);
-  positional_desc.add("right",       1);
-  positional_desc.add("leftStereo",  1);
-  positional_desc.add("rightStereo", 1);
 
-  std::string usage("[options] <left> <right>");
+  std::string usage("[options]");
   po::variables_map vm =
     asp::check_command_line( argc, argv, opt, general_options, general_options,
                              positional, positional_desc, usage );
 
-  if ( !vm.count("left") || !vm.count("right") || !vm.count("leftStereo") || !vm.count("rightStereo") || !vm.count("matchingPixelsLeftPath") || !vm.count("matchingPixelsRightPath"))
-    vw_throw( ArgumentErr() << "Missing required input arguments!.\n\n"
-              << usage << general_options );
+//  if ()
+//    vw_throw( ArgumentErr() << "Missing required input arguments!.\n\n"
+//              << usage << general_options );
 
   return true;
 }
 
 //-------------------------------------------------------------------------------------------
 
-// Load mathing points from a file
+// Load matching points from a file
 bool loadMatchingPixels(const std::string &pointPath, PointObsList &pixelVals)
 {
   // The input file is a line for each point: sample1, line1, sample2, line2
@@ -333,44 +328,171 @@ bool findMatchingPixels(const std::string &leftFilePath, const std::string &righ
 }
 
 //-------------------------------------------------------------------------------------------
+
+/// Load all available points based on the input parameters
+/// - Returns the number of points loaded or zero if there is an error
+size_t loadInputPointPairs(const Parameters &params, PointObsList &leftPixelPairs,      PointObsList &rightPixelPairs,
+                                                     PointObsList &overlapPairs,        PointObsList &stereoOverlapPairs,
+                                                     PointObsList &leftCrossPixelPairs, PointObsList &rightCrossPixelPairs)
+{
+
+  // If these files already exist read them in, otherwise compute them and save them.
+  std::string mainIpFindPath   = params.outputPrefix + "-mainIpFindPixels.csv";
+  std::string stereoIpFindPath = params.outputPrefix + "-stereoIpFindPixels.csv";
+
+  // -- Adjacent cubes section (ipfind based matches) --
+  if (boost::filesystem::exists(boost::filesystem::path(mainIpFindPath)))
+  {
+    // Point file already exists
+    printf("Loading list of matched pixels from file %s\n", mainIpFindPath.c_str());
+    if (!loadMatchingPixels(mainIpFindPath, overlapPairs))
+      return 0;
+  }
+  else // Point file does not exist
+  {
+    // If the left and right cubes were passed in, call ipfind in the overlap region to get points.
+    if ((params.leftFilePath.size() > 0) && (params.rightFilePath.size() > 0))
+    {
+      printf("Searching for matching pixels in image overlap region\n");
+      if (!findMatchingPixels(params.leftFilePath, params.rightFilePath, mainIpFindPath, params.cropWidth, overlapPairs))
+        return 0;
+    }
+  }
+  if (boost::filesystem::exists(boost::filesystem::path(stereoIpFindPath)))
+  {
+    // Point file already exists
+    printf("Loading list of matched pixels from file %s\n", stereoIpFindPath.c_str());
+    if (!loadMatchingPixels(stereoIpFindPath, stereoOverlapPairs))
+      return 0;
+  }
+  else // Point file does not exist
+  {
+    // If the left and right stereo cubes were passed in, call ipfind in the overlap region to get points.
+    if ((params.leftStereoFilePath.size() > 0) && (params.rightStereoFilePath.size() > 0))
+    {
+      printf("Searching for matching pixels in stereo image overlap region\n");
+      if (!findMatchingPixels(params.leftStereoFilePath, params.rightStereoFilePath, stereoIpFindPath, params.cropWidth, stereoOverlapPairs))
+        return 0;
+    }
+  }
+
+  // -- Stereo cubes section (stereo based matches) --
+  if (params.matchingLeftPointsPath.size() > 0)
+  {
+    printf("Loading list of matched pixels from file %s\n", params.matchingLeftPointsPath.c_str());
+    if (!loadMatchingPixels(params.matchingLeftPointsPath, leftPixelPairs))
+      return 0;
+  }
+  if (params.matchingRightPointsPath.size() > 0)
+  {
+    printf("Loading list of matched pixels from file %s\n", params.matchingRightPointsPath.c_str());
+    if (!loadMatchingPixels(params.matchingRightPointsPath, rightPixelPairs))
+      return 0;
+  }
+  if (params.matchingLeftCrossPointsPath.size() > 0)
+  {
+    printf("Loading list of matched pixels from file %s\n", params.matchingLeftCrossPointsPath.c_str());
+    if (!loadMatchingPixels(params.matchingLeftCrossPointsPath, leftCrossPixelPairs))
+      return false;
+    // Add in the offsets to the X (sample/column) location to account for the image crop
+    for (size_t i=0; i<leftCrossPixelPairs.leftObsList.size(); ++i)
+      leftCrossPixelPairs.leftObsList[i][0] += 2531; //TODO: READ IN THESE OFFSETS!
+  }
+  if (params.matchingRightCrossPointsPath.size() > 0)
+  {
+    printf("Loading list of matched pixels from file %s\n", params.matchingRightCrossPointsPath.c_str());
+    if (!loadMatchingPixels(params.matchingRightCrossPointsPath, rightCrossPixelPairs))
+      return false;
+    // Add in the offsets to the X (sample/column) location to account for the image crop
+    for (size_t i=0; i<rightCrossPixelPairs.leftObsList.size(); ++i)
+      rightCrossPixelPairs.leftObsList[i][0] += 2531;
+  }
+
+  // Total up all the loaded points
+  const size_t totalNumPoints = overlapPairs.size()        + stereoOverlapPairs.size() +
+                                leftPixelPairs.size()      + rightPixelPairs.size() +
+                                leftCrossPixelPairs.size() + rightCrossPixelPairs.size();
+  return totalNumPoints;
+}
+
+//-------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------
 
 // Main solver function
 bool optimizeRotations(Parameters & params)
 {
+  // This is the number of non-point parameters there are.
+  int NUM_CAMERA_PARAMS = 12;
+
   printf("**************************************************************************\n");
   printf("*** Started LRONAC double angle solver.\n");
   
-  // Verify images are present
+  // Get boost paths to images, used to check if they exist
   boost::filesystem::path leftBoostPath       (params.leftFilePath );
   boost::filesystem::path rightBoostPath      (params.rightFilePath);
   boost::filesystem::path leftStereoBoostPath (params.leftStereoFilePath);
   boost::filesystem::path rightStereoBoostPath(params.rightStereoFilePath);
   
-  if (!boost::filesystem::exists(boost::filesystem::path(params.leftFilePath)))
+  // Load each of the four input cubes into the solver if they are present
+  LrocPairModel lrocClass;
+  if (params.leftFilePath.size() > 0)
   {
-    printf("Error: input file %s is missing!\n", params.leftFilePath.c_str());
-    return false;
+    if (boost::filesystem::exists(boost::filesystem::path(params.leftFilePath)))
+      lrocClass.loadLeftCamera(params.leftFilePath);
+    else
+    {
+      printf("Error: input file %s is missing!\n", params.leftFilePath.c_str());
+      return false;
+    }
   }
-  if (!boost::filesystem::exists(boost::filesystem::path(params.rightFilePath)))
+  if (params.rightFilePath.size() > 0)
+  {
+    if (boost::filesystem::exists(boost::filesystem::path(params.rightFilePath)))
+      lrocClass.loadRightCamera(params.rightFilePath);
+    else
+    {
+      printf("Error: input file %s is missing!\n", params.rightFilePath.c_str());
+      return false;
+    }
+  }
+  if (params.leftStereoFilePath.size() > 0)
+  {
+    if (boost::filesystem::exists(boost::filesystem::path(params.leftStereoFilePath)))
+      lrocClass.loadLeftStereoCamera(params.leftStereoFilePath);
+    else
+    {
+      printf("Error: input file %s is missing!\n", params.leftStereoFilePath.c_str());
+      return false;
+    }
+  }
+  if (params.rightStereoFilePath.size() > 0)
+  {
+    if (boost::filesystem::exists(boost::filesystem::path(params.rightStereoFilePath)))
+      lrocClass.loadRightStereoCamera(params.rightStereoFilePath);
+    else
+    {
+      printf("Error: input file %s is missing!\n", params.rightStereoFilePath.c_str());
+      return false;
+    }
+  }
+  // Finished loading cubes into the camera model
+
+
+  if ((params.rightFilePath.size() > 0) && (!boost::filesystem::exists(boost::filesystem::path(params.rightFilePath))))
   {
     printf("Error: input file %s is missing!\n", params.rightFilePath.c_str());
     return false;
   }
-  if (!boost::filesystem::exists(boost::filesystem::path(params.leftStereoFilePath)))
+  if ((params.leftStereoFilePath.size() > 0) && (!boost::filesystem::exists(boost::filesystem::path(params.leftStereoFilePath))))
   {
     printf("Error: input file %s is missing!\n", params.leftStereoFilePath.c_str());
     return false;
   }
-  if (!boost::filesystem::exists(boost::filesystem::path(params.rightStereoFilePath)))
+  if ((params.rightStereoFilePath.size() > 0) && (!boost::filesystem::exists(boost::filesystem::path(params.rightStereoFilePath))))
   {
     printf("Error: input file %s is missing!\n", params.rightStereoFilePath.c_str());
     return false;
   }
-  
-
-  // How many non-point parameters are there?
-  int NUM_CAMERA_PARAMS = 12;
 
   // If a path to an initial value file was provided, load them
   std::vector<double> initialValues;
@@ -393,78 +515,17 @@ bool optimizeRotations(Parameters & params)
     }
   }
 
-  printf("Constructing geometry class\n");
-
-  // Initialize the geometry/solver class for the two input cubes
-  LrocPairModel lrocClass(params.leftFilePath,       params.rightFilePath, 
-                          params.leftStereoFilePath, params.rightStereoFilePath);
   
   // Now load up all of the pixel pairs
-  //Vector<double> leftRow, leftCol, rightRow, rightCol;
   PointObsList leftPixelPairs, rightPixelPairs, overlapPairs, stereoOverlapPairs, leftCrossPixelPairs, rightCrossPixelPairs;
- 
-  // If these files already exist read them in, otherwise compute them and save them.
-  std::string mainIpFindPath   = params.outputPrefix + "-mainIpFindPixels.csv";
-  std::string stereoIpFindPath = params.outputPrefix + "-stereoIpFindPixels.csv";
-  
-  if (boost::filesystem::exists(boost::filesystem::path(mainIpFindPath)))
+  const size_t totalNumPoints = loadInputPointPairs(params, leftPixelPairs,      rightPixelPairs,
+                                                            overlapPairs,        stereoOverlapPairs,
+                                                            leftCrossPixelPairs, rightCrossPixelPairs);
+  if (totalNumPoints == 40)
   {
-    // Point file already exists
-    printf("Loading list of matched pixels from file %s\n", mainIpFindPath.c_str());
-    if (!loadMatchingPixels(mainIpFindPath, overlapPairs))
-      return false;
-  }
-  else // Point file does not exist
-  {
-    printf("Searching for matching pixels in image overlap region\n");
-    if (!findMatchingPixels(params.leftFilePath, params.rightFilePath, mainIpFindPath, params.cropWidth, overlapPairs))
-      return false;
-  }
-  if (boost::filesystem::exists(boost::filesystem::path(stereoIpFindPath)))
-  {
-    // Point file already exists
-    printf("Loading list of matched pixels from file %s\n", stereoIpFindPath.c_str());
-    if (!loadMatchingPixels(stereoIpFindPath, stereoOverlapPairs))
-      return false;
-  }
-  else // Point file does not exist
-  {
-    printf("Searching for matching pixels in stereo image overlap region\n");
-    if (!findMatchingPixels(params.leftStereoFilePath, params.rightStereoFilePath, stereoIpFindPath, params.cropWidth, stereoOverlapPairs))
-      return false;
-  }
-    
-  printf("Loading list of matched pixels from file %s\n", params.matchingLeftPointsPath.c_str());
-  if (!loadMatchingPixels(params.matchingLeftPointsPath, leftPixelPairs))
+    printf("Error: Did not load enough points to compute a solution!");
     return false;
-  printf("Loading list of matched pixels from file %s\n", params.matchingRightPointsPath.c_str());
-  if (!loadMatchingPixels(params.matchingRightPointsPath, rightPixelPairs))
-    return false;
-
-  // Load optional input point files
-  if (params.matchingLeftCrossPointsPath.size() > 0)
-  {
-    printf("Loading list of matched pixels from file %s\n", params.matchingLeftCrossPointsPath.c_str());
-    if (!loadMatchingPixels(params.matchingLeftCrossPointsPath, leftCrossPixelPairs))
-      return false;
-    // Add in the offsets to the X (sample/column) location to account for the image crop
-    for (size_t i=0; i<leftCrossPixelPairs.leftObsList.size(); ++i)
-      leftCrossPixelPairs.leftObsList[i][0] += 2531;
   }
-  if (params.matchingRightCrossPointsPath.size() > 0)
-  {
-    printf("Loading list of matched pixels from file %s\n", params.matchingRightCrossPointsPath.c_str());
-    if (!loadMatchingPixels(params.matchingRightCrossPointsPath, rightCrossPixelPairs))
-      return false;
-    // Add in the offsets to the X (sample/column) location to account for the image crop
-    for (size_t i=0; i<rightCrossPixelPairs.leftObsList.size(); ++i)
-      rightCrossPixelPairs.leftObsList[i][0] += 2531;
-  }
-
-
-  const size_t totalNumPoints = overlapPairs.size()        + stereoOverlapPairs.size() +
-                                leftPixelPairs.size()      + rightPixelPairs.size() +
-                                leftCrossPixelPairs.size() + rightCrossPixelPairs.size();
   
   // Load the inital points into the solver
   printf("Initializing solver state...\n");
@@ -571,7 +632,8 @@ bool optimizeRotations(Parameters & params)
   size_t currentPointIndex = NUM_CAMERA_PARAMS;
   ceres::LossFunction* lossFunction = new ceres::CauchyLoss(5.0);
 
-  printf("Loading parameters for main camera pair...\n");
+  if (overlapPairs.size() > 0)
+    printf("Loading parameters for main camera pair...\n");
   for (size_t i=0; i<overlapPairs.size(); ++i) // For each input point
   {
     // Set up this point's parameters for the solver
@@ -599,7 +661,8 @@ bool optimizeRotations(Parameters & params)
 
   //currentPointIndex += overlapPairs.size()*NUM_PARAMS_PER_POINT; //DEBUG!!!!!!
 
-  printf("Loading parameters for stereo camera pair...\n");
+  if (stereoOverlapPairs.size() > 0)
+    printf("Loading parameters for stereo camera pair...\n");
   for (size_t i=0; i<stereoOverlapPairs.size(); ++i) // For each input point
   {
     // Set up this point's parameters for the solver
@@ -627,7 +690,8 @@ bool optimizeRotations(Parameters & params)
 
   //currentPointIndex += stereoOverlapPairs.size()*NUM_PARAMS_PER_POINT; //DEBUG!!!!!!
 
-  printf("Loading parameters for two left cameras...\n");
+  if (leftPixelPairs.size() > 0)
+    printf("Loading parameters for two left cameras...\n");
   for (size_t i=0; i<leftPixelPairs.size(); ++i) // For each input point
   {
     // Set up this point's parameters for the solver
@@ -656,7 +720,8 @@ bool optimizeRotations(Parameters & params)
 
   //currentPointIndex += leftPixelPairs.size()*NUM_PARAMS_PER_POINT; //DEBUG!!!!!!
 
-  printf("Loading parameters for two right cameras...\n");
+  if (rightPixelPairs.size() > 0)
+    printf("Loading parameters for two right cameras...\n");
   for (size_t i=0; i<rightPixelPairs.size(); ++i) // For each input point
   {
     // Set up this point's parameters for the solver
@@ -681,71 +746,66 @@ bool optimizeRotations(Parameters & params)
     
   } // End of loop through both right camera points
 
-  // Now handle the two optional sets of points
 
-  if (params.matchingLeftCrossPointsPath.size() > 0)
-  {
+  if (leftCrossPixelPairs.size() > 0)
     printf("Loading parameters for left cross camera pair...\n");
-    for (size_t i=0; i<leftCrossPixelPairs.size(); ++i) // For each input point
-    {
-      // Set up this point's parameters for the solver
-      double* pointParams = &(initialState[currentPointIndex]);
-      //printf("Loading L-R point %lf, %lf, %lf\n", pointParams[0], pointParams[1], pointParams[2]);
-      currentPointIndex += NUM_PARAMS_PER_POINT;
-      problem.AddParameterBlock(pointParams, NUM_PARAMS_PER_POINT);
-
-      // Add the function and residual block for the left camera
-      ceres::CostFunction* costFunctionLeft =
-              new ceres::NumericDiffCostFunction<LeftCostFunctor, ceres::CENTRAL, NUM_PARAMS_PER_OBSERVATION, NUM_PARAMS_PER_POINT>(
-                    new LeftCostFunctor(&lrocClass, leftCrossPixelPairs.leftObsList[i]));
-
-      problem.AddResidualBlock(costFunctionLeft, lossFunction, pointParams);
-
-      // Add the function and residual block for the stereo right camera (slightly more complex)
-      ceres::CostFunction* costFunctionRight =
-              new ceres::NumericDiffCostFunction<RightStereoCostFunctor, ceres::CENTRAL, NUM_PARAMS_PER_OBSERVATION, NUM_PARAMS_CAMERA_SECTION, NUM_PARAMS_CAMERA_SECTION, NUM_PARAMS_CAMERA_SECTION, NUM_PARAMS_PER_POINT>(
-                    new RightStereoCostFunctor(&lrocClass, leftCrossPixelPairs.rightObsList[i]));
-
-      problem.AddResidualBlock(costFunctionRight, lossFunction, globalRotation, globalPosition, localStereoRotation, pointParams);
-
-    } // End of loop through left cross camera pair points
-  }
-
-
-  if (params.matchingRightCrossPointsPath.size() > 0)
+  for (size_t i=0; i<leftCrossPixelPairs.size(); ++i) // For each input point
   {
+    // Set up this point's parameters for the solver
+    double* pointParams = &(initialState[currentPointIndex]);
+    //printf("Loading L-R point %lf, %lf, %lf\n", pointParams[0], pointParams[1], pointParams[2]);
+    currentPointIndex += NUM_PARAMS_PER_POINT;
+    problem.AddParameterBlock(pointParams, NUM_PARAMS_PER_POINT);
+
+    // Add the function and residual block for the left camera
+    ceres::CostFunction* costFunctionLeft =
+            new ceres::NumericDiffCostFunction<LeftCostFunctor, ceres::CENTRAL, NUM_PARAMS_PER_OBSERVATION, NUM_PARAMS_PER_POINT>(
+                  new LeftCostFunctor(&lrocClass, leftCrossPixelPairs.leftObsList[i]));
+
+    problem.AddResidualBlock(costFunctionLeft, lossFunction, pointParams);
+
+    // Add the function and residual block for the stereo right camera (slightly more complex)
+    ceres::CostFunction* costFunctionRight =
+            new ceres::NumericDiffCostFunction<RightStereoCostFunctor, ceres::CENTRAL, NUM_PARAMS_PER_OBSERVATION, NUM_PARAMS_CAMERA_SECTION, NUM_PARAMS_CAMERA_SECTION, NUM_PARAMS_CAMERA_SECTION, NUM_PARAMS_PER_POINT>(
+                  new RightStereoCostFunctor(&lrocClass, leftCrossPixelPairs.rightObsList[i]));
+
+    problem.AddResidualBlock(costFunctionRight, lossFunction, globalRotation, globalPosition, localStereoRotation, pointParams);
+
+  } // End of loop through left cross camera pair points
+
+  if (rightCrossPixelPairs.size() > 0)
     printf("Loading parameters for right cross camera pair...\n");
-    for (size_t i=0; i<rightCrossPixelPairs.size(); ++i) // For each input point
-    {
-      // Set up this point's parameters for the solver
-      double* pointParams = &(initialState[currentPointIndex]);
-      //printf("Loading L-R point %lf, %lf, %lf\n", pointParams[0], pointParams[1], pointParams[2]);
-      currentPointIndex += NUM_PARAMS_PER_POINT;
-      problem.AddParameterBlock(pointParams, NUM_PARAMS_PER_POINT);
+  for (size_t i=0; i<rightCrossPixelPairs.size(); ++i) // For each input point
+  {
+    // Set up this point's parameters for the solver
+    double* pointParams = &(initialState[currentPointIndex]);
+    //printf("Loading L-R point %lf, %lf, %lf\n", pointParams[0], pointParams[1], pointParams[2]);
+    currentPointIndex += NUM_PARAMS_PER_POINT;
+    problem.AddParameterBlock(pointParams, NUM_PARAMS_PER_POINT);
 
-      // Add the function and residual block for the left camera
-      ceres::CostFunction* costFunctionLeft =
-              new ceres::NumericDiffCostFunction<LeftStereoCostFunctor, ceres::CENTRAL, NUM_PARAMS_PER_OBSERVATION, NUM_PARAMS_CAMERA_SECTION, NUM_PARAMS_CAMERA_SECTION, NUM_PARAMS_PER_POINT>(
-                    new LeftStereoCostFunctor(&lrocClass, rightCrossPixelPairs.leftObsList[i]));
+    // Add the function and residual block for the left camera
+    ceres::CostFunction* costFunctionLeft =
+            new ceres::NumericDiffCostFunction<LeftStereoCostFunctor, ceres::CENTRAL, NUM_PARAMS_PER_OBSERVATION, NUM_PARAMS_CAMERA_SECTION, NUM_PARAMS_CAMERA_SECTION, NUM_PARAMS_PER_POINT>(
+                  new LeftStereoCostFunctor(&lrocClass, rightCrossPixelPairs.leftObsList[i]));
 
-      problem.AddResidualBlock(costFunctionLeft, lossFunction, globalRotation, globalPosition, pointParams);
+    problem.AddResidualBlock(costFunctionLeft, lossFunction, globalRotation, globalPosition, pointParams);
 
-      // Add the function and residual block for the right camera
-      ceres::CostFunction* costFunctionRight =
-              new ceres::NumericDiffCostFunction<RightCostFunctor, ceres::CENTRAL, NUM_PARAMS_PER_OBSERVATION, NUM_PARAMS_CAMERA_SECTION, NUM_PARAMS_PER_POINT>(
-                    new RightCostFunctor(&lrocClass, rightCrossPixelPairs.rightObsList[i]));
+    // Add the function and residual block for the right camera
+    ceres::CostFunction* costFunctionRight =
+            new ceres::NumericDiffCostFunction<RightCostFunctor, ceres::CENTRAL, NUM_PARAMS_PER_OBSERVATION, NUM_PARAMS_CAMERA_SECTION, NUM_PARAMS_PER_POINT>(
+                  new RightCostFunctor(&lrocClass, rightCrossPixelPairs.rightObsList[i]));
 
-      problem.AddResidualBlock(costFunctionRight, lossFunction, localRotation, pointParams);
+    problem.AddResidualBlock(costFunctionRight, lossFunction, localRotation, pointParams);
 
-    } // End of loop through right cross camera pair points
-  }
+  } // End of loop through right cross camera pair points
 
 
   printf("Finished loading points into the solver!\n");
        
   // TODO: Select solver options
   ceres::Solver::Options solverOptions;
-  solverOptions.max_num_iterations           = 100; //TODO: Play with these again!
+  solverOptions.max_num_iterations           = 10; //TODO: Play with these again!
+  printf("====##########$$$$$$$$$$=======> Using only 10 iterations for debugging!");
   //solverOptions.linear_solver_type           = ceres::DENSE_SCHUR;
   solverOptions.linear_solver_type           = ceres::SPARSE_SCHUR;
   solverOptions.minimizer_progress_to_stdout = true;
@@ -795,17 +855,17 @@ bool optimizeRotations(Parameters & params)
   std::ofstream finalErrorFile(finalErrorPath.c_str()); 
   double meanFinalError = 0;
   std::vector<double> finalError = lrocClass.computeError(finalParams);
-  Vector<double> finalPredictions = lrocClass(finalParams);
+  //Vector<double> finalPredictions = lrocClass(finalParams);
   //Vector<double> rawError(finalPredictions.size());
   //std::ofstream predictionFile("/home/smcmich1/finalPredictions.csv");
-  for (size_t i=0; i<finalPredictions.size(); ++i)
-  {
+  //for (size_t i=0; i<finalPredictions.size(); ++i)
+  //{
   //  predictionFile << finalPredictions[i] << std::endl;
     //rawError[i] = packedObservations[i] - finalPredictions[i];
     //finalErrorFile << packedObservations[i] - finalPredictions[i] << std::endl;
-    if (i % 4 == 0)
-      meanFinalError += finalError[i/4];
-  }
+  //  if (i % 4 == 0)
+  //    meanFinalError += finalError[i/4];
+  //}
   
   for (size_t i=0; i<finalError.size(); ++i)
   {   

@@ -280,5 +280,34 @@ def getCubeCenterLatitude(cubePath, workDir='tmp'):
 
     return centerLatitude # Return the latitude we found
 
+# Creates the required mkspk setup file if it does not already exist
+def makeSpkSetupFile(leapSecondFilePath, outputPath):
+
+    # If the file already exists, delete it and rewrite it.
+    if os.path.exists(outputPath):
+        os.remove(outputPath)
+
+#        print 'Generating LRONAC compatible .pvl file ' + halfResFilePath
+    f = open(outputPath, 'w')
+    f.write("\\begindata\n")
+    f.write("INPUT_DATA_TYPE   = 'STATES'\n")
+    f.write("OUTPUT_SPK_TYPE   = 13\n")
+    f.write("OBJECT_ID         = -85\n") # LRO
+    f.write("CENTER_ID         = 301\n") # Moon
+    f.write("REF_FRAME_NAME    = 'J2000'\n")
+    f.write("PRODUCER_ID       = 'Lronac Pipeline'\n")
+    f.write("DATA_ORDER        = 'epoch x y z vx vy vz'\n")
+    f.write("DATA_DELIMITER    = ','\n")
+    f.write("LEAPSECONDS_FILE  = '" + leapSecondFilePath + "'\n")
+    f.write("LINES_PER_RECORD  = 1\n")
+    f.write("TIME_WRAPPER      = '# ETSECONDS'\n")
+    #f.write("EPOCH_STR_LENGTH  = 16\n")
+    f.write("INPUT_DATA_UNITS  = ('ANGLES=DEGREES' 'DISTANCES=km')\n")
+    f.write("POLYNOM_DEGREE    = 11\n")
+    f.write("SEGMENT_ID        = 'SPK_STATES_13'\n")
+#        f.write("INPUT_DATA_FILE   = 'spkDataFile.txt'")
+#        f.write("OUTPUT_SPK_FILE   = '/home/smcmich1/testSpkFile.bsp'")
+    f.write("\\begintext\n")
+    f.close()
 
 

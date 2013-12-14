@@ -259,8 +259,7 @@ bool getInitialStateEstimate(const Vector<double> &leftRows,  const Vector<doubl
     
     // Compute the intersection location
     double triangulationError;
-    //pointLoc = _stereoModel(leftPixel, rightPixel, triangulationError); // Not working!
-    
+
     Vector3 leftCamCenter  = _leftCameraModel.camera_center(leftPixel);
     Vector3 rightCamCenter = _rightCameraRotatedModel.camera_center(rightPixel);
     
@@ -268,73 +267,36 @@ bool getInitialStateEstimate(const Vector<double> &leftRows,  const Vector<doubl
     Vector3            rightVec     = vw::math::normalize(_rightCameraRotatedModel.pixel_to_vector(rightPixel));
     double             vectorAngle  = acos(vw::math::dot_prod(leftVec, rightVec));
     
-    // Quaternion code did not seem to be working
-    //Quaternion<double> leftCamPose  = vw::math::normalize(_leftCameraModel.camera_pose (leftPixel));
-    //Quaternion<double> rightCamPose = vw::math::normalize(_rightCameraModel.camera_pose(rightPixel));
-    //Quaternion<double> conjLeftPose = vw::math::conj(leftCamPose);
-    //Quaternion<double> invLeftPose  = vw::math::inverse(leftCamPose);
-    //Quaternion<double> rotDiff      = rightCamPose*invLeftPose;
-    //Vector3 axis; double angle;
-    //rotDiff.axis_angle(axis, angle);
-
-    //std::cout << "leftCamVector "  << leftVec      << std::endl;
-    //std::cout << "rightCamVector " << rightVec     << std::endl;      
-    //std::cout << "camVectorDiff "  << leftVec-rightVec << std::endl;  
-    //std::cout << "vectorAngle (degrees) "    << vectorAngle*180/3.15159  << std::endl;
-    //std::cout << "leftCamPose "    << leftCamPose  << std::endl;
-    //std::cout << "rightCamPose "   << rightCamPose << std::endl;
-    //std::cout << "conjLeftPose "   << conjLeftPose << std::endl;
-    //std::cout << "invLeftPose "    << invLeftPose  << std::endl;
-    //std::cout << "rotDiff "        << rotDiff      << std::endl;
+    Vector3 v12 = cross_prod(leftVec, rightVec);
+    Vector3 v1  = cross_prod(v12,     leftVec);
+    Vector3 v2  = cross_prod(v12,     rightVec);
     
-Vector3 v12 = cross_prod(leftVec, rightVec);
-Vector3 v1  = cross_prod(v12,     leftVec);
-Vector3 v2  = cross_prod(v12,     rightVec);
-
-Vector3 closestPoint1 = leftCamCenter  + dot_prod(v2, rightCamCenter-leftCamCenter )/dot_prod(v2, leftVec )*leftVec;
-Vector3 closestPoint2 = rightCamCenter + dot_prod(v1, leftCamCenter -rightCamCenter)/dot_prod(v1, rightVec)*rightVec;
-
-const double MOON_RADIUS_M = 1737400;
-if (inputState.empty()) // Override the stereo results with ground intersections!
-{
-  // Things don't work if this is done with an initial state
-  if (!raySphereIntersect(leftCamCenter,  leftVec,  MOON_RADIUS_M, closestPoint1))
-    printf("Failed to intersect moon with left!\n");
-  if (!raySphereIntersect(rightCamCenter, rightVec, MOON_RADIUS_M, closestPoint2))
-    printf("Failed to intersect moon with right!\n");
-}
-else
-{
-  if ((i % 100000) == 0) // Display progress
-    printf("%d\n", i);
-}
-
-Vector3 midPoint = 0.5 * (closestPoint1 + closestPoint2);
-pointLoc = midPoint; // HIJACK TRIANGULATION CALCULATIONS!
+    Vector3 closestPoint1 = leftCamCenter  + dot_prod(v2, rightCamCenter-leftCamCenter )/dot_prod(v2, leftVec )*leftVec;
+    Vector3 closestPoint2 = rightCamCenter + dot_prod(v1, leftCamCenter -rightCamCenter)/dot_prod(v1, rightVec)*rightVec;
     
+    const double MOON_RADIUS_M = 1737400;
+    if (inputState.empty()) // Override the stereo results with ground intersections!
+    {
+      // Things don't work if this is done with an initial state
+      if (!raySphereIntersect(leftCamCenter,  leftVec,  MOON_RADIUS_M, closestPoint1))
+        printf("Failed to intersect moon with left!\n");
+      if (!raySphereIntersect(rightCamCenter, rightVec, MOON_RADIUS_M, closestPoint2))
+        printf("Failed to intersect moon with right!\n");
+    }
+    else
+    {
+      if ((i % 100000) == 0) // Display progress
+        printf("%d\n", i);
+    }
+    
+    Vector3 midPoint = 0.5 * (closestPoint1 + closestPoint2);
+    pointLoc = midPoint; // HIJACK TRIANGULATION CALCULATIONS!
 
     
-    
-Vector3 errorVec = closestPoint1 - closestPoint2;
-triangulationError = vw::math::norm_2(errorVec);
         
-    //printf("\n");
-    //std::cout << "closestPoint1   = " << closestPoint1 <<", radius = " << vw::math::norm_2(closestPoint1)/1000.0 << std::endl;
-    //std::cout << "closestPoint2   = " << closestPoint2 <<", radius = " << vw::math::norm_2(closestPoint2)/1000.0 << std::endl;
-    //std::cout << "errorVec        = " << errorVec      << std::endl;
-    //std::cout << "projection dist (km)= " << vw::math::norm_2(closestPoint1 - leftCamCenter)/1000.0 << std::endl;
         
-    
-    //std::cout.precision(16);
-    //std::cout << "Left  camera center = " << leftCamCenter [0] <<", "<< leftCamCenter [1] <<", "<< leftCamCenter [2]<<", radius = " << vw::math::norm_2(leftCamCenter)/1000.0 << std::endl;
-    //std::cout << "Right camera center = " << rightCamCenter[0] <<", "<< rightCamCenter[1] <<", "<< rightCamCenter[2]<<", radius = " << vw::math::norm_2(rightCamCenter)/1000.0 << std::endl;
-    //std::cout << "Center diff         = " << leftCamCenter[0]-rightCamCenter[0] <<", "<< leftCamCenter[1]-rightCamCenter[1] <<", "<< leftCamCenter[2]-rightCamCenter[2] << std::endl;
-    //printf("Angle between cameras = %lf\n", vectorAngle);
-    //printf("Center abs diff = %lf\n", sqrt( pow(leftCamCenter[0]-rightCamCenter[0], 2) + pow(leftCamCenter[1]-rightCamCenter[1], 2) + pow(leftCamCenter[2]-rightCamCenter[2], 2) ));
-    
-    
-    //std::cout << "Left pixel  = " << leftPixel << " Right pixel = " << rightPixel << std::endl;
-    //std::cout << "Initial point " << i << " = " << pointLoc << " Triangulation error = " << triangulationError << std::endl;
+    Vector3 errorVec = closestPoint1 - closestPoint2;
+    triangulationError = vw::math::norm_2(errorVec);
 
 
     // DEBUG code to project the computed intersection back into the cameras
@@ -353,14 +315,7 @@ triangulationError = vw::math::norm_2(errorVec);
     const double camRadius          = vw::math::norm_2(rightCamCenter);
     //std::cout << "intersection radius = " << intersectionRadius << std::endl;
     
-    // Convert from GCC to GDC
-    //Vector3 gdcCoord = datum.cartesian_to_geodetic(midPoint);
-    //std::cout << "elevation above ellipsoid = " << gdcCoord[2] << std::endl;
-    
-    // Try dropping the elevation down to the datum level
-    //gdcCoord[2] = 0.0;
-    //pointLoc = datum.geodetic_to_cartesian(gdcCoord);
-    
+
     if (camRadius < intersectionRadius)
     {
       printf("Warning: Point %lu, reverse intersection!  Using previous point location as an estimate.\n", i);

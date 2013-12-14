@@ -235,7 +235,7 @@ bool editSpiceFile(const Parameters &params)
       //printf("b = %lf, e = %lf\n", b, e); 
 
       // If we are not applying a global transform there is nothing else to do here
-      if (params.transformFile.empty())
+      if (localTransform)
         continue;
         
       // Correct the rotation at even intervals
@@ -393,7 +393,7 @@ bool editSpiceFile(const Parameters &params)
         // This matrix converts J2000 orientations to LRO orientations at et
 
         SpiceDouble  newPosition[3];
-        if (params.transformFile.empty()) // Apply existing lronac position offset
+        if (localTransform) // Apply existing lronac position offset
         {
           // Convert the LRONAC offset from meters to kilometers
           SpiceDouble lronacOffsetKm[3];
