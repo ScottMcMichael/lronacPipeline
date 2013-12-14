@@ -329,6 +329,8 @@ def main():
         # DEBUG: Check angle solver on input LE/RE images!
         checkAdjacentPairAlignment(posOffsetCorrectedLeftPath, posOffsetCorrectedRightPath, os.path.join(tempFolder, 'posCorrectGdcCheck'), False)
 
+        print '\n-------------------------------------------------------------------------\n'
+
         # Perform initial stereo step on two LE cubes to generate a large number of point correspondences
         stereoPrefixLeft   = os.path.join(tempFolder, 'stereoOutputLeft/out')
         disparityImageLeft = callStereoCorrelation(posOffsetCorrectedLeftPath, posOffsetCorrectedStereoLeftPath, stereoPrefixLeft, 400, False)
@@ -342,6 +344,7 @@ def main():
         pixelPairsLeftSmall = extractPixelPairsFromStereoResults(disparityImageLeft, tempFolder, 'stereoPixelPairsLeftSmall.csv', 800, False)
         pixelPairsRightSmall = extractPixelPairsFromStereoResults(disparityImageRight, tempFolder, 'stereoPixelPairsRightSmall.csv', 800, False)
 
+        print '\n-------------------------------------------------------------------------\n'
 
         # Perform cross-stereo matching of LE/RE cubes from opposite pairs
 
@@ -409,6 +412,7 @@ def main():
         if usingRightCross and (numRightCrossPairs > 100):
             rightCrossString = ' --matchingPixelsRightCrossPath ' + pixelPairsRightCrossSmall
 
+        print '\n-------------------------------------------------------------------------\n'
 
         # Compute all rotations and translations between the four cubes
         # - Computes the following transforms:
@@ -423,7 +427,6 @@ def main():
         solvedParamsPath    = sbaOutputPrefix + "-finalParamState.csv"
         if not os.path.exists(globalTransformPath):
             cmd = 'lronacAngleDoubleSolver --outputPrefix ' + sbaOutputPrefix + ' --matchingPixelsLeftPath ' + pixelPairsLeftSmall + ' --matchingPixelsRightPath ' + pixelPairsRightSmall + leftCrossString + rightCrossString + ' --leftCubePath ' + posOffsetCorrectedLeftPath + ' --rightCubePath ' + posOffsetCorrectedRightPath + ' --leftStereoCubePath ' + posOffsetCorrectedStereoLeftPath + ' --rightStereoCubePath ' + posOffsetCorrectedStereoRightPath
-            #cmd = '/home/smcmich1/repo/lronacPipelineBuild/lronacAngleDoubleSolver --outputPrefix ' + sbaOutputPrefix + ' --matchingPixelsLeftPath ' + pixelPairsLeftSmall + ' --matchingPixelsRightPath ' + pixelPairsRightSmall + ' ' + posOffsetCorrectedLeftPath + ' ' + posOffsetCorrectedRightPath + ' ' + posOffsetCorrectedStereoLeftPath + ' ' + posOffsetCorrectedStereoRightPath
             print cmd
             os.system(cmd)
         else:
@@ -444,30 +447,14 @@ def main():
         # DEBUG: Check angle solver on stereo adjusted LE/RE images!
         checkAdjacentPairAlignment(leftStereoAdjustedPath, rightStereoAdjustedPath, os.path.join(tempFolder, 'stereoGlobalAdjustGdcCheck'), False)
 
+        print '\n-------------------------------------------------------------------------\n'
+
         # Extract a large number of matching pixel locations (many thousands) from the LE/LE and RE/RE.
         # - The skip number is a row and column skip.
         pixelPairsLeftLarge = extractPixelPairsFromStereoResults(disparityImageLeft, tempFolder, 'stereoPixelPairsLeftLarge.csv', 20, False)
 
         # TODO: Many changes needed before RE images can be used here!
         #pixelPairsRightLarge = extractPixelPairsFromStereoResults(disparityImageRight, tempFolder, 'stereoPixelPairsRightLarge.csv', 16, False)
-
-        pixelPairsLarge = os.path.join(tempFolder, 'stereoPixelPairsLarge.csv')
-        if not os.path.exists(pixelPairsLarge):
-            #TODO: Can't use RE pixel pairs without applying their local correction earlier!
-            #cmd = 'cat < ' + pixelPairsLeftLarge + ' < ' + pixelPairsRightLarge + ' > ' + pixelPairsLarge
-            cmd = 'cp ' + pixelPairsLeftLarge + ' ' + pixelPairsLarge
-            print cmd
-            os.system(cmd)
-        else:
-            print 'Skipping large pair merging extraction step'
-
-        # Extract just the global rotation/translation parameters from the solved parameters
-        # - These are needed to be passed into the old version of the lronacAngleSolver
-        #justGlobalParamsPath = sbaOutputPrefix + "-finalParamState-cropped.csv"
-        #if not os.path.exists(justGlobalParamsPath):
-        #    cmd = "sed -n '4,9p;9q' " + solvedParamsPath + " > " + justGlobalParamsPath
-        #    print cmd
-        #    os.system(cmd)
 
         # Compute the 3d coordinates for each pixel pair using the rotation and offset computed earlier
         # - All this step does is use stereo intersection to determine a lat/lon/alt coordinate for each pixel pair in the large data set.  No optimization is performed.
@@ -477,8 +464,7 @@ def main():
         largeGdcPrefix    = os.path.join(tempFolder, 'gdcPointsLargeComp/out')
         largeGdcFile = largeGdcPrefix + '-initialGdcPoints.csv'
         if not os.path.exists(largeGdcFile):
-            #cmd = 'lronacAngleSolver --outputPath dummy.txt --gdcPointsOutPath ' + largeGdcFile + ' --matchingPixelsPath ' + pixelPairsLarge + ' ' + posOffsetCorrectedLeftPath + ' ' + posOffsetCorrectedStereoLeftPath + " --worldTransform --includePosition --initialOnly --initialValues " + justGlobalParamsPath 
-            cmd = 'lronacAngleDoubleSolver --outputPrefix ' + largeGdcPrefix + ' --matchingPixelsLeftPath ' + pixelPairsLarge + ' --leftCubePath ' + posOffsetCorrectedLeftPath + ' --leftStereoCubePath ' + leftStereoAdjustedPath + " --initialOnly --initialValues " + solvedParamsPath 
+            cmd = 'lronacAngleDoubleSolver --outputPrefix ' + largeGdcPrefix + ' --matchingPixelsLeftPath ' + pixelPairsLeftLarge + ' --leftCubePath ' + posOffsetCorrectedLeftPath + ' --leftStereoCubePath ' + leftStereoAdjustedPath + " --initialOnly --initialValues " + solvedParamsPath 
             print cmd
             os.system(cmd)
         else:
@@ -503,6 +489,7 @@ def main():
         if not os.path.exists(pcAlignTransformPath):
             raise Exception('pc_align call failed!')
 
+        print '\n-------------------------------------------------------------------------\n'
 
         # Now go back and apply the pc_align computed transform to all four cameras.
         # - This step corrects the four camera positions relative to the LOLA data.
@@ -534,6 +521,8 @@ def main():
         # DEBUG: Check angle solver on stereo adjusted LE/RE images!
         checkAdjacentPairAlignment(options.outputPathStereoLeft, partialCorrectedStereoRightPath, os.path.join(tempFolder, 'pcAlignStereoGdcCheck'), False)
 
+
+        print '\n-------------------------------------------------------------------------\n'
 
         # Apply local transforms to both pairs of images!
 

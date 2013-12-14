@@ -136,7 +136,8 @@ def createMosaic(leftCube, rightCube, outputCube, workDir, forceOperation):
 
 def main():
 
-    print "lronac2dem.py"
+    print '#################################################################################'
+    print "Running lronac2dem.py"
 
     try:
         try:
@@ -205,10 +206,12 @@ def main():
         # Correct all four input images at once
         try:
             if True:#not os.path.exists(leftCorrectedPath):
+                print '\n=============================================================================\n'
                 cmd = 'stereoDoubleCalibrationProcess.py --left ' + options.leftPath + ' --right ' +  options.rightPath + ' --stereo-left ' + options.stereoLeft + ' --stereo-right ' + options.stereoRight + ' --lola ' + options.lolaPath + ' --keep --outputL ' + leftCorrectedPath + ' --outputR ' + rightCorrectedPath + ' --outputSL ' + leftStereoCorrectedPath + ' --outputSR ' + rightStereoCorrectedPath + ' --workDir ' + options.workDir
                 print cmd
                 os.system(cmd)
-        except: #TODO
+                print '\n============================================================================\n'
+        except: 
             print 'Caught an exception!'
 
 
@@ -229,6 +232,8 @@ def main():
         # Delay check for left path to allow debug KML files to be generated
         if not os.path.exists(leftCorrectedPath):
             raise Exception('Failed to run stereo calibration process!')
+
+        print '\n-------------------------------------------------------------------------\n'
 
         # Generate a PVL file that we need for noproj
         pvlPath   = os.path.join(tempFolder, 'noprojInstruments_fullRes.pvl')
@@ -286,6 +291,8 @@ def main():
             stereoInputRight = stereoMosaicPath
 
 
+        print '\n-------------------------------------------------------------------------\n'
+
         # Call stereo to generate a point cloud from the two images
         # - This step takes a really long time.
 
@@ -335,6 +342,7 @@ def main():
         endTime = time.time()
 
         print "Finished in " + str(endTime - startTime) + " seconds."
+        print '#################################################################################'
         return 0
 
     except Usage, err:

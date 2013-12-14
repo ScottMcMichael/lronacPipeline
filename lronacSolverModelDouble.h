@@ -171,22 +171,6 @@ bool loadRightStereoCamera(const std::string &cubePath)
                                                                              boost::serialization::null_deleter()) );
   return true;
 }
-/*
-/// Constructor performs initialization with all cameras
-LrocPairModel(const std::string &leftCubePath,        const std::string &rightCubePath, 
-              const std::string &leftStereoCubePath,  const std::string &rightStereoCubePath)
-  : _leftCameraModel      (leftCubePath),       _rightCameraModel      (rightCubePath), 
-    _leftStereoCameraModel(leftStereoCubePath), _rightStereoCameraModel(rightStereoCubePath),
-    _leftStereoCameraRotatedModel (boost::shared_ptr<IsisInterfaceLineScanRot>(&_leftStereoCameraModel,
-                                                                               boost::serialization::null_deleter()) ),
-    _rightStereoCameraRotatedModel(boost::shared_ptr<IsisInterfaceLineScanRot>(&_rightStereoCameraModel,
-                                                                               boost::serialization::null_deleter()) )
-{
-  // Both camera models are loaded from file on initialization
-  printf("Done constructing full LROC model\n");
-}
-*/
-
 
 size_t getNumPoints() const
 {
@@ -218,13 +202,6 @@ Vector2 getRightPixelRot(const Vector3& point, const Vector3& rot, const Vector3
     return vw::math::normalize(_rightCameraModel.point_to_pixel_rotated(point, rot));
 }
 */
-
-
-
-//left-right   (0-2 only)
-//leftS-rightS (9-11 only)
-//left-leftS   (3-8 only)
-//right-rightS (ALL!)
 
 /// Helper function used by getInitialStateEstimate
 /// - Computes the best estimate of a point location given two observations
@@ -801,81 +778,6 @@ bool getRightStereoObservation(const double* const rotParams,
   return true;
 }
 
-
-/*
-/// * Defines a method: result_type operator()( domain_type const& x ) const;
-///   that evaluates the model function at the given point.
-result_type operator()( domain_type const& x ) const
-{
-  // This function returns an error vector for a given set of parameters
-
-  // Apply the rotations from the state vector to the right LROC camera model
-  vw::Vector3 rotVec   (x[0], x[1], x[2]);
-  vw::Vector3 offsetVec(x[3], x[4], x[5]); // Only used if _includePosition = true
-
-  //TODO: This stuff is out of date
-  //_rightStereoCameraRotatedModel.set_translation(offsetVec);
-  //_rightStereoCameraRotatedModel.set_axis_angle_rotation(rotVec);
-  
-  const double rad2deg = 180.0 / M_PI;
-  //printf("Trying rotation %lf, %lf, %lf\n", x[0]*rad2deg, x[1]*rad2deg, x[2]*rad2deg);
-  
-  //std::cout << "Left  camera center = " << _leftCameraModel.camera_center()  << std::endl;
-  //std::cout << "Right camera center = " << _rightCameraModel.camera_center() << std::endl;
-  
-  // Set up output vector
-  const size_t numPoints = this->getNumPoints();
-  vw::Vector<double> obsVec(numPoints*4);
-  
-  //TODO: Probably don't need to update this function since we are using CERES instead
-  
-
-  // Compute expected obseration value at each pixel
-  for (size_t i=0; i<numPoints; ++i)
-  {
-    // Create a point object
-    Vector3 thisPoint(x[firstPointState + i*3 + 0],
-                      x[firstPointState + i*3 + 1],
-                      x[firstPointState + i*3 + 2]);
-//      std::cout << "This point = " << thisPoint << std::endl;
-
-    // Project the point into both cameras
-    Vector2 leftProjection, rightProjection;
-    try
-    {
-      Vector3 nullVec(0,0,0);
-      leftProjection  = _leftCameraModel.point_to_pixel_rotated(thisPoint, nullVec, _leftRows[i]);
-      if (_solveWorldFrame)
-        rightProjection = _rightCameraRotatedModel.point_to_pixel(thisPoint);
-      else // Camera frame
-        rightProjection = _rightCameraModel.point_to_pixel_rotated(thisPoint, rotVec, _rightRows[i]);
-    }
-    catch(...)
-    {
-      std::cout << "Warning: Failed to project location " << i << ": " << thisPoint << ", using previous intersection location X_X." << std::endl;
-      
-      //TODO: Better solution than just using the last location!
-      if (i == 0)
-        return false;
-      obsVec[4*i + 0] = obsVec[4*(i-1) + 0];
-      obsVec[4*i + 1] = obsVec[4*(i-1) + 1];
-      obsVec[4*i + 2] = obsVec[4*(i-1) + 2];
-      obsVec[4*i + 3] = obsVec[4*(i-1) + 3];
-    }
-    //std::cout << "leftProjection  = " << leftProjection << " rightProjection = " << rightProjection << std::endl;
-
-    // Load the projected pixels into the output obseration vector
-    obsVec[4*i + 0] = leftProjection [0]; // x
-    obsVec[4*i + 1] = leftProjection [1]; // y
-    obsVec[4*i + 2] = rightProjection[0];
-    obsVec[4*i + 3] = rightProjection[1];
-    
-  } // End loop through points
-  
-
-  return obsVec;
-}
-*/
 }; // End class LrocPairModel
 //===================================================================================================
 //===================================================================================================

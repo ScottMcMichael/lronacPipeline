@@ -58,9 +58,6 @@ using std::setw;
 
 
 
-
-
-
 struct Parameters : asp::BaseOptions 
 {
   // Input paths
@@ -804,8 +801,7 @@ bool optimizeRotations(Parameters & params)
        
   // TODO: Select solver options
   ceres::Solver::Options solverOptions;
-  solverOptions.max_num_iterations           = 10; //TODO: Play with these again!
-  printf("====##########$$$$$$$$$$=======> Using only 10 iterations for debugging!");
+  solverOptions.max_num_iterations           = 100; //TODO: Play with these again!
   //solverOptions.linear_solver_type           = ceres::DENSE_SCHUR;
   solverOptions.linear_solver_type           = ceres::SPARSE_SCHUR;
   solverOptions.minimizer_progress_to_stdout = true;
