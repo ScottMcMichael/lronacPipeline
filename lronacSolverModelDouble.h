@@ -252,9 +252,6 @@ bool computePointLocation(const vw::camera::CameraModel *cam1,
   {
     pointGuess1 = leftCamCenter  + dot_prod(v2, rightCamCenter-leftCamCenter )/dot_prod(v2, leftVec )*leftVec;
     pointGuess2 = rightCamCenter + dot_prod(v1, leftCamCenter -rightCamCenter)/dot_prod(v1, rightVec)*rightVec;
-  
-    //if ((i % 100000) == 0) // Display progress
-    //  printf("%d\n", i);
   }
   else // Use spheroid ground intersections instead
   {
@@ -368,6 +365,7 @@ bool getInitialStateEstimate(const PointObsList &leftRight,   // Main pair
   // Apply global transformation to the stereo pair
   if (_leftStereoCameraRotatedModel)
   {
+    printf("Rotating stereo left model...\n");
     _leftStereoCameraRotatedModel->set_axis_angle_rotation (globalRotVec);
     _leftStereoCameraRotatedModel->set_translation (globalPosVec);
   }
@@ -425,6 +423,9 @@ bool getInitialStateEstimate(const PointObsList &leftRight,   // Main pair
     vw::Vector2 leftPixel  = leftLeftS.leftObsList[i];
     vw::Vector2 rightPixel = leftLeftS.rightObsList[i];
     computePointLocation(_leftCameraModel, _leftStereoCameraRotatedModel, leftPixel, rightPixel, useStereo, pointLoc);
+
+    //if (useStereo && (i % 100000) == 0) // Display progress
+    //    printf("%d\n", i);
 
     // Record the x/y/z value for this point
     for (size_t p=0; p<PARAMS_PER_POINT; ++p)

@@ -40,6 +40,12 @@ def generateKmlFromGdcPoints(inputFolder, outputFolder, filename, pointSkip, col
 
     # Determine input and output paths
     inputPath      = os.path.join(inputFolder,  'SBA_check-outputGdcPoints.csv')
+    if not os.path.exists(inputPath):
+        inputPath = os.path.join(inputFolder,  'out-initialGdcPoints.csv') # Large GDC point set
+    if not os.path.exists(inputPath):
+        inputPath = os.path.join(inputFolder,  'dem-trans_reference.csv') # pc_align output
+
+
     outputFilename = os.path.splitext(filename)[0] + '.kml'
     outputPath     = os.path.join(outputFolder, outputFilename)
     kmlName        = os.path.splitext(filename)[0]
@@ -214,7 +220,7 @@ def main():
         generateKmlFromGdcPoints(os.path.join(tempFolder, 'pcAlignStereoGdcCheck'), tempFolder, 'pairGdcCheckPcAlign.csv', 1,      'red', False)
         generateKmlFromGdcPoints(os.path.join(tempFolder, 'finalGdcCheck'), tempFolder, 'pairGdcCheckFinal.csv', 1,      'blue', False)
         generateKmlFromGdcPoints(os.path.join(tempFolder, 'finalStereoGdcCheck'), tempFolder, 'pairGdcCheckFinalStereo.csv', 1,      'red', False)
-        generateKmlFromGdcPoints(os.path.join(tempFolder, 'initialGdcCheck'), tempFolder, 'gdcPointsLarge.csv',               1000, 'blue', False)
+        generateKmlFromGdcPoints(os.path.join(tempFolder, 'gdcPointsLargeComp'), tempFolder, 'inputGdcPoints.csv',               1000, 'blue', False)
         #generateKmlFromGdcPoints(os.path.join(tempFolder, 'initialGdcCheck'), tempFolder, 'dem-trans_source.csv',             'blue', False)
         generateKmlFromGdcPoints(os.path.join(tempFolder, 'pcAlignOutput'), tempFolder, 'dem-trans_reference.csv',   1000, 'red',  False)
 

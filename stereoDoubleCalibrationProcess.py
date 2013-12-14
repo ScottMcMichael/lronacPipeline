@@ -329,8 +329,6 @@ def main():
         # DEBUG: Check angle solver on input LE/RE images!
         checkAdjacentPairAlignment(posOffsetCorrectedLeftPath, posOffsetCorrectedRightPath, os.path.join(tempFolder, 'posCorrectGdcCheck'), False)
 
-        raise Exception('Buggin out!')
-
         # Perform initial stereo step on two LE cubes to generate a large number of point correspondences
         stereoPrefixLeft   = os.path.join(tempFolder, 'stereoOutputLeft/out')
         disparityImageLeft = callStereoCorrelation(posOffsetCorrectedLeftPath, posOffsetCorrectedStereoLeftPath, stereoPrefixLeft, 400, False)
@@ -431,8 +429,6 @@ def main():
         else:
             print 'Skipping stereo transform calculation step'
 
-        raise Exception('Buggin out!')
-
 
         # Apply the planet-centered rotation/translation to both cameras in the stereo pair.
         # - This corrects the stereo pair relative to the main pair.
@@ -467,21 +463,27 @@ def main():
 
         # Extract just the global rotation/translation parameters from the solved parameters
         # - These are needed to be passed into the old version of the lronacAngleSolver
-        justGlobalParamsPath = sbaOutputPrefix + "-finalParamState-cropped.csv"
-        if not os.path.exists(justGlobalParamsPath):
-            cmd = "sed -n '4,9p;9q' " + solvedParamsPath + " > " + justGlobalParamsPath
-            print cmd
-            os.system(cmd)
+        #justGlobalParamsPath = sbaOutputPrefix + "-finalParamState-cropped.csv"
+        #if not os.path.exists(justGlobalParamsPath):
+        #    cmd = "sed -n '4,9p;9q' " + solvedParamsPath + " > " + justGlobalParamsPath
+        #    print cmd
+        #    os.system(cmd)
 
         # Compute the 3d coordinates for each pixel pair using the rotation and offset computed earlier
         # - All this step does is use stereo intersection to determine a lat/lon/alt coordinate for each pixel pair in the large data set.  No optimization is performed.
-        largeGdcFile = os.path.join(tempFolder, 'gdcPointsLarge.csv')
+        largeGdcFolder = os.path.join(tempFolder, 'gdcPointsLargeComp/')
+        if not os.path.exists(largeGdcFolder):
+            os.mkdir(largeGdcFolder)
+        largeGdcPrefix    = os.path.join(tempFolder, 'gdcPointsLargeComp/out')
+        largeGdcFile = largeGdcPrefix + '-initialGdcPoints.csv'
         if not os.path.exists(largeGdcFile):
-            cmd = 'lronacAngleSolver --outputPath dummy.txt --gdcPointsOutPath ' + largeGdcFile + ' --matchingPixelsPath ' + pixelPairsLarge + ' ' + posOffsetCorrectedLeftPath + ' ' + posOffsetCorrectedStereoLeftPath + " --worldTransform --includePosition --initialOnly --initialValues " + justGlobalParamsPath 
+            #cmd = 'lronacAngleSolver --outputPath dummy.txt --gdcPointsOutPath ' + largeGdcFile + ' --matchingPixelsPath ' + pixelPairsLarge + ' ' + posOffsetCorrectedLeftPath + ' ' + posOffsetCorrectedStereoLeftPath + " --worldTransform --includePosition --initialOnly --initialValues " + justGlobalParamsPath 
+            cmd = 'lronacAngleDoubleSolver --outputPrefix ' + largeGdcPrefix + ' --matchingPixelsLeftPath ' + pixelPairsLarge + ' --leftCubePath ' + posOffsetCorrectedLeftPath + ' --leftStereoCubePath ' + leftStereoAdjustedPath + " --initialOnly --initialValues " + solvedParamsPath 
             print cmd
             os.system(cmd)
         else:
             print 'Skipping large GDC file creation step'
+
 
         # TODO: Why does rotation always move the points somewhere else?
         # Use pc-align to compare points to LOLA DEM, compute rotation and offset
@@ -500,6 +502,7 @@ def main():
             
         if not os.path.exists(pcAlignTransformPath):
             raise Exception('pc_align call failed!')
+
 
         # Now go back and apply the pc_align computed transform to all four cameras.
         # - This step corrects the four camera positions relative to the LOLA data.
