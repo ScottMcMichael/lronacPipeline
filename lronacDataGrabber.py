@@ -292,7 +292,7 @@ def getDataList(outputFilePath):
     outputFile.close()
 
 # Fetches all of the files listed in the log folder and puts them in different directories
-def retrieveDataFiles(logPath, outputDir):
+def retrieveDataFiles(logPath, outputDir, name=''):
 	
     if not os.path.exists(outputDir):
         os.makedirs(outputDir)
@@ -302,14 +302,21 @@ def retrieveDataFiles(logPath, outputDir):
     maxLat = 0
     minLon = 0
     maxLon = 0
+    nameBlock = False
     for line in open(logPath, 'r'):
         if (line.find('ASU') >= 0):
+            nameBlock = False # Stop blocking on a name when we get to a new one
+            
             # Create new folder for this DEM
             eqPos       = line.find('=')
             asuUrl	    = line[eqPos+2:]
             asuFileName = os.path.basename(asuUrl)
             noExt       = os.path.splitext(asuFileName)[0]
             demName     = noExt[8:]
+            if (name != '') and (demName != name): # Not the DEM we are looking for   
+                nameBlock = True # Ignore data until we hit the next name
+                continue         # Keep looking through the file
+                
             currentOutputFolder = outputDir           + demName + '/'
             asuDemPath          = currentOutputFolder + asuFileName
             if not os.path.exists(currentOutputFolder):
@@ -319,7 +326,8 @@ def retrieveDataFiles(logPath, outputDir):
             #			print "wget --directory-prefix=" + currentOutputFolder + "  " + asuUrl
             if not os.path.exists(asuDemPath.strip()):
                 os.system("wget -P " + currentOutputFolder + "  " + asuUrl)
- 
+        elif nameBlock:
+            pass # Do nothing until the block is cleared
         elif (line.find('.IMG') >= 0):
             # wget image
             imgUrl	    = line
@@ -342,8 +350,6 @@ def retrieveDataFiles(logPath, outputDir):
             retrieveLolaFile(minLat, maxLat, minLon, maxLon, currentOutputFolder)
 
 
-
-
 #--------------------------------------------------------------------------------
 
 #TODO: Support for file based logging of results
@@ -362,9 +368,15 @@ def main():
                               help="Specifies the data list file to read from.")
             parser.add_option("-o", "--output-folder", dest="outputFolder",
                               help="Specifies the folder to copy the data to.")
+            parser.add_option("-n", "--name", dest="name",
+                              help="Only get the data for the DTM with this name.")
+                              
             parser.add_option("--manual", action="callback", callback=man,
                               help="Read the manual.")
             (options, args) = parser.parse_args()
+
+            if not options.name:
+                options.name = ''
 
 #            if not args: parser.error("need .IMG files")
 
@@ -385,7 +397,7 @@ def main():
 	
         # Download all of the data we need 
         print 'Retrieving data files'
-        retrieveDataFiles(options.inputFile, options.outputFolder)
+        retrieveDataFiles(options.inputFile, options.outputFolder, options.name)
 
         endTime = time.time()
 
