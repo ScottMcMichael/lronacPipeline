@@ -220,6 +220,10 @@ def callStereoCorrelation(leftInputPath, rightInputPath, outputPrefix, correlati
     print cmd
     os.system(cmd)
 
+    # Generate disparity images for debugging
+    cmd = 'disparitydebug ' + disparityImagePath
+    print cmd
+    os.system(cmd)
 
     # Check to make sure we actually created the file
     if not os.path.exists(disparityImagePath):
@@ -501,12 +505,11 @@ def main():
         largeGdcPrefix    = os.path.join(tempFolder, 'gdcPointsLargeComp/out')
         largeGdcFile = largeGdcPrefix + '-initialGdcPoints.csv'
         if not os.path.exists(largeGdcFile):
-            cmd = 'lronacAngleDoubleSolver --outputPrefix ' + largeGdcPrefix + ' --matchingPixelsLeftPath ' + pixelPairsLeftLarge + ' --leftCubePath ' + posOffsetCorrectedLeftPath + ' --leftStereoCubePath ' + leftStereoAdjustedPath + " --initialOnly --initialValues " + solvedParamsPath 
+            cmd = 'lronacAngleDoubleSolver --outputPrefix ' + largeGdcPrefix + ' --matchingPixelsLeftPath ' + pixelPairsLeftLarge + ' --leftCubePath ' + posOffsetCorrectedLeftPath + ' --leftStereoCubePath ' + posOffsetCorrectedStereoLeftPath + " --initialOnly --initialValues " + solvedParamsPath 
             print cmd
             os.system(cmd)
         else:
             print 'Skipping large GDC file creation step'
-
 
         # TODO: Why does rotation always move the points somewhere else?
         # Use pc-align to compare points to LOLA DEM, compute rotation and offset
