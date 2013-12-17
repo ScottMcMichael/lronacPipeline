@@ -22,12 +22,12 @@ import os, glob, optparse, re, shutil, subprocess, string, time
 
 import IsisTools
 
-def man(option, opt, value, parser):
-    print >>sys.stderr, parser.usage
-    print >>sys.stderr, '''\
-Generates a stereo DEM from two LRONAC pairs, trying to use LOLA data for increased accuracy.
-'''
-    sys.exit()
+#def man(option, opt, value, parser):
+#    print >>sys.stderr, parser.usage
+#    print >>sys.stderr, '''\
+#Generates a stereo DEM from two LRONAC pairs, trying to use LOLA data for increased accuracy.
+#'''
+#    sys.exit()
 
 class Usage(Exception):
     def __init__(self, msg):
@@ -158,10 +158,10 @@ def main():
 
             parser.add_option("--crop",  dest="cropAmount", help="Crops the output image to reduce processing time.")
 
-            parser.add_option("--manual", action="callback", callback=man,
-                              help="Read the manual.")
-            parser.add_option("--keep", action="store_true", dest="keep",
-                              help="Do not delete the temporary files.")
+#            parser.add_option("--help", action="callback", callback=man,
+#                              help="Read the manual.")
+            #parser.add_option("--keep", action="store_true", dest="keep",
+            #                  help="Do not delete the temporary files.")
             (options, args) = parser.parse_args()
 
             if not options.leftPath: 
@@ -204,14 +204,16 @@ def main():
         correct = os.path.join(tempFolder, 'rightStereoFinalCorrected.cub')
 
         # Correct all four input images at once
+        caughtException = False
         try:
-            if True:#not os.path.exists(leftCorrectedPath):
+            if not os.path.exists(leftCorrectedPath):
                 print '\n=============================================================================\n'
                 cmd = 'stereoDoubleCalibrationProcess.py --left ' + options.leftPath + ' --right ' +  options.rightPath + ' --stereo-left ' + options.stereoLeft + ' --stereo-right ' + options.stereoRight + ' --lola ' + options.lolaPath + ' --keep --outputL ' + leftCorrectedPath + ' --outputR ' + rightCorrectedPath + ' --outputSL ' + leftStereoCorrectedPath + ' --outputSR ' + rightStereoCorrectedPath + ' --workDir ' + options.workDir
                 print cmd
                 os.system(cmd)
                 print '\n============================================================================\n'
         except: 
+            caughtException = True
             print 'Caught an exception!'
 
 
@@ -230,7 +232,7 @@ def main():
         print 'Finished generating KML plots'
 
         # Delay check for left path to allow debug KML files to be generated
-        if not os.path.exists(leftCorrectedPath):
+        if caughtException or not os.path.exists(leftCorrectedPath):
             raise Exception('Failed to run stereo calibration process!')
 
         print '\n-------------------------------------------------------------------------\n'
@@ -289,6 +291,7 @@ def main():
         else:
             stereoInputLeft  = mainMosaicPath
             stereoInputRight = stereoMosaicPath
+
 
 
         print '\n-------------------------------------------------------------------------\n'

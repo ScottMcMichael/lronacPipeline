@@ -18,7 +18,9 @@
 
 import sys
 
-import os, glob, optparse, re, shutil, subprocess, string, time
+import os, glob, optparse, re, shutil, subprocess, string, time, math
+
+import IsisTools
 
 def man(option, opt, value, parser):
     print >>sys.stderr, parser.usage
@@ -227,10 +229,44 @@ def callStereoCorrelation(leftInputPath, rightInputPath, outputPrefix, correlati
 
 # Counts the number of lines in a file
 def getFileLineCount(filePath):
-    with open(filePath) as f:
-        for i, l in enumerate(f):
-            pass
-    return i + 1
+    f = open(filePath)
+    i = 0
+    for line in f:
+        i = i + 1
+    return i
+
+
+# Compares the backprojected locations of matched pixel pairs
+def evaluateAccuracy(leftCubePath, rightCubePath, ipFindOutputPath, workDir=''):
+
+    # Run check every N lines in the file
+    lineSkip = 25
+    
+    f = open(ipFindOutputPath)
+    i = 0
+    sumDistance = 0.0
+    count       = 0.0
+    for line in f:
+        i = i + 1
+        if i % lineSkip == 0: # Compare locations on a sampling of lines
+            i = 0
+            # Get the matching pixel coordinates from this line
+            leftSample, leftLine, rightSample, rightLine = line.split(',')
+            
+            # Obtain the backprojected GCC location for the pixels in the two images
+            leftLoc  = IsisTools.getPixelLocInCube(leftCubePath,  leftSample,  leftLine,  workDir)
+            rightLoc = IsisTools.getPixelLocInCube(rightCubePath, rightSample, rightLine, workDir)
+            
+            # Determine the distance between the GCC points and accumulate
+            distance = math.sqrt(math.pow(leftLoc[0] - rightLoc[0], 2.0) + math.pow(leftLoc[1] - rightLoc[1], 2.0) + math.pow(leftLoc[2] - rightLoc[2], 2.0))
+#            print 'Distance = %.2f' % distance
+            sumDistance = sumDistance + distance
+            count = count + 1.0
+    
+    # Determine the mean distance
+    meanDistance = sumDistance / count
+    return meanDistance
+
 
 #==========================================================================================
 
@@ -425,14 +461,15 @@ def main():
         globalTransformPath = sbaOutputPrefix + "-globalTransformMatrix.csv"
         stereoRotationPath  = sbaOutputPrefix + "-stereoLocalRotationMatrix.csv"
         solvedParamsPath    = sbaOutputPrefix + "-finalParamState.csv"
+        mainIpFindPath      = sbaOutputPrefix + "-mainIpFindPixels.csv"
+        stereoIpFindPath    = sbaOutputPrefix + "-stereoIpFindPixels.csv"
         if not os.path.exists(globalTransformPath):
             cmd = 'lronacAngleDoubleSolver --outputPrefix ' + sbaOutputPrefix + ' --matchingPixelsLeftPath ' + pixelPairsLeftSmall + ' --matchingPixelsRightPath ' + pixelPairsRightSmall + leftCrossString + rightCrossString + ' --leftCubePath ' + posOffsetCorrectedLeftPath + ' --rightCubePath ' + posOffsetCorrectedRightPath + ' --leftStereoCubePath ' + posOffsetCorrectedStereoLeftPath + ' --rightStereoCubePath ' + posOffsetCorrectedStereoRightPath
             print cmd
             os.system(cmd)
         else:
             print 'Skipping stereo transform calculation step'
-
-
+        
         # Apply the planet-centered rotation/translation to both cameras in the stereo pair.
         # - This corrects the stereo pair relative to the main pair.
         # - The RE relative to LE corrections are performed later for convenience.
@@ -537,6 +574,20 @@ def main():
 
         # DEBUG: Check angle solver on stereo adjusted LE/RE images!
         checkAdjacentPairAlignment(options.outputPathStereoLeft, options.outputPathStereoRight, os.path.join(tempFolder, 'finalStereoGdcCheck'), False)
+        
+        print '\n-------------------------------------------------------------------------\n'
+
+        # One last pair of checks to compute accuracy
+        # - This calls campt for pixel pairs and finds the GCC location difference
+        meanMainError = evaluateAccuracy(options.outputPathLeft, options.outputPathRight, mainIpFindPath, os.path.join(tempFolder, 'finalGdcCheck'))
+        meanStereoError = evaluateAccuracy(options.outputPathStereoLeft, options.outputPathStereoRight, stereoIpFindPath, os.path.join(tempFolder, 'finalGdcCheck'))
+        meanLeftError = evaluateAccuracy(options.outputPathLeft, options.outputPathStereoLeft, pixelPairsLeftSmall, os.path.join(tempFolder, 'finalGdcCheck'))
+        meanRightError = evaluateAccuracy(options.outputPathRight, options.outputPathStereoRight, pixelPairsRightSmall, os.path.join(tempFolder, 'finalGdcCheck'))
+        
+        print '=====> Mean main   pair error = %.4f meters' % meanMainError
+        print '=====> Mean stereo pair error = %.4f meters' % meanStereoError
+        print '=====> Mean left   pair error = %.4f meters' % meanLeftError
+        print '=====> Mean right  pair error = %.4f meters' % meanRightError
 
         # All finished!  We should have a fully calibrated version of each of the four input files.
 

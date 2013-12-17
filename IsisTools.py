@@ -310,4 +310,66 @@ def makeSpkSetupFile(leapSecondFilePath, outputPath):
     f.write("\\begintext\n")
     f.close()
 
+# Returns the BodyFixedCoordinate of a pixel from a cube.
+def getPixelLocInCube(cubePath, sample, line, workDir=''):
+
+    # Make sure the input file exists
+    if not os.path.exists(cubePath):
+        raise Exception('Cube file ' + cubePath + ' not found!')
+
+    # Default working directory is the cubePath folder
+    outputFolder = workDir
+    if workDir == '':
+        outputFolder = os.path.dirname(cubePath)
+       
+    if not os.path.exists(outputFolder):
+        os.mkdir(outputFolder)
+
+    # Call ISIS campt function to compute the pixel location
+    tempTextPath = os.path.join(outputFolder, 'camptOutput.txt')
+    if os.path.exists(tempTextPath):
+        os.remove(tempTextPath) # Make sure any existing file is removed!
+    cmd = 'campt from= ' + cubePath + ' to= ' + tempTextPath +' sample= ' + str(sample) + ' line= ' + str(line)
+    print cmd
+    os.system(cmd)
+
+    # Check that we created the temporary file
+    if not os.path.exists(tempTextPath):
+        raise Exception('campt failed to create temporary file ' + tempTextPath)
+        
+    # Read in the output file to extract the pixel coordinates
+    pixelLocation = [0, 0, 0]
+    infoFile      = open(tempTextPath, 'r')
+    buildLine     = ''
+    for line in infoFile:
+        if (buildLine == ''): # Look for start of the info
+            if (line.find('BodyFixedCoordinate') >= 0):
+                buildLine = line
+        else: # Append next line
+            buildLine = buildLine + line
+            break
+
+    os.remove(tempTextPath) # Remove the file to clean up
+
+    # Make sure we found the desired lines
+    if (buildLine == ''):
+        raise Exception("Unable to find BodyFixedCoordinate in file " + tempTextPath)
+
+    # Extract the desired coordinates
+    startParen = buildLine.find('(')
+    stopParen  = buildLine.find(')')
+    numString  = buildLine[startParen+1:stopParen]
+    #print numString
+    x,y,z = numString.split(',')
+
+    pixelLocation[0] = float(x)
+    pixelLocation[1] = float(y)
+    pixelLocation[2] = float(z)
+
+    return pixelLocation
+
+
+
+
+
 
