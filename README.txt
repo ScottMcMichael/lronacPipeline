@@ -69,10 +69,8 @@ calibrationReport.py = Generates a KML plot of a set of GDC points.
 ----- C++ code -----
 
 lronacAngleDoubleSolver.cc  = New SBA tool using the CERES solver.
-lronacAngleSolver.cc        = Older version of the SBA tool using the CERES solver.  Fewer options but still in use.
 lronacSolverModelDouble.h   = Camera model code for new SBA tool.
-lronacSolverModel.h         = Camera model code for old SBA tool.
-lronacSolverSupport.h       = Support code for both SBA tools.
+lronacSolverSupport.h       = Support code for the SBA tool.
 pixelPairsFromStereo.cc     = Tool to extract a grid of correspondence points from a stereo output file.
 IsisInterfaceLineScanRot.h  = Replacement of IsisInterfaceLineScan with additional functionality.
 IsisInterfaceLineScanRot.cc = See IsisInterfaceLineScanRot.h.
@@ -88,6 +86,6 @@ makePcAlignPlots.py         = Tool to help visualize pc_align output.  Not curre
 lronacMathTester.py         = Debug script.
 extractQtieControlPoints.py = Converts a Qtie control points file to a simple csv format.
 
-
-
+lronacAngleSolver.cc        = Older version of the SBA tool using the CERES solver.
+lronacSolverModel.h         = Camera model code for old SBA tool.
 
