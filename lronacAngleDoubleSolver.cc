@@ -79,6 +79,8 @@ struct Parameters : asp::BaseOptions
   std::string initialValuePath;
 
   int  cropWidth; ///< Specifies image overlap for use with ipfind
+  
+  bool debug;
 };
 
 
@@ -88,6 +90,7 @@ bool handle_arguments(int argc, char* argv[],
 { 
   po::options_description general_options("Options");
   general_options.add_options()
+    ("debug",                  po::bool_switch(&opt.debug                 )->default_value(false),  "DEBUG mode")
     ("outputPrefix",                 po::value      (&opt.outputPrefix                )->required(),            "Output prefix to use")
     ("initialOnly",                  po::bool_switch(&opt.initialOnly                 )->default_value(false),  "Just compute initial state (don't solve)")
     ("initialValues",                po::value      (&opt.initialValuePath            )->default_value(""),     "Path to file containing state parameter values (probably from previous output)")
@@ -980,7 +983,7 @@ bool optimizeRotations(Parameters & params)
 
   for (int q=0; q<3; ++q)
     outputFile << globalRotMat[q][0] << " " << globalRotMat[q][1] << " " << globalRotMat[q][2] << " " << finalParams[6+q] << std::endl;
-  outputFile << "0 0 1 0" << std::endl;
+  outputFile << "0 0 0 1" << std::endl;
   outputFile.close();
 
   // Write out the stereo local rotation
@@ -1015,6 +1018,53 @@ int main(int argc, char* argv[])
       printf("Failed to parse input parameters!\n");
       return false;
     }
+
+    if (params.debug)
+    {
+      IsisInterfaceLineScanRot leftStereoCam(params.leftStereoFilePath);
+      AdjustedCameraModelRot rotCam(boost::shared_ptr<IsisInterfaceLineScanRot>(&leftStereoCam, boost::serialization::null_deleter()));
+      Vector3 rotVec(0.00323453, -0.0112794, -0.0145248);
+      Vector3 offsetVec(3.22023, -4.80386, 23.8804);
+      rotCam.set_axis_angle_rotation(rotVec);
+      rotCam.set_translation(offsetVec);
+
+      Vector3 nullVec(0,0,0);
+      int line   = 500;
+      int sample = 500;
+      Vector2 pixel(sample, line);
+      double et = 318930609.91952;
+      printf("et = %lf\n", et);
+
+      Matrix3x3 instMatrix, bodyMatrix;
+      leftStereoCam.getMatricesAtTime(et, instMatrix, bodyMatrix);
+      for (int r=0; r<3; ++r)
+      {
+        for (int c=0; c<3; ++c)
+        {
+          printf("%lf, ", instMatrix[r][c]);
+        }
+        printf("\n");
+      }
+
+      // Input pixel pair: 3200,800    3430,997
+      // Computed GDC coordinate: 31.3108323222, -67.1141237031, 255.905626238
+      // Computed GCC coordinate: 577350, -1.36772e+06, 903026
+
+
+      /*
+      Vector3 point(577350, -1.36772e+06, 903026);
+      Vector2 pixel, idealPixel(3430,997);
+      pixel = rotCam.point_to_pixel(point);
+      std::cout << "pixel = " << pixel << std::endl;
+      std::cout << "pixel diff = " << pixel  - idealPixel << std::endl;
+      
+      pixel = rotCam.point_to_pixel_rotated(point, nullVec, 997);
+      std::cout << "pixel 2= " << pixel << std::endl;
+      std::cout << "pixel 2 diff = " << pixel  - idealPixel << std::endl;
+      */
+      return 0;
+    }
+
     
     optimizeRotations(params);
   } ASP_STANDARD_CATCHES;

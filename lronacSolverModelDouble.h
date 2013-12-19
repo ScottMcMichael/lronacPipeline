@@ -218,6 +218,9 @@ bool computePointLocation(const vw::camera::CameraModel *cam1,
   //TODO: Need to incorporate local rotations?
   vw::Vector3 leftVec  = vw::math::normalize(cam1->pixel_to_vector(pixel1));
   vw::Vector3 rightVec = vw::math::normalize(cam2->pixel_to_vector(pixel2));
+//  std::cout << "right pixel = " << pixel2 << std::endl;
+//  std::cout << "right vector = " << leftVec << std::endl;
+//  std::cout << "right center = " << rightCamCenter << std::endl;
 
   vw::Vector3 v12 = cross_prod(leftVec, rightVec);
   vw::Vector3 v1  = cross_prod(v12,     leftVec);
@@ -401,6 +404,13 @@ bool getInitialStateEstimate(const PointObsList &leftRight,   // Main pair
     vw::Vector2 rightPixel = leftLeftS.rightObsList[i];
     computePointLocation(_leftCameraModel, _leftStereoCameraRotatedModel, leftPixel, rightPixel, useStereo, pointLoc);
 
+
+    //vw::Vector3 nullVec(0,0,0); // Left camera not currently rotated
+    //vw::Vector2 projection = _leftStereoCameraRotatedModel->point_to_pixel_rotated(pointLoc, nullVec, rightPixel[1]);
+    //std::cout << "pointLoc   = " << pointLoc   << std::endl;
+    //std::cout << "projection = " << projection << std::endl;
+    //std::cout << "projection diff = " << projection - rightPixel << std::endl;
+
     //if (useStereo && (i % 100000) == 0) // Display progress
     //    printf("%d\n", i);
 
@@ -409,7 +419,33 @@ bool getInitialStateEstimate(const PointObsList &leftRight,   // Main pair
       stateEstimate[pointOffset + i*PARAMS_PER_POINT + p] = pointLoc[p];
   } // End loop through points
   pointOffset += numLeftPairs*PARAMS_PER_POINT;
-
+/*
+  std::cout << "rotVec     = " << globalRotVec     << std::endl;
+  std::cout << "offsetVec  = " << globalPosVec  << std::endl;
+  
+  printf("Global rotation matrix\n");
+  vw::Matrix3x3 rotMat(_leftStereoCameraRotatedModel->rotation_matrix());
+  for (int r=0; r<3; ++r)
+  {
+    for (int c=0; c<3; ++c)
+    {
+      printf("%lf, ", rotMat[r][c]);
+    }
+    printf("\n");
+  }
+  */
+  /*
+  printf("Global rotation matrix inverse\n");
+  vw::Matrix3x3 rotMatInv = inverse(rotMat);
+  for (int r=0; r<3; ++r)
+  {
+    for (int c=0; c<3; ++c)
+    {
+      printf("%lf, ", rotMatInv[r][c]);
+    }
+    printf("\n");
+  }
+  */
 
   // RIGHT-RIGHT STEREO comparison
   for (size_t i=0; i<numRightPairs; ++i)
@@ -715,6 +751,10 @@ bool getLeftStereoObservation(const double* const rotParams, const double* const
   // Apply the rotations from the state vector to the right LROC camera model
   vw::Vector3 rotVec   (rotParams[0], rotParams[1], rotParams[2]);
   vw::Vector3 offsetVec(posParams[0], posParams[1], posParams[2]);
+  if (!_leftStereoCameraRotatedModel)
+  {
+    throw("Error! left stereo camera not initialized!");
+  }
   _leftStereoCameraRotatedModel->set_axis_angle_rotation(rotVec);
   _leftStereoCameraRotatedModel->set_translation(offsetVec);
 
@@ -725,6 +765,12 @@ bool getLeftStereoObservation(const double* const rotParams, const double* const
   {
     vw::Vector3 nullVec(0,0,0); // Left camera not currently rotated
     projection = _leftStereoCameraRotatedModel->point_to_pixel_rotated(thisPoint, nullVec, guessRow);
+    /*
+    std::cout << "rotVec     = " << rotVec     << std::endl;
+    std::cout << "offsetVec  = " << offsetVec  << std::endl;
+    std::cout << "thisPoint  = " << thisPoint  << std::endl;
+    std::cout << "projection = " << projection << std::endl;
+    */
   }
   catch(std::exception& e)
   {
@@ -755,6 +801,10 @@ bool getRightStereoObservation(const double* const rotParams,
   vw::Vector3 rotVec     (rotParams[0],      rotParams[1],      rotParams[2]);
   vw::Vector3 offsetVec  (posParams[0],      posParams[1],      posParams[2]);
   vw::Vector3 localRotVec(localRotParams[0], localRotParams[1], localRotParams[2]);
+  if (!_rightStereoCameraRotatedModel)
+  {
+    throw("Error! right stereo camera not initialized!");
+  }
   _rightStereoCameraRotatedModel->set_axis_angle_rotation(rotVec);
   _rightStereoCameraRotatedModel->set_translation(offsetVec);
 

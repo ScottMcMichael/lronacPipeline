@@ -354,6 +354,20 @@ IsisInterfaceLineScanRot::point_to_pixel_rotated( vw::Vector3 const& point, vw::
   return pixel;
 }
 
+bool 
+IsisInterfaceLineScanRot::getMatricesAtTime(const double et, Matrix3x3 &R_inst, Matrix3x3 &R_body)
+{
+  // Converting now to pixel
+  m_camera->setTime(Isis::iTime(et));
+
+  // Calculating Rotation to camera frame
+  std::vector<double> rot_inst = m_camera->instrumentRotation()->Matrix();
+  std::vector<double> rot_body = m_camera->bodyRotation()->Matrix();
+  R_inst = Matrix3x3(&(rot_inst[0])); // Rotation of spacecraft and instrument relative to J2000
+  R_body = Matrix3x3(&(rot_body[0])); // Rotation of planet relative to J2000 (earth-centered) frame
+  return true;
+} 
+  
 
 
 Vector3

@@ -50,6 +50,7 @@ struct Parameters : asp::BaseOptions
   std::vector<std::string>  kernelPaths;
   std::string  transformFile;
   int          transformType;
+  bool debug;
 };
 
 
@@ -58,6 +59,7 @@ bool handle_arguments(int argc, char* argv[], Parameters &opt)
   std::string outputPrefix;
   po::options_description general_options("Options");
   general_options.add_options()
+    ("debug",                  po::bool_switch(&opt.debug                 )->default_value(false),  "DEBUG mode")
     ("outputPrefix",  po::value(&outputPrefix)->default_value(""), "Output prefix")
     ("kernels", po::value<std::vector<std::string> >(&opt.kernelPaths)->multitoken(), "Paths to all required kernel files")
     ("transformFile", po::value<std::string>(&opt.transformFile)->default_value(""), "Path to 3x4 matrix containing transform to apply (pc_align-style)")
@@ -190,6 +192,77 @@ bool editSpiceFile(const Parameters &params)
   {
     if (!loadThreeByFourTransform(params.transformFile, dummyRot, lronacOffset))
       return false;
+  }
+
+
+  if (params.debug) // Print out a test case then quit
+  {
+    SpiceDouble et = 318930609.91952;
+    printf("et = %lf\n", et);
+
+    SpiceDouble  tol = 0; // Make sure we can do this 
+
+    // Convert ephemeris time to spacecraft clock time
+    SpiceDouble sclkdp;
+    sce2c_c(LRO_CLOCK_ID, et, &sclkdp);
+
+    // Try to get the spacecraft orientation at that time (spacecraft_from_J2000)
+    SpiceDouble  spacecraft_from_J2000_R[3][3];
+    SpiceDouble  clkout;
+    SpiceBoolean orientationFound;
+    ckgp_c(LRO_SPACECRAFT_CODE, sclkdp, tol, J2000_FRAME_STRING.c_str(), spacecraft_from_J2000_R, &clkout, &orientationFound);
+    if (!orientationFound)
+    {
+      printf("SpiceEditor Error: Failed to obtain spacecraft orientation data!!!!!!!!!!!!!!!!\n");
+      return false;
+    }
+
+    // Try to get the planet orientation at that time (planet_from_J2000)
+    SpiceDouble  planet_from_J2000_R[3][3];
+    pxform_c(J2000_FRAME_STRING.c_str(), MOON_FRAME_STRING.c_str(), et, planet_from_J2000_R);
+
+    // Convert the planet transform to the correct coordinate space
+    SpiceDouble planetFixed_from_J2000_R[3][3];
+
+    // Have fixedPlanet_from_planet (or reverse), sc and planet from J2000
+
+    // Convert correcting rotation and translation into J2000 frame from planet frame
+    mxm_c(planetFixed_from_planet_R, planet_from_J2000_R, planetFixed_from_J2000_R);
+
+    printf("Old rotation matrix\n");
+    for (int q=0; q<3; ++q)
+    {
+      for (int s=0; s<3; ++s)
+        std::cout << " " << spacecraft_from_J2000_R[q][s]; // Write out the new rotation
+      std::cout << std::endl;
+    }
+
+    printf("Modifying rotation matrix\n");
+    for (int q=0; q<3; ++q)
+    {
+      for (int s=0; s<3; ++s)
+        std::cout << " " << planetFixed_from_planet_R[q][s]; // Write out the new rotation
+      std::cout << std::endl;
+    }
+
+    // Apply the transform
+    SpiceDouble spacecraftFixed_from_J2000_R[3][3];
+
+    SpiceDouble spacecraft_from_Planet_R[3][3];
+    SpiceDouble spacecraftFixed_from_Planet_R[3][3];
+    mxmt_c(spacecraft_from_J2000_R,      planet_from_J2000_R,      spacecraft_from_Planet_R);       // Convert to moon frame
+    mxm_c(planetFixed_from_planet_R,     spacecraft_from_Planet_R, spacecraftFixed_from_Planet_R);  // Apply correction
+    mxm_c(spacecraftFixed_from_Planet_R, planet_from_J2000_R,      spacecraftFixed_from_J2000_R); // Return to J2000 frame
+
+    printf("New rotation matrix\n");
+    for (int q=0; q<3; ++q)
+    {
+      for (int s=0; s<3; ++s)
+        std::cout << " " << spacecraftFixed_from_J2000_R[q][s]; // Write out the new rotation
+      std::cout << std::endl;
+    }
+
+    return true;
   }
 
   SpiceChar timeString[51];
@@ -415,7 +488,7 @@ bool editSpiceFile(const Parameters &params)
           SpiceDouble fixedPlanet_in_J2000_T[3];
 
           // Convert correcting rotation and translation into J2000 frame from planet frame
-          mxm_c(planetFixed_from_planet_R, planet_from_J2000_R,       fixedPlanet_from_J2000_R);
+          mxm_c(planetFixed_from_planet_R, planet_from_J2000_R, fixedPlanet_from_J2000_R);
 
           // Convert the state into units of meters
           SpiceDouble stateMeters[3]; // J2000 frame
@@ -425,12 +498,12 @@ bool editSpiceFile(const Parameters &params)
           // Apply the corrective planet-based transform to the vector currently represented in J2000 space
           SpiceDouble stateMoon[3], stateMoonFixed[3], stateJ2000Fixed[3];
           mxv_c(planet_from_J2000_R,       stateMeters, stateMoon);       // Convert to moon frame
-          mxv_c(planetFixed_from_planet_R, stateMoon,   stateMoonFixed);  // Apply correction
+          //mxv_c(planetFixed_from_planet_R, stateMoon,   stateMoonFixed);  // Apply correction --> Unused if transform is in local planet coordinates!
           for (int r=0; r<3; ++r) // Add in the translation
           {
-            double temp = stateMoonFixed[r];
-            stateMoonFixed[r] += planetFixed_from_planet_T[r];
-
+//            double temp = stateMoonFixed[r];
+            //stateMoonFixed[r] += planetFixed_from_planet_T[r]; 
+            stateMoonFixed[r] = stateMoon[r] + planetFixed_from_planet_T[r]; // !AdjustedCameraModel applies transform about camera, not about the planet!
           }
           mtxv_c(planet_from_J2000_R, stateMoonFixed, stateJ2000Fixed); // Return to J2000 frame
           for (int r=0; r<3; ++r) // Convert from meters back to kilometers

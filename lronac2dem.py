@@ -206,7 +206,7 @@ def main():
         # Correct all four input images at once
         caughtException = False
         try:
-            if not os.path.exists(leftCorrectedPath):
+            if True:#not os.path.exists(leftCorrectedPath):
                 print '\n=============================================================================\n'
                 cmd = 'stereoDoubleCalibrationProcess.py --left ' + options.leftPath + ' --right ' +  options.rightPath + ' --stereo-left ' + options.stereoLeft + ' --stereo-right ' + options.stereoRight + ' --lola ' + options.lolaPath + ' --keep --outputL ' + leftCorrectedPath + ' --outputR ' + rightCorrectedPath + ' --outputSL ' + leftStereoCorrectedPath + ' --outputSR ' + rightStereoCorrectedPath + ' --workDir ' + options.workDir
                 print cmd
@@ -219,17 +219,20 @@ def main():
 
         # Convert GDC output files into KML plots 
         # - This is just to help with debugging
-        generateKmlFromGdcPoints(os.path.join(tempFolder, 'initialGdcCheck'), tempFolder, 'pairGdcCheckInitial.csv',          1,      'blue', False)
-        generateKmlFromGdcPoints(os.path.join(tempFolder, 'posCorrectGdcCheck'), tempFolder, 'pairGdcCheckPos.csv',              1,      'red',  False)
-        generateKmlFromGdcPoints(os.path.join(tempFolder, 'stereoGlobalAdjustGdcCheck'), tempFolder, 'pairGdcCheckGlobalAdjustStero.csv',       1,      'blue', False)
-        generateKmlFromGdcPoints(os.path.join(tempFolder, 'pcAlignStereoGdcCheck'), tempFolder, 'pairGdcCheckPcAlign.csv', 1,      'red', False)
-        generateKmlFromGdcPoints(os.path.join(tempFolder, 'finalGdcCheck'), tempFolder, 'pairGdcCheckFinal.csv', 1,      'blue', False)
-        generateKmlFromGdcPoints(os.path.join(tempFolder, 'finalStereoGdcCheck'), tempFolder, 'pairGdcCheckFinalStereo.csv', 1,      'red', False)
-        generateKmlFromGdcPoints(os.path.join(tempFolder, 'gdcPointsLargeComp'), tempFolder, 'inputGdcPoints.csv',               1000, 'blue', False)
+        generateKmlFromGdcPoints(os.path.join(tempFolder, 'initialGdcCheck'), tempFolder, 'pairGdcCheckInitial.csv',          1,      'blue', True)
+        generateKmlFromGdcPoints(os.path.join(tempFolder, 'posCorrectGdcCheck'), tempFolder, 'pairGdcCheckPos.csv',              1,      'red',  True)
+        generateKmlFromGdcPoints(os.path.join(tempFolder, 'posCorrectStereoGdcCheck'), tempFolder, 'pairGdcStereoCheckPos.csv',              1,      'red',  True)
+        generateKmlFromGdcPoints(os.path.join(tempFolder, 'stereoGlobalAdjustGdcCheck'), tempFolder, 'pairGdcCheckGlobalAdjustStero.csv',       1,      'blue', True)
+        generateKmlFromGdcPoints(os.path.join(tempFolder, 'pcAlignStereoGdcCheck'), tempFolder, 'pairGdcCheckPcAlign.csv', 1,      'red', True)
+        generateKmlFromGdcPoints(os.path.join(tempFolder, 'finalGdcCheck'), tempFolder, 'pairGdcCheckFinal.csv', 1,      'blue', True)
+        generateKmlFromGdcPoints(os.path.join(tempFolder, 'finalStereoGdcCheck'), tempFolder, 'pairGdcCheckFinalStereo.csv', 1,      'red', True)
+        generateKmlFromGdcPoints(os.path.join(tempFolder, 'gdcPointsLargeComp'), tempFolder, 'inputGdcPoints.csv',               1000, 'blue', True)
         #generateKmlFromGdcPoints(os.path.join(tempFolder, 'initialGdcCheck'), tempFolder, 'dem-trans_source.csv',             'blue', False)
-        generateKmlFromGdcPoints(os.path.join(tempFolder, 'pcAlignOutput'), tempFolder, 'dem-trans_reference.csv',   1000, 'red',  False)
+        generateKmlFromGdcPoints(os.path.join(tempFolder, 'pcAlignOutput'), tempFolder, 'dem-trans_reference.csv',   1000, 'red',  True)
 
         print 'Finished generating KML plots'
+
+        raise Exception('buggin out!')
 
         # Delay check for left path to allow debug KML files to be generated
         if caughtException or not os.path.exists(leftCorrectedPath):

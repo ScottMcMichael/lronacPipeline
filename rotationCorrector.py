@@ -185,7 +185,7 @@ def main():
 
 #TODO: What is up the kernel unloading step here?
         # Call lronac spice editor tool to generate modified text file
-        cmd = 'spiceEditor --transformFile ' + options.transformPath + ' --outputPrefix ' + tempDataPrefix + ' --kernels ' + kernelStringList
+        cmd = 'spiceEditor --transformType 0 --transformFile ' + options.transformPath + ' --outputPrefix ' + tempDataPrefix + ' --kernels ' + kernelStringList
         print cmd
         os.system(cmd)
         if not os.path.exists(spkDataPath):
@@ -202,10 +202,10 @@ def main():
 
         # If the file already exists, delete it and rewrite it.
         if options.spkPath:
-          tempSpkPath = options.spkPath
-          print 'Storing modified SPK file ' + tempSpkPath
+            tempSpkPath = options.spkPath
+            print 'Storing modified SPK file ' + tempSpkPath
         else:
-          tempSpkPath = os.path.join(tempFolder, "modifiedLrocSpk.bsp")
+            tempSpkPath = os.path.join(tempFolder, "modifiedLrocSpk.bsp")
         if os.path.exists(tempSpkPath):
             os.remove(tempSpkPath)
 
@@ -224,10 +224,10 @@ def main():
 
         # If the file already exists, delete it and rewrite it.
         if options.ckPath:
-          tempCkPath = options.ckPath
-          print 'Storing modified CK file ' + tempCkPath
+            tempCkPath = options.ckPath
+            print 'Storing modified CK file ' + tempCkPath
         else:
-          tempCkPath = os.path.join(tempFolder, "modifiedLrocCk.bc")
+            tempCkPath = os.path.join(tempFolder, "modifiedLrocCk.bc")
         if os.path.exists(tempCkPath):
             os.remove(tempCkPath)
 
@@ -235,6 +235,8 @@ def main():
         # We work around this by writing to a 'safe' path and copying the output to the desired location.
         reallyTempCkPath = os.path.join('/tmp/', inputBaseName + '_modifiedLrocCk.bc')  
         print 'reallyTempCkPath =  ' + reallyTempCkPath
+        if os.path.exists(reallyTempCkPath):
+            os.remove(reallyTempCkPath)
 
         # Create new CK file using modified data
         cmd = 'msopck ' + msopckConfigPath + ' ' + ckDataPath + '  ' + reallyTempCkPath

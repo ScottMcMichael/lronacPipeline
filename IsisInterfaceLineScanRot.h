@@ -61,6 +61,9 @@
     vw::Vector2
       point_to_pixel_rotated( vw::Vector3 const& point, vw::Vector3 const& rotAngles, int guessLine=-1) const;
 
+    /// Returns the instrument and body matrices at the given time
+    bool getMatricesAtTime(const double et, vw::Matrix3x3 &R_inst, vw::Matrix3x3 &R_body);
+
   protected:
 
     // Custom Variables
