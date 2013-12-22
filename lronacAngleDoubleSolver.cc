@@ -494,38 +494,46 @@ bool optimizeRotations(Parameters & params)
     return false;
   }
 
-  // If a path to an initial value file was provided, load them
-  std::vector<double> initialValues;
-  if (!params.initialValuePath.empty())
-  {
-    initialValues.resize(NUM_CAMERA_PARAMS);
-    printf("Reading initial values from file %s\n", params.initialValuePath.c_str());
-    std::ifstream initalValueFile(params.initialValuePath.c_str());
-    for (int i=0; i<NUM_CAMERA_PARAMS; ++i)
-    {
-      double newVal;
-      initalValueFile >> newVal;
-      initialValues[i] = newVal;
-    }
-    initalValueFile.close();
-    if (initalValueFile.fail())
-    {
-      printf("Error reading from initial value file %s\n", params.initialValuePath.c_str());
-      return false;
-    }
-  }
-
-  
+ 
   // Now load up all of the pixel pairs
   PointObsList leftPixelPairs, rightPixelPairs, overlapPairs, stereoOverlapPairs, leftCrossPixelPairs, rightCrossPixelPairs;
   const size_t totalNumPoints = loadInputPointPairs(params, leftPixelPairs,      rightPixelPairs,
                                                             overlapPairs,        stereoOverlapPairs,
                                                             leftCrossPixelPairs, rightCrossPixelPairs);
-  if (totalNumPoints == 40)
+  if (totalNumPoints <= 40)
   {
     printf("Error: Did not load enough points to compute a solution!");
     return false;
   }
+  
+  //TODO: Can't really load point values without a rotation-modified pixel to vector function.
+  // If a path to an initial value file was provided, load them
+  size_t estimatedNumParams = NUM_CAMERA_PARAMS;// + totalNumPoints*PARAMS_PER_POINT;
+  std::vector<double> initialValues;
+  if (!params.initialValuePath.empty())
+  {
+    initialValues.reserve(estimatedNumParams);
+    printf("Reading initial values from file %s\n", params.initialValuePath.c_str());
+    std::ifstream initalValueFile(params.initialValuePath.c_str());
+    size_t initialValueCount = 0;
+    //while (initialValueFile.good())
+    for (int i=0; i<estimatedNumParams; ++i) 
+    {
+      double newVal;
+      initalValueFile >> newVal;
+      initialValues.push_back(newVal);
+      ++initialValueCount;
+    }
+    initalValueFile.close();
+    if ((initalValueFile.fail()) || (initialValueCount > estimatedNumParams))
+    {
+      printf("Error reading from initial value file %s\n", params.initialValuePath.c_str());
+      printf("Read %d values, expected %d values\n", initialValueCount, estimatedNumParams);
+      return false;
+    }
+  }
+
+  
   
   // Load the inital points into the solver
   printf("Initializing solver state...\n");

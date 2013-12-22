@@ -19,6 +19,9 @@
 /// \file SpiceEditor.cc
 ///
 
+#include <boost/shared_ptr.hpp>
+#include <boost/serialization/shared_ptr.hpp> 
+
 #include <list>
 #include <vector>
 #include <string>
@@ -36,6 +39,9 @@
 
 #include <stereo.h> // Using local version
 
+#include <asp/IsisIO/IsisCameraModel.h>
+#include <IsisInterfaceLineScanRot.h>
+
 using namespace vw;
 using std::endl;
 using std::setprecision;
@@ -50,7 +56,9 @@ struct Parameters : asp::BaseOptions
   std::vector<std::string>  kernelPaths;
   std::string  transformFile;
   int          transformType;
+  
   bool debug;
+  std::string sourceCubePath; // Used to obtain body position
 };
 
 
@@ -60,6 +68,7 @@ bool handle_arguments(int argc, char* argv[], Parameters &opt)
   po::options_description general_options("Options");
   general_options.add_options()
     ("debug",                  po::bool_switch(&opt.debug                 )->default_value(false),  "DEBUG mode")
+    ("sourceCube",  po::value(&opt.sourceCubePath)->default_value(""), "Path to cube used to compute rotations")
     ("outputPrefix",  po::value(&outputPrefix)->default_value(""), "Output prefix")
     ("kernels", po::value<std::vector<std::string> >(&opt.kernelPaths)->multitoken(), "Paths to all required kernel files")
     ("transformFile", po::value<std::string>(&opt.transformFile)->default_value(""), "Path to 3x4 matrix containing transform to apply (pc_align-style)")
@@ -169,12 +178,26 @@ bool editSpiceFile(const Parameters &params)
   }
   
   // Load all of the kernel files
+  printf("Loading all source kernels (this can take a while)\n");
   for (size_t i=0; i<params.kernelPaths.size(); ++i)
     furnsh_c(params.kernelPaths[i].c_str());
-  
-  const bool localTransform = (params.transformType > 0);
 
-  // Load the transform to apply
+  
+  // Try loading the source cube
+  double minSourceCubeEt=0, maxSourceCubeEt=-1;
+  boost::shared_ptr<IsisInterfaceLineScanRot> sourceCubePtr;
+  if (!params.sourceCubePath.empty())
+  {
+    printf("Loading source cube file %s\n", params.sourceCubePath.c_str());
+    sourceCubePtr.reset(new IsisInterfaceLineScanRot(params.sourceCubePath));
+    int    numLines   = sourceCubePtr->lines();
+    int    numSamples = sourceCubePtr->samples();
+    minSourceCubeEt = sourceCubePtr->ephemeris_time(vw::Vector2(numSamples/2, 0));
+    maxSourceCubeEt = sourceCubePtr->ephemeris_time(vw::Vector2(numSamples/2, numLines-1));
+  }
+
+  // Load the transform to apply  
+  const bool localTransform = (params.transformType > 0);
 
   // Global transforms get stored here
   SpiceDouble planetFixed_from_planet_R[3][3];
@@ -196,7 +219,7 @@ bool editSpiceFile(const Parameters &params)
   }
 
 
-  if (params.debug) // Print out a test case then quit
+//  if (params.debug) // Print out a test case then quit
   {
     SpiceDouble et = 342594244.951690;
     printf("et = %lf\n", et);
@@ -221,10 +244,29 @@ bool editSpiceFile(const Parameters &params)
     // Try to get the planet orientation at that time (planet_from_J2000)
     // - [this matrix] * [j2000 vector] = [moon vector]
     SpiceDouble  planet_from_J2000_R[3][3];
-    pxform_c(J2000_FRAME_STRING.c_str(), MOON_FRAME_STRING.c_str(), et, planet_from_J2000_R);
 
-    SpiceDouble  J2000_from_planet_R[3][3];
-    pxform_c(MOON_FRAME_STRING.c_str(), J2000_FRAME_STRING.c_str(), et, J2000_from_planet_R);
+    if ((et >= minSourceCubeEt) && (et <= maxSourceCubeEt)) // If this time falls within the cube time
+    {
+      // Get the planet orientation from the source cube
+      vw::Matrix3x3 R_inst, R_body;
+      sourceCubePtr->getMatricesAtTime(et, R_inst, R_body);
+      for (int r=0; r<3; ++r)
+      {
+        for (int c=0; c<3; ++c)
+        {
+          planet_from_J2000_R[r][c] = R_body[r][c];
+        }
+      }
+    }
+    else // Get the planet orientation from NAIF calls
+    {
+      pxform_c(J2000_FRAME_STRING.c_str(), MOON_FRAME_STRING.c_str(), et, planet_from_J2000_R);
+//    tipbod_c(J2000_FRAME_STRING.c_str(), MOON_CODE, et, planet_from_J2000_R); // Seems equivalent
+    }
+
+
+//    SpiceDouble  J2000_from_planet_R[3][3];
+//    pxform_c(MOON_FRAME_STRING.c_str(), J2000_FRAME_STRING.c_str(), et, J2000_from_planet_R);
 
     // Convert the planet transform to the correct coordinate space
     SpiceDouble planetFixed_from_J2000_R[3][3];
@@ -236,12 +278,24 @@ bool editSpiceFile(const Parameters &params)
 
     // Apply the transform
     SpiceDouble spacecraftFixed_from_J2000_R[3][3];
-
     SpiceDouble spacecraft_from_Planet_R[3][3];
     SpiceDouble spacecraftFixed_from_Planet_R[3][3];
 
+    // Is this actually reversed?
     mxmt_c(planet_from_J2000_R,      spacecraft_from_J2000_R,      spacecraft_from_Planet_R);       // Convert to moon frame
     //mxmt_c(spacecraft_from_J2000_R,      planet_from_J2000_R,      spacecraft_from_Planet_R);       // Convert to moon frame
+
+/*
+    SpiceDouble spacecraft_from_Planet_R_2[3][3];
+    pxform_c(MOON_FRAME_STRING.c_str(), "LRO_SC_BUS", et, spacecraft_from_Planet_R_2);
+    printf("\nConverted to planet 2!!! (SC in planet)\n");
+    for (int q=0; q<3; ++q)
+    {
+      for (int s=0; s<3; ++s)
+        std::cout << " " << spacecraft_from_Planet_R_2[q][s]; // Write out the new rotation
+      std::cout << std::endl;
+    }
+*/
     
     mxm_c(planetFixed_from_planet_R,     spacecraft_from_Planet_R, spacecraftFixed_from_Planet_R);  // Apply correction
     
@@ -300,7 +354,7 @@ bool editSpiceFile(const Parameters &params)
       std::cout << std::endl;
     }
 
-    return true;
+  //  return true;
   }
 
   SpiceChar timeString[51];
@@ -351,8 +405,14 @@ bool editSpiceFile(const Parameters &params)
         
       // Correct the rotation at even intervals
       SpiceDouble startEt = b+2; // Hack to avoid different start times
-      SpiceDouble stepSize = (e - startEt) / NUM_STEPS;
+      SpiceDouble stopEt  = e-2;
 
+      if (maxSourceCubeEt > minSourceCubeEt) // Limit processing to cube duration
+      {
+        startEt = minSourceCubeEt - 2;
+        stopEt  = maxSourceCubeEt + 2;
+      }
+      SpiceDouble stepSize = (stopEt - startEt) / NUM_STEPS;
     
       std::ofstream outputFile;
       printf("Writing file %s\n", params.ckDataOutputPath.c_str());
@@ -391,7 +451,24 @@ bool editSpiceFile(const Parameters &params)
         pxform_c(J2000_FRAME_STRING.c_str(), MOON_FRAME_STRING.c_str(), et, planet_from_J2000_R);
 
         SpiceDouble  J2000_from_planet_R[3][3];
-        pxform_c(MOON_FRAME_STRING.c_str(), J2000_FRAME_STRING.c_str(), et, J2000_from_planet_R);
+        if ((et >= minSourceCubeEt) && (et <= maxSourceCubeEt)) // If this time falls within the cube time
+        {
+          // Get the planet orientation from the source cube
+          vw::Matrix3x3 R_inst, R_body;
+          sourceCubePtr->getMatricesAtTime(et, R_inst, R_body);
+          for (int r=0; r<3; ++r)
+          {
+            for (int c=0; c<3; ++c)
+            {
+              planet_from_J2000_R[r][c] = R_body[r][c];
+            }
+          }
+        }
+        else // Get the planet orientation from NAIF calls
+        {
+          pxform_c(J2000_FRAME_STRING.c_str(), MOON_FRAME_STRING.c_str(), et, planet_from_J2000_R);
+        }
+
 
         // Convert the planet transform to the correct coordinate space
         SpiceDouble planetFixed_from_J2000_R[3][3];
@@ -406,16 +483,18 @@ bool editSpiceFile(const Parameters &params)
 
         SpiceDouble spacecraft_from_Planet_R[3][3];
         SpiceDouble spacecraftFixed_from_Planet_R[3][3];
+        
+        
         mxmt_c(planet_from_J2000_R,      spacecraft_from_J2000_R,      spacecraft_from_Planet_R);       // Convert to moon frame
-        //mxmt_c(spacecraft_from_J2000_R,      planet_from_J2000_R,      spacecraft_from_Planet_R);       // Convert to moon frame
         
-        mxm_c(planetFixed_from_planet_R,     spacecraft_from_Planet_R, spacecraftFixed_from_Planet_R);  // Apply correction
+        mxm_c(planetFixed_from_planet_R,  spacecraft_from_Planet_R,     spacecraftFixed_from_Planet_R);  // Apply correction
         
+        // Convert back to J2000 frame
         SpiceDouble temp_R[3][3];
-        mtxm_c(planet_from_J2000_R,      spacecraftFixed_from_Planet_R,      temp_R);
+        mtxm_c(planet_from_J2000_R,      spacecraftFixed_from_Planet_R,  temp_R);
         xpose_c(temp_R, spacecraftFixed_from_J2000_R);
-        //mxm_c(J2000_from_planet_R,      spacecraftFixed_from_Planet_R, spacecraftFixed_from_J2000_R); // Return to J2000 frame
-        //mxm_c(spacecraftFixed_from_Planet_R, planet_from_J2000_R,      spacecraftFixed_from_J2000_R); // Return to J2000 frame
+
+        
 
         // Dump ET, new rotation... line to a text file
         outputFile.precision(16);
@@ -471,9 +550,16 @@ bool editSpiceFile(const Parameters &params)
       //printf("Stop:      %s\n", timeString);
 
       //printf("b = %lf, e = %lf\n", b, e); 
-      // Display the position at even intervals
+      // Modify the position at even intervals
       SpiceDouble startEt = b+2; // Hack to avoid different start times
-      SpiceDouble stepSize = (e - startEt) / NUM_STEPS;
+      SpiceDouble stopEt  = e-2;
+
+      if (maxSourceCubeEt > minSourceCubeEt) // Limit processing to cube duration
+      {
+        startEt = minSourceCubeEt - 2;
+        stopEt  = maxSourceCubeEt + 2;
+      }
+      SpiceDouble stepSize = (stopEt - startEt) / NUM_STEPS;
 
       std::ofstream outputFile;
       printf("Writing file %s\n", params.spkDataOutputPath.c_str());

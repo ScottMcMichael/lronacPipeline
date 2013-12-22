@@ -185,7 +185,7 @@ def main():
 
 #TODO: What is up the kernel unloading step here?
         # Call lronac spice editor tool to generate modified text file
-        cmd = 'spiceEditor --transformType 0 --transformFile ' + options.transformPath + ' --outputPrefix ' + tempDataPrefix + ' --kernels ' + kernelStringList
+        cmd = 'spiceEditor --transformType 0 --transformFile ' + options.transformPath + ' --outputPrefix ' + tempDataPrefix + ' --kernels ' + kernelStringList + ' --sourceCube ' + options.inputPath
         print cmd
         os.system(cmd)
         if not os.path.exists(spkDataPath):
@@ -257,7 +257,7 @@ def main():
 
 
         # Re-run spiceinit using the new SPK and CK file
-        cmd = "spiceinit attach=true from=" + options.outputPath + " spk=" + tempSpkPath + " ck=" + tempCkPath
+        cmd = "spiceinit attach=true from=" + options.outputPath + " spk=" + tempSpkPath + " ck=" + tempCkPath# + " fk=../../lroFrameZero.tf"
         print cmd
         os.system(cmd)
 

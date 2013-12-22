@@ -477,21 +477,23 @@ def main():
         else:
             print 'Skipping stereo transform calculation step'
 
-#        # DEBUG - Confirm output results are roughly the same
-#        zeroParamsPath           = os.path.join(tempFolder, 'zeroParamsFile.csv')
-#        sbaOutputPrefixDebug     = os.path.join(tempFolder, 'SBA_solutionDEBUG3')
-#        cmd = 'lronacAngleDoubleSolver --outputPrefix ' + sbaOutputPrefixDebug+ ' --matchingPixelsLeftPath ' + pixelPairsLeftSmall + ' --leftCubePath ' + posOffsetCorrectedLeftPath + ' --leftStereoCubePath ' + posOffsetCorrectedStereoLeftPath + " --initialOnly --initialValues " + zeroParamsPath 
-#        print cmd
-#        os.system(cmd)
-    
 #        raise Exception('buggin out')
 
 #        # DEBUG - Confirm output results are roughly the same
-#        sbaOutputPrefixDebug     = os.path.join(tempFolder, 'SBA_solutionDEBUG')
-#        cmd = 'lronacAngleDoubleSolver --outputPrefix ' + sbaOutputPrefixDebug+ ' --matchingPixelsLeftPath ' + pixelPairsLeftSmall + ' --leftCubePath ' + posOffsetCorrectedLeftPath + ' --leftStereoCubePath ' + posOffsetCorrectedStereoLeftPath + " --initialOnly --initialValues " + solvedParamsPath 
+        zeroParamsPath           = '/byss/moon/lronacPipeline_V2/zeroParamsFile.csv'
+        scPosCube     = os.path.join(tempFolder, 'stereoLeft.sc.cub')
+        sbaOutputPrefixDebug     = os.path.join(tempFolder, 'SBA_solutionDEBUG3')
+#        posOffsetCorrectedStereoLeftPath
+        cmd = 'lronacAngleDoubleSolver --outputPrefix ' + sbaOutputPrefixDebug+ ' --matchingPixelsLeftPath ' + pixelPairsLeftSmall + ' --leftCubePath ' + posOffsetCorrectedLeftPath + ' --leftStereoCubePath ' + scPosCube + " --initialOnly --initialValues " + zeroParamsPath 
 #        print cmd
-#        os.system(cmd)
-    
+#        os.system(cmd)   
+#        raise Exception('buggin out')
+
+#        # DEBUG - Confirm output results are roughly the same
+        sbaOutputPrefixDebug     = os.path.join(tempFolder, 'SBA_solutionDEBUG')
+        cmd = 'lronacAngleDoubleSolver --outputPrefix ' + sbaOutputPrefixDebug+ ' --matchingPixelsLeftPath ' + pixelPairsLeftSmall + ' --leftCubePath ' + posOffsetCorrectedLeftPath + ' --leftStereoCubePath ' + posOffsetCorrectedStereoLeftPath + " --initialOnly --initialValues " + solvedParamsPath 
+#        print cmd
+#        os.system(cmd)   
 #        raise Exception('buggin out')
         
         
@@ -501,25 +503,36 @@ def main():
 #        zeroRotParamsPath           = os.path.join(tempFolder, 'zeroRotGlobalTransformMatrix.csv')
         leftStereoAdjustedPath = os.path.join(tempFolder, 'leftStereoAdjusted.cub')
         thisWorkDir            = os.path.join(tempFolder, 'stereoLeftStereoCorrection/')
-        applyNavTransform(posOffsetCorrectedStereoLeftPath, leftStereoAdjustedPath, globalTransformPath, thisWorkDir, '', '', False)
+        applyNavTransform(posOffsetCorrectedStereoLeftPath, leftStereoAdjustedPath, globalTransformPath, thisWorkDir, '', '', True)
 #        raise Exception('buggin out')
         
 #        # DEBUG - Outputs here should be identical to the ones from the previous DEBUG call!
-#        zeroParamsPath           = os.path.join(tempFolder, 'zeroParamsFile.csv')
-#        sbaOutputPrefixDebug     = os.path.join(tempFolder, 'SBA_solutionDEBUG2')
-#        cmd = 'lronacAngleDoubleSolver --outputPrefix ' + sbaOutputPrefixDebug+ ' --matchingPixelsLeftPath ' + pixelPairsLeftSmall + ' --leftCubePath ' + posOffsetCorrectedLeftPath + ' --leftStereoCubePath ' + leftStereoAdjustedPath + " --initialOnly --initialValues " + zeroParamsPath 
-#        print cmd
-#        os.system(cmd)
-#        raise Exception('buggin out')
+        sbaOutputPrefixDebug     = os.path.join(tempFolder, 'SBA_solutionDEBUG2')
+        cmd = 'lronacAngleDoubleSolver --outputPrefix ' + sbaOutputPrefixDebug+ ' --matchingPixelsLeftPath ' + pixelPairsLeftSmall + ' --leftCubePath ' + posOffsetCorrectedLeftPath + ' --leftStereoCubePath ' + leftStereoAdjustedPath + " --initialOnly --initialValues " + zeroParamsPath 
+        print cmd
+        os.system(cmd)
+        
+        raise Exception('buggin out')
         
         rightStereoAdjustedPath = os.path.join(tempFolder, 'rightStereoAdjusted.cub')
         thisWorkDir             = os.path.join(tempFolder, 'stereoRightStereoCorrection/')
         applyNavTransform(posOffsetCorrectedStereoRightPath, rightStereoAdjustedPath, globalTransformPath, thisWorkDir, '', '', False)
 
         # DEBUG: Check angle solver on stereo adjusted LE/RE images!
-        checkAdjacentPairAlignment(leftStereoAdjustedPath, rightStereoAdjustedPath, os.path.join(tempFolder, 'stereoGlobalAdjustGdcCheck'), True)
+        checkAdjacentPairAlignment(leftStereoAdjustedPath, rightStereoAdjustedPath, os.path.join(tempFolder, 'stereoGlobalAdjustGdcCheck'), False)
 
-        raise Exception('buggin out')
+
+        # DEBUG: Re-run the SBA solver with the global adjustment applied to the stereo images.
+        # - Since we just applied the solved for transform, we expect global transform parameters to be near zero.
+#        TODO: Nail down why this is not happening!!!
+        sbaGlobalCheckOutputPrefix   = os.path.join(tempFolder, 'globalSbaCheck/SBA_solution')
+        globalSbaCheckTransformPath = sbaGlobalCheckOutputPrefix + "-globalTransformMatrix.csv"
+        if True:#not os.path.exists(globalSbaCheckTransformPath):
+            cmd = 'lronacAngleDoubleSolver --outputPrefix ' + sbaOutputPrefix + ' --matchingPixelsLeftPath ' + pixelPairsLeftSmall + ' --matchingPixelsRightPath ' + pixelPairsRightSmall + leftCrossString + rightCrossString + ' --leftCubePath ' + posOffsetCorrectedLeftPath + ' --rightCubePath ' + posOffsetCorrectedRightPath + ' --leftStereoCubePath ' + leftStereoAdjustedPath + ' --rightStereoCubePath ' + rightStereoAdjustedPath
+            print cmd
+            os.system(cmd)
+
+        raise Exception('done with SBA global check')
 
         print '\n-------------------------------------------------------------------------\n'
 
