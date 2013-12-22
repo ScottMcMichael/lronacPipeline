@@ -503,16 +503,16 @@ def main():
 #        zeroRotParamsPath           = os.path.join(tempFolder, 'zeroRotGlobalTransformMatrix.csv')
         leftStereoAdjustedPath = os.path.join(tempFolder, 'leftStereoAdjusted.cub')
         thisWorkDir            = os.path.join(tempFolder, 'stereoLeftStereoCorrection/')
-        applyNavTransform(posOffsetCorrectedStereoLeftPath, leftStereoAdjustedPath, globalTransformPath, thisWorkDir, '', '', True)
+        applyNavTransform(posOffsetCorrectedStereoLeftPath, leftStereoAdjustedPath, globalTransformPath, thisWorkDir, '', '', False)
 #        raise Exception('buggin out')
         
 #        # DEBUG - Outputs here should be identical to the ones from the previous DEBUG call!
         sbaOutputPrefixDebug     = os.path.join(tempFolder, 'SBA_solutionDEBUG2')
         cmd = 'lronacAngleDoubleSolver --outputPrefix ' + sbaOutputPrefixDebug+ ' --matchingPixelsLeftPath ' + pixelPairsLeftSmall + ' --leftCubePath ' + posOffsetCorrectedLeftPath + ' --leftStereoCubePath ' + leftStereoAdjustedPath + " --initialOnly --initialValues " + zeroParamsPath 
-        print cmd
-        os.system(cmd)
+#        print cmd
+#        os.system(cmd)
         
-        raise Exception('buggin out')
+#        raise Exception('buggin out')
         
         rightStereoAdjustedPath = os.path.join(tempFolder, 'rightStereoAdjusted.cub')
         thisWorkDir             = os.path.join(tempFolder, 'stereoRightStereoCorrection/')
@@ -527,12 +527,12 @@ def main():
 #        TODO: Nail down why this is not happening!!!
         sbaGlobalCheckOutputPrefix   = os.path.join(tempFolder, 'globalSbaCheck/SBA_solution')
         globalSbaCheckTransformPath = sbaGlobalCheckOutputPrefix + "-globalTransformMatrix.csv"
-        if True:#not os.path.exists(globalSbaCheckTransformPath):
+        if not os.path.exists(globalSbaCheckTransformPath):
             cmd = 'lronacAngleDoubleSolver --outputPrefix ' + sbaOutputPrefix + ' --matchingPixelsLeftPath ' + pixelPairsLeftSmall + ' --matchingPixelsRightPath ' + pixelPairsRightSmall + leftCrossString + rightCrossString + ' --leftCubePath ' + posOffsetCorrectedLeftPath + ' --rightCubePath ' + posOffsetCorrectedRightPath + ' --leftStereoCubePath ' + leftStereoAdjustedPath + ' --rightStereoCubePath ' + rightStereoAdjustedPath
             print cmd
             os.system(cmd)
 
-        raise Exception('done with SBA global check')
+        #raise Exception('done with SBA global check')
 
         print '\n-------------------------------------------------------------------------\n'
 
@@ -584,30 +584,30 @@ def main():
         leftCkPath  = os.path.join(tempFolder, 'leftFinalCk.bc')
         leftSpkPath = os.path.join(tempFolder, 'leftFinalSpk.bsp')
         thisWorkDir = os.path.join(tempFolder, 'leftFullCorrection')
-        applyNavTransform(posOffsetCorrectedLeftPath, options.outputPathLeft, pcAlignTransformPath, thisWorkDir, leftCkPath, leftSpkPath, True)
+        applyNavTransform(posOffsetCorrectedLeftPath, options.outputPathLeft, pcAlignTransformPath, thisWorkDir, leftCkPath, leftSpkPath, False)
 
         partialCorrectedRightPath = os.path.join(tempFolder, 'partial_corrected_RE.cub')
         rightCkPath               = os.path.join(tempFolder, 'rightFinalCk.bc') 
         rightSpkPath              = os.path.join(tempFolder, 'rightFinalSpk.bsp')
         thisWorkDir               = os.path.join(tempFolder, 'rightFullCorrection/')
-        applyNavTransform(posOffsetCorrectedRightPath, partialCorrectedRightPath, pcAlignTransformPath, thisWorkDir, rightCkPath, rightSpkPath, True)
+        applyNavTransform(posOffsetCorrectedRightPath, partialCorrectedRightPath, pcAlignTransformPath, thisWorkDir, rightCkPath, rightSpkPath, False)
 
 
         leftStereoCkPath  = os.path.join(tempFolder, 'leftStereoFinalCk.bc') 
         leftStereoSpkPath = os.path.join(tempFolder, 'leftStereoFinalSpk.bsp')
         thisWorkDir       = os.path.join(tempFolder, 'leftStereoFullCorrection')
-        applyNavTransform(leftStereoAdjustedPath, options.outputPathStereoLeft, pcAlignTransformPath, thisWorkDir, leftStereoCkPath, leftStereoSpkPath, True)
+        applyNavTransform(leftStereoAdjustedPath, options.outputPathStereoLeft, pcAlignTransformPath, thisWorkDir, leftStereoCkPath, leftStereoSpkPath, False)
 
         partialCorrectedStereoRightPath = os.path.join(tempFolder, 'partial_corrected_stereo_RE.cub')
         rightStereoCkPath               = os.path.join(tempFolder, 'rightStereoFinalCk.bc')
         rightStereoSpkPath              = os.path.join(tempFolder, 'rightStereoFinalSpk.bsp')
         thisWorkDir                     = os.path.join(tempFolder, 'rightStereoFullCorrection/')
-        applyNavTransform(rightStereoAdjustedPath, partialCorrectedStereoRightPath, pcAlignTransformPath, thisWorkDir, rightStereoCkPath, rightStereoSpkPath, True)
+        applyNavTransform(rightStereoAdjustedPath, partialCorrectedStereoRightPath, pcAlignTransformPath, thisWorkDir, rightStereoCkPath, rightStereoSpkPath, False)
 
         # At this point the left images are hopefully in the correct position and we can apply the offset of the RE cameras
 
         # DEBUG: Check angle solver on stereo adjusted LE/RE images!
-        checkAdjacentPairAlignment(options.outputPathStereoLeft, partialCorrectedStereoRightPath, os.path.join(tempFolder, 'pcAlignStereoGdcCheck'), True)
+        checkAdjacentPairAlignment(options.outputPathStereoLeft, partialCorrectedStereoRightPath, os.path.join(tempFolder, 'pcAlignStereoGdcCheck'), False)
 
 
         print '\n-------------------------------------------------------------------------\n'
@@ -615,16 +615,16 @@ def main():
         # Apply local transforms to both pairs of images!
 
         # Apply the local rotation to the adjusted RE cube
-        applyInterCameraPairRotation(options.outputPathLeft, partialCorrectedRightPath, localRotationPath, options.outputPathRight, rightCkPath, rightSpkPath, True)
+        applyInterCameraPairRotation(options.outputPathLeft, partialCorrectedRightPath, localRotationPath, options.outputPathRight, rightCkPath, rightSpkPath, False)
 
         # Apply the local rotation to the adjusted stereo RE cube
-        applyInterCameraPairRotation(options.outputPathStereoLeft, partialCorrectedStereoRightPath, stereoRotationPath, options.outputPathStereoRight, rightStereoCkPath, rightStereoSpkPath, True)
+        applyInterCameraPairRotation(options.outputPathStereoLeft, partialCorrectedStereoRightPath, stereoRotationPath, options.outputPathStereoRight, rightStereoCkPath, rightStereoSpkPath, False)
 
         # DEBUG: Check angle solver on adjusted LE/RE images!
-        checkAdjacentPairAlignment(options.outputPathLeft, options.outputPathRight, os.path.join(tempFolder, 'finalGdcCheck'), True)
+        checkAdjacentPairAlignment(options.outputPathLeft, options.outputPathRight, os.path.join(tempFolder, 'finalGdcCheck'), False)
 
         # DEBUG: Check angle solver on stereo adjusted LE/RE images!
-        checkAdjacentPairAlignment(options.outputPathStereoLeft, options.outputPathStereoRight, os.path.join(tempFolder, 'finalStereoGdcCheck'), True)
+        checkAdjacentPairAlignment(options.outputPathStereoLeft, options.outputPathStereoRight, os.path.join(tempFolder, 'finalStereoGdcCheck'), False)
         
         print '\n-------------------------------------------------------------------------\n'
 

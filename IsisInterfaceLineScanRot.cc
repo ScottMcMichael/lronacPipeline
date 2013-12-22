@@ -55,9 +55,9 @@ void IsisInterfaceLineScanRot::SetTime( Vector2 const& px, bool calc ) const {
       
       //std::cout << "pixel  = " << px << std::endl;
       //std::cout << "ET     = " << m_camera->time().Et() << std::endl;
-      std::cout << "R_inst = " << R_inst << std::endl;
-      std::cout << "R_body = " << R_body << std::endl;   
-      std::cout << "m_pose = " << m_pose.rotation_matrix() << std::endl; 
+      //std::cout << "R_inst = " << R_inst << std::endl;
+      //std::cout << "R_body = " << R_body << std::endl;   
+      //std::cout << "m_pose = " << m_pose.rotation_matrix() << std::endl; 
     }
   }
 }

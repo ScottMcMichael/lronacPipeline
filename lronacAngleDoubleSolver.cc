@@ -924,10 +924,12 @@ bool optimizeRotations(Parameters & params)
   const double rad2deg = 180.0 / M_PI;
   const double deg2rad = M_PI / 180.0;
   printf("Local  rotation angles (degrees): %lf, %lf, %lf\n", finalParams[0]*rad2deg, finalParams[1]*rad2deg, finalParams[2]*rad2deg);
+  printf("Local  rotation angles (radians): %lf, %lf, %lf\n", finalParams[0], finalParams[1], finalParams[2]);
   printf("Global rotation angles (degrees): %lf, %lf, %lf\n", finalParams[3]*rad2deg, finalParams[4]*rad2deg, finalParams[5]*rad2deg);
+  printf("Global rotation angles (radians): %lf, %lf, %lf\n", finalParams[3], finalParams[4], finalParams[5]);
   printf("Global translation     (meters ): %lf, %lf, %lf\n", finalParams[6], finalParams[7], finalParams[8]);
   printf("Stereo local rotation  (degrees): %lf, %lf, %lf\n", finalParams[9]*rad2deg, finalParams[10]*rad2deg, finalParams[11]*rad2deg);
-
+  printf("Stereo local rotation  (radians): %lf, %lf, %lf\n", finalParams[9], finalParams[10], finalParams[11]);
   
   // ----------------- Now handle the local rotation ------------------------
   vw::math::Matrix<double,3,3> frameRotation = vw::math::euler_to_rotation_matrix(1.129*deg2rad, -0.079*deg2rad, 180.0*deg2rad, "xyz");

@@ -454,6 +454,7 @@ bool editSpiceFile(const Parameters &params)
         if ((et >= minSourceCubeEt) && (et <= maxSourceCubeEt)) // If this time falls within the cube time
         {
           // Get the planet orientation from the source cube
+          // - For some reason this produces different results than going straight to the NAIF functions
           vw::Matrix3x3 R_inst, R_body;
           sourceCubePtr->getMatricesAtTime(et, R_inst, R_body);
           for (int r=0; r<3; ++r)
@@ -479,9 +480,8 @@ bool editSpiceFile(const Parameters &params)
 //        mxm_c(planetFixed_from_planet_R, planet_from_J2000_R, planetFixed_from_J2000_R);
 
         // Apply the transform
-        SpiceDouble spacecraftFixed_from_J2000_R[3][3];
-
-        SpiceDouble spacecraft_from_Planet_R[3][3];
+        SpiceDouble spacecraftFixed_from_J2000_R [3][3];
+        SpiceDouble spacecraft_from_Planet_R     [3][3];
         SpiceDouble spacecraftFixed_from_Planet_R[3][3];
         
         

@@ -221,9 +221,9 @@ bool computePointLocation(const vw::camera::CameraModel *cam1,
   //std::cout << "left  pixel  = " << pixel1  << std::endl;
   //std::cout << "left vector  = " << leftVec << std::endl;
   //std::cout << "left center  = " << leftCamCenter << std::endl;
-  std::cout << "right pixel  = " << pixel2   << std::endl;
-  std::cout << "right vector = " << rightVec << std::endl;
-  std::cout << "right center = " << rightCamCenter << std::endl;
+  //std::cout << "right pixel  = " << pixel2   << std::endl;
+  //std::cout << "right vector = " << rightVec << std::endl;
+  //std::cout << "right center = " << rightCamCenter << std::endl;
 
 
   vw::Vector3 v12 = cross_prod(leftVec, rightVec);
@@ -408,7 +408,7 @@ bool getInitialStateEstimate(const PointObsList &leftRight,   // Main pair
     vw::Vector2 rightPixel = leftLeftS.rightObsList[i];
     computePointLocation(_leftCameraModel, _leftStereoCameraRotatedModel, leftPixel, rightPixel, useStereo, pointLoc);
     
-      std::cout << "rot*m_pose = " << _leftStereoCameraRotatedModel->camera_pose(rightPixel).rotation_matrix() << std::endl; 
+      //std::cout << "rot*m_pose = " << _leftStereoCameraRotatedModel->camera_pose(rightPixel).rotation_matrix() << std::endl; 
     
 //    double et = _leftStereoCameraModel->ephemeris_time(rightPixel);
 //    printf("et = %lf\n", et);
