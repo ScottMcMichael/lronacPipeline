@@ -151,20 +151,17 @@ def main():
 
         # Locate required kernels
         if not ('LeapSecond' in kernelDict):
-            print 'Error! Unable to find leap second file!'
-            return 1
+            raise Exception('Error! Unable to find leap second file!')
         else:
             leapSecondFilePath = kernelDict['LeapSecond'][0] # Only deal with a single file
 
         if not ('SpacecraftClock' in kernelDict):
-            print 'Error! Unable to find clock kernel file!'
-            return 1
+            raise Exception('Error! Unable to find clock kernel file!')
         else:
             clockFilePath = kernelDict['SpacecraftClock'][0] # Only deal with a single file
 
         if not ('Frame' in kernelDict):
-            print 'Error! Unable to find frame kernel file!'
-            return 1
+            raise Exception('Error! Unable to find frame kernel file!')
         else:
             frameFilePath = kernelDict['Frame'][0] # Only deal with a single file
 
@@ -189,11 +186,9 @@ def main():
         print cmd
         os.system(cmd)
         if not os.path.exists(spkDataPath):
-            print 'Error! Failed to create modified SPK data!'
-            return 1
+            raise Exception('Error! Failed to create modified SPK data!')
         if not os.path.exists(ckDataPath):
-            print 'Error! Failed to create modified CK data!'
-            return 1
+            raise Exception('Error! Failed to create modified CK data!')
 
         # Write the config file needed for the mkspk function
         print 'Writing mkspk config file...'
@@ -214,8 +209,7 @@ def main():
         print cmd
         os.system(cmd)
         if not os.path.exists(tempSpkPath):
-            print 'Error! Failed to create modified SPK file!'
-            return 1
+            raise Exception('Error! Failed to create modified SPK file!')
 
         # Write the config file needed for the msopck function
         print 'Writing msopck config file...'
@@ -243,8 +237,7 @@ def main():
         print cmd
         os.system(cmd)
         if not os.path.exists(reallyTempCkPath):
-            print 'Error! Failed to create modified CK file!'
-            return 1
+            raise Exception('Error! Failed to create modified CK file!')
 
         # Copy the CK file to the actual desired location
         cmd = 'cp ' + reallyTempCkPath + ' ' + tempCkPath

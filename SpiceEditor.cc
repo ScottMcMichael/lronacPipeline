@@ -219,7 +219,7 @@ bool editSpiceFile(const Parameters &params)
   }
 
 
-//  if (params.debug) // Print out a test case then quit
+  if (params.debug) // Print out a test case then quit
   {
     SpiceDouble et = 342594244.951690;
     printf("et = %lf\n", et);
@@ -354,7 +354,7 @@ bool editSpiceFile(const Parameters &params)
       std::cout << std::endl;
     }
 
-  //  return true;
+    return true;
   }
 
   SpiceChar timeString[51];
@@ -441,7 +441,7 @@ bool editSpiceFile(const Parameters &params)
         ckgp_c(LRO_SPACECRAFT_CODE, sclkdp, tol, J2000_FRAME_STRING.c_str(), spacecraft_from_J2000_R, &clkout, &orientationFound);
         if (!orientationFound)
         {
-          printf("SpiceEditor Error: Failed to obtain spacecraft orientation data!!!!!!!!!!!!!!!!\n");
+          printf("SpiceEditor Error: Failed to obtain spacecraft orientation data at et %lf!!!!!!!!!!!!!!!!\n", et);
           return false;
         }
 
@@ -591,7 +591,7 @@ bool editSpiceFile(const Parameters &params)
         ckgp_c(LRO_SPACECRAFT_CODE, sclkdp, tol, J2000_FRAME_STRING.c_str(), spacecraft_from_J2000_R, &clkout, &orientationFound);
         if (!orientationFound)
         {
-          printf("SpiceEditor Error: Failed to obtain spacecraft orientation data!!!!!!!!!!!!!!!!\n");
+          printf("SpiceEditor Error: Failed to obtain spacecraft position data at et %lf!!!!!!!!!!!!!!!!\n", et);
           return false;
         }
 
