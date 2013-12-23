@@ -329,9 +329,11 @@ def getPixelLocInCube(cubePath, sample, line, workDir=''):
     tempTextPath = os.path.join(outputFolder, 'camptOutput.txt')
     if os.path.exists(tempTextPath):
         os.remove(tempTextPath) # Make sure any existing file is removed!
-    cmd = 'campt from= ' + cubePath + ' to= ' + tempTextPath +' sample= ' + str(sample) + ' line= ' + str(line)
-    print cmd
-    os.system(cmd)
+        
+    # Use subprocess to suppress the command output
+    cmd = ['campt', 'from=', cubePath, 'to=', tempTextPath, 'sample=', str(sample), 'line=', str(line)]
+    FNULL = open(os.devnull, 'w')
+    subprocess.call(cmd, stdout=FNULL, stderr=subprocess.STDOUT)
 
     # Check that we created the temporary file
     if not os.path.exists(tempTextPath):
@@ -362,9 +364,10 @@ def getPixelLocInCube(cubePath, sample, line, workDir=''):
     #print numString
     x,y,z = numString.split(',')
 
-    pixelLocation[0] = float(x)
-    pixelLocation[1] = float(y)
-    pixelLocation[2] = float(z)
+    # Convert output from kilometers to pixels
+    pixelLocation[0] = float(x) * 1000.0
+    pixelLocation[1] = float(y) * 1000.0
+    pixelLocation[2] = float(z) * 1000.0
 
     return pixelLocation
 
