@@ -48,9 +48,8 @@ def parseHeadOutput(textPath, cubePath):
         # Append leftovers from last line and clear left/right whitespace
         workingLine = lastLine + line.strip()
         lastLine = ''
-        #print '-->  ' + workingLine
 
-        #print 'workingLine =' + workingLine
+#        print 'workingLine =' + workingLine
 
         # Skip lines until we find the start of the kernel section
         if (not kernelsStarted ) and (workingLine.find('Group = Kernels') < 0):
@@ -64,7 +63,7 @@ def parseHeadOutput(textPath, cubePath):
         # Check if the current line is cut off with an append character
         if (workingLine[-1] == '-'): # This means ISIS has done a weird truncation to the next line
             lastLine = workingLine[:-1] # Strip trailing - and append next line to it next pass
-            #print '===   ' + lastLine
+#            print '===   ' + lastLine
             continue
 
         # Maintain the current kernel type
@@ -87,27 +86,41 @@ def parseHeadOutput(textPath, cubePath):
         elif (workingLine.find('ShapeModel') >= 0):
             currentKernelType = 'ShapeModel'
 
-        # Now look for any kernel files on the line (should never be more than one per line)
-        m = re.search('[$a-zA-Z0-9/._\-]*((\.tls)|(\.tpc)|(\.tf)|(\.bpc)|(\.bsp)|(\.bc)|(\.tf)|(\.ti)|(\.tsc)|(\.cub))', workingLine) 
-        if not m:
-            #print 'Failed to find kernel in line: ' + workingLine
-            continue # If we did not find a match move on to the next line
+        # Now look for any kernel files on the line 
+        # TODO: This will fail if one kernel ends on a line and the next gets a continuation!
+        remainingSearchLine = workingLine
+        while (len(remainingSearchLine) > 3):
+        
+            # Look through the line for the next kernel
+            m = re.search('[$a-zA-Z0-9/._\-]*((\.tls)|(\.tpc)|(\.tf)|(\.bpc)|(\.bsp)|(\.bc)|(\.tf)|(\.ti)|(\.tsc)|(\.cub))', remainingSearchLine) 
+            
+            if not m: # Did not find a kernel
+                #print 'Failed to find kernel in line: ' + workingLine
+                break # If we did not find a match move on to the next line
 
-        if m.group(0)[0] == '$': # Located in ISIS data folder
-            kernelPath = os.path.join(isisDataFolder, m.group(0)[1:])
-        else: # Path relative to the file location, make it an absolute path
-            kernelPath = os.path.join(cubeFolder, m.group(0))
+            # Found a kernel, handle abbreviations
+            if m.group(0)[0] == '$': # Located in ISIS data folder
+                kernelPath = os.path.join(isisDataFolder, m.group(0)[1:])
+            else: # Path relative to the file location, make it an absolute path
+                kernelPath = os.path.join(cubeFolder, m.group(0))
 
-        # Handle special case where two different kinds of files are in the same category
-        if (currentKernelType == 'InstrumentPointing') and (kernelPath.find('.tf') > 0):
-            currentKernelType = 'Frame'
+            # Handle special case where two different kinds of files are in the same category
+            if (currentKernelType == 'InstrumentPointing') and (kernelPath.find('.tf') > 0):
+                currentKernelType = 'Frame'
 
-        #print 'In type: ' + currentKernelType + ' Found kernel ' + kernelPath
+            # Store the kernel in the dictionary
+            if not (currentKernelType in kernelDict):
+                kernelDict[currentKernelType] = [kernelPath]
+            else:
+                kernelDict[currentKernelType].append(kernelPath)
 
-        if not (currentKernelType in kernelDict):
-            kernelDict[currentKernelType] = [kernelPath]
-        else:
-            kernelDict[currentKernelType].append(kernelPath)
+#            print 'In type: ' + currentKernelType + ' Found kernel ' + kernelPath
+
+            # Set up whatever is left of the line for more searching
+            remainingSearchLine = remainingSearchLine[m.end()+1:]
+#            print remainingSearchLine
+#            print len(remainingSearchLine)
+#            print '\n'
 
     # Return the list of kernels
     return kernelDict
