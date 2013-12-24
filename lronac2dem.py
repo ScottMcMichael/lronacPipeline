@@ -136,23 +136,6 @@ def createMosaic(leftCube, rightCube, outputCube, workDir, forceOperation):
 
 def main():
 
-#    cmd = 'handmos from= /byss/moon/lronacPipeline_V2/FRESH3/workdir/leftFinalCorrected.noproj.cub mosaic= /byss/moon/lronacPipeline_V2/FRESH3/workdir/mosaicBlend.cub priority=average'
-#    print cmd
-#    os.system(cmd)
-   
-#    cmd = 'handmos from= /byss/moon/lronacPipeline_V2/FRESH3/workdir/rightStereoFinalCorrected.noproj.cub mosaic= /byss/moon/lronacPipeline_V2/FRESH3/workdir/mosaicStereoBlend.cub priority=average create=yes nsamples=10000 nlines=52224 nbands=1'
-#    print cmd
-#    os.system(cmd)
-
-#    cmd = 'handmos from= /byss/moon/lronacPipeline_V2/FRESH3/workdir/leftStereoFinalCorrected.noproj.cub mosaic= /byss/moon/lronacPipeline_V2/FRESH3/workdir/mosaicStereoBlend.cub priority=average'
-#    print cmd
-#    os.system(cmd)
-
-#    raise Exception('onthoentidoneushtidsenotu')
-
-
-
-
     print '#################################################################################'
     print "Running lronac2dem.py"
 
@@ -230,27 +213,24 @@ def main():
                 os.system(cmd)
                 print '\n============================================================================\n'
                 
-                        
                 # Convert GDC output files into KML plots 
                 # - This is just to help with debugging
-                generateKmlFromGdcPoints(os.path.join(tempFolder, 'initialGdcCheck'), tempFolder, 'pairGdcCheckInitial.csv',          1,      'blue', True)
-                generateKmlFromGdcPoints(os.path.join(tempFolder, 'posCorrectGdcCheck'), tempFolder, 'pairGdcCheckPos.csv',              1,      'red',  True)
-                generateKmlFromGdcPoints(os.path.join(tempFolder, 'posCorrectStereoGdcCheck'), tempFolder, 'pairGdcStereoCheckPos.csv',              1,      'red',  True)
-                generateKmlFromGdcPoints(os.path.join(tempFolder, 'stereoGlobalAdjustGdcCheck'), tempFolder, 'pairGdcCheckGlobalAdjustStero.csv',       1,      'blue', True)
-                generateKmlFromGdcPoints(os.path.join(tempFolder, 'pcAlignStereoGdcCheck'), tempFolder, 'pairGdcCheckPcAlign.csv', 1,      'red', True)
-                generateKmlFromGdcPoints(os.path.join(tempFolder, 'finalGdcCheck'), tempFolder, 'pairGdcCheckFinal.csv', 1,      'blue', True)
-                generateKmlFromGdcPoints(os.path.join(tempFolder, 'finalStereoGdcCheck'), tempFolder, 'pairGdcCheckFinalStereo.csv', 1,      'red', True)
-                generateKmlFromGdcPoints(os.path.join(tempFolder, 'gdcPointsLargeComp'), tempFolder, 'inputGdcPoints.csv',               1000, 'blue', True)
+                generateKmlFromGdcPoints(os.path.join(tempFolder, 'initialGdcCheck'), tempFolder, 'pairGdcCheckInitial.csv',          1,      'blue', False)
+                generateKmlFromGdcPoints(os.path.join(tempFolder, 'posCorrectGdcCheck'), tempFolder, 'pairGdcCheckPos.csv',              1,      'red',  False)
+                generateKmlFromGdcPoints(os.path.join(tempFolder, 'posCorrectStereoGdcCheck'), tempFolder, 'pairGdcStereoCheckPos.csv',              1,      'red',  False)
+                generateKmlFromGdcPoints(os.path.join(tempFolder, 'stereoGlobalAdjustGdcCheck'), tempFolder, 'pairGdcCheckGlobalAdjustStero.csv',       1,      'blue', False)
+                generateKmlFromGdcPoints(os.path.join(tempFolder, 'pcAlignStereoGdcCheck'), tempFolder, 'pairGdcCheckPcAlign.csv', 1,      'red', False)
+                generateKmlFromGdcPoints(os.path.join(tempFolder, 'finalGdcCheck'), tempFolder, 'pairGdcCheckFinal.csv', 1,      'blue', False)
+                generateKmlFromGdcPoints(os.path.join(tempFolder, 'finalStereoGdcCheck'), tempFolder, 'pairGdcCheckFinalStereo.csv', 1,      'red', False)
+                generateKmlFromGdcPoints(os.path.join(tempFolder, 'gdcPointsLargeComp'), tempFolder, 'inputGdcPoints.csv',               1000, 'blue', False)
                 #generateKmlFromGdcPoints(os.path.join(tempFolder, 'initialGdcCheck'), tempFolder, 'dem-trans_source.csv',             'blue', False)
-                generateKmlFromGdcPoints(os.path.join(tempFolder, 'pcAlignOutput'), tempFolder, 'dem-trans_reference.csv',   1000, 'red',  True)
+                generateKmlFromGdcPoints(os.path.join(tempFolder, 'pcAlignOutput'), tempFolder, 'dem-trans_reference.csv',   1000, 'red',  False)
 
                 print 'Finished generating KML plots'
                 
         except: 
             caughtException = True
             print 'Caught an exception!'
-
-#        raise Exception('buggin out')
 
         # Delay check for left path to allow debug KML files to be generated
         if caughtException or not os.path.exists(leftCorrectedPath):
@@ -292,7 +272,6 @@ def main():
         if not os.path.exists(stereoMosaicWorkDir):
             os.mkdir(stereoMosaicWorkDir)
 
-#        raise Exception('buggin out!')
 
         createMosaic(leftNoprojPath,       rightNoprojPath,       mainMosaicPath,   mainMosaicWorkDir,   False)
         createMosaic(leftStereoNoprojPath, rightStereoNoprojPath, stereoMosaicPath, stereoMosaicWorkDir, False)

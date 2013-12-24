@@ -128,7 +128,7 @@ def main():
             os.remove(spkDataPath)
 
         # Call lronac spice editor tool to generate modified text file
-        cmd = 'spiceEditor --transformType 1 --transformFile ' + lronacOffsetPath + ' --outputPrefix ' + tempDataPrefix + ' --kernels ' + kernelStringList
+        cmd = 'spiceEditor --transformType 1 --transformFile ' + lronacOffsetPath + ' --outputPrefix ' + tempDataPrefix + ' --kernels ' + kernelStringList +  ' --sourceCube ' + options.inputPath
         print cmd
         os.system(cmd)
         if not os.path.exists(spkDataPath):

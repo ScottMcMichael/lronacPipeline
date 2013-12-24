@@ -160,6 +160,9 @@ def main():
         # Parse output looking for the IK frame file
         print 'Looking for source frame file...'
         kernels = IsisTools.parseHeadOutput(tempTextPath, options.outputPath)
+        
+        if not ('Frame' in kernels):
+            raise Exception('Error! Unable to find frame file!')
         inputFramePath = kernels['Frame'][0]
         if not os.path.exists(inputFramePath):
             raise Exception('Unable to find any IK kernel file in ' + tempTextPath)

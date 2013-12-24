@@ -67,8 +67,6 @@ def makeCkSetupFile(leapSecondFilePath, clockFilePath, frameFilePath, outputPath
     f.write("SCLK_FILE_NAME       = '" + clockSymPath + "'\n")
     f.write("FRAMES_FILE_NAME     = '" + frameSymPath + "'\n")
     f.write("CK_SEGMENT_ID        = 'CK_MATRICES'\n")
-#        f.write("INPUT_DATA_FILE   = 'spkDataFile.txt'")
-#        f.write("OUTPUT_SPK_FILE   = '/home/smcmich1/testSpkFile.bsp'")
     f.write("\\begintext\n")
     f.close()
 
@@ -152,18 +150,15 @@ def main():
         # Locate required kernels
         if not ('LeapSecond' in kernelDict):
             raise Exception('Error! Unable to find leap second file!')
-        else:
-            leapSecondFilePath = kernelDict['LeapSecond'][0] # Only deal with a single file
+        leapSecondFilePath = kernelDict['LeapSecond'][0] # Only deal with a single file
 
         if not ('SpacecraftClock' in kernelDict):
             raise Exception('Error! Unable to find clock kernel file!')
-        else:
-            clockFilePath = kernelDict['SpacecraftClock'][0] # Only deal with a single file
+        clockFilePath = kernelDict['SpacecraftClock'][0] # Only deal with a single file
 
         if not ('Frame' in kernelDict):
             raise Exception('Error! Unable to find frame kernel file!')
-        else:
-            frameFilePath = kernelDict['Frame'][0] # Only deal with a single file
+        frameFilePath = kernelDict['Frame'][0] # Only deal with a single file
 
         # Convert the kernels into a space delimited string to pass as arguments
         kernelStringList = ""
@@ -180,7 +175,6 @@ def main():
         if os.path.exists(ckDataPath):
             os.remove(ckDataPath)
 
-#TODO: What is up the kernel unloading step here?
         # Call lronac spice editor tool to generate modified text file
         cmd = 'spiceEditor --transformType 0 --transformFile ' + options.transformPath + ' --outputPrefix ' + tempDataPrefix + ' --kernels ' + kernelStringList + ' --sourceCube ' + options.inputPath
         print cmd
@@ -228,7 +222,6 @@ def main():
         # For unknown reasons there seems to be serious restrictions on directories this will actually write to.
         # We work around this by writing to a 'safe' path and copying the output to the desired location.
         reallyTempCkPath = os.path.join('/tmp/', inputBaseName + '_modifiedLrocCk.bc')  
-        print 'reallyTempCkPath =  ' + reallyTempCkPath
         if os.path.exists(reallyTempCkPath):
             os.remove(reallyTempCkPath)
 
@@ -243,10 +236,6 @@ def main():
         cmd = 'cp ' + reallyTempCkPath + ' ' + tempCkPath
         print cmd
         os.system(cmd)
-
-
-        #print 'QUITTING EARLY'
-        #return 0 
 
 
         # Re-run spiceinit using the new SPK and CK file

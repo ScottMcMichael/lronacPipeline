@@ -138,7 +138,10 @@ bool editSpiceFile(const Parameters &params)
 
   // Output kernel files have this many entries
   // - Could definately do something better than hard-coding this number
-  const int NUM_STEPS = 5000;
+  const int NUM_STEPS = 5000; 
+  
+  // Interpolation buffer in seconds added to each end of cube time
+  const double CUBE_INTERP_ET_BUFFER = 100; 
   
   //TODO: Read these from file
   // Target and observer are common for all operations
@@ -194,6 +197,8 @@ bool editSpiceFile(const Parameters &params)
     int    numSamples = sourceCubePtr->samples();
     minSourceCubeEt = sourceCubePtr->ephemeris_time(vw::Vector2(numSamples/2, 0));
     maxSourceCubeEt = sourceCubePtr->ephemeris_time(vw::Vector2(numSamples/2, numLines-1));
+    //printf("minSourceCubeEt = %lf\n", minSourceCubeEt);
+    //printf("maxSourceCubeEt = %lf\n", maxSourceCubeEt);
   }
 
   // Load the transform to apply  
@@ -380,7 +385,7 @@ bool editSpiceFile(const Parameters &params)
     // Get the number of intervals in the coverage window.
     SpiceInt numIntervals = wncard_c(&cover);    
 
-    //printf ( "\nCoverage for CK object %ld\n", (long int)bodyId );
+    printf ( "\nCoverage for CK object %ld, %d intervals\n", (long int)bodyId, numIntervals );
     
     // Convert the coverage interval start and stop times to TDB calendar strings.
     for (int j=0; j<numIntervals; j++)
@@ -391,10 +396,10 @@ bool editSpiceFile(const Parameters &params)
       // Convert the endpoints to TDB calendar format time strings and display them.
       timout_c(b, "YYYY MON DD HR:MN:SC.### (TDB) ::TDB", 51, timeString);
 
-      //printf("\nInterval:  %ld\nStart:     %s\n", j, timeString);
+      printf("\nInterval:  %ld\nStart:     %s\n", j, timeString);
 
-      //timout_c(e, "YYYY MON DD HR:MN:SC.### (TDB) ::TDB", 51, timeString);
-      //printf ( "Stop:      %s\n", timeString );
+      timout_c(e, "YYYY MON DD HR:MN:SC.### (TDB) ::TDB", 51, timeString);
+      printf ( "Stop:      %s\n", timeString );
 
 
       //printf("b = %lf, e = %lf\n", b, e); 
@@ -409,8 +414,21 @@ bool editSpiceFile(const Parameters &params)
 
       if (maxSourceCubeEt > minSourceCubeEt) // Limit processing to cube duration
       {
-        startEt = minSourceCubeEt - 2;
-        stopEt  = maxSourceCubeEt + 2;
+        if ((minSourceCubeEt < b) || (maxSourceCubeEt > e))
+        {
+          printf("ERROR: cube bounds (%lf, %lf) exceed kernel bounds (%lf, %lf)!\n", minSourceCubeEt, maxSourceCubeEt, b, e);
+          return false;
+        }
+      
+        // Desired time span is cube duration plus a buffer on each side
+        startEt = minSourceCubeEt - CUBE_INTERP_ET_BUFFER;
+        stopEt  = maxSourceCubeEt + CUBE_INTERP_ET_BUFFER;
+        if (startEt < b)
+          startEt = b;
+        if (stopEt > e)
+          stopEt = e;
+        
+        //printf("startEt = %lf, stopEt = %lf\n", startEt, stopEt);
       }
       SpiceDouble stepSize = (stopEt - startEt) / NUM_STEPS;
     
@@ -441,16 +459,14 @@ bool editSpiceFile(const Parameters &params)
         ckgp_c(LRO_SPACECRAFT_CODE, sclkdp, tol, J2000_FRAME_STRING.c_str(), spacecraft_from_J2000_R, &clkout, &orientationFound);
         if (!orientationFound)
         {
-          printf("SpiceEditor Error: Failed to obtain spacecraft orientation data at et %lf!!!!!!!!!!!!!!!!\n", et);
+          printf("SpiceEditor Error: Failed to obtain spacecraft J2000 orientation data at et %lf!!!!!!!!!!!!!!!!\n", et);
           return false;
         }
 
         // Try to get the planet orientation at that time (planet_from_J2000)
         // - [this matrix] * [j2000 vector] = [moon vector]
         SpiceDouble  planet_from_J2000_R[3][3];
-        pxform_c(J2000_FRAME_STRING.c_str(), MOON_FRAME_STRING.c_str(), et, planet_from_J2000_R);
-
-        SpiceDouble  J2000_from_planet_R[3][3];
+//        SpiceDouble  J2000_from_planet_R[3][3];
         if ((et >= minSourceCubeEt) && (et <= maxSourceCubeEt)) // If this time falls within the cube time
         {
           // Get the planet orientation from the source cube
@@ -468,6 +484,11 @@ bool editSpiceFile(const Parameters &params)
         else // Get the planet orientation from NAIF calls
         {
           pxform_c(J2000_FRAME_STRING.c_str(), MOON_FRAME_STRING.c_str(), et, planet_from_J2000_R);
+          if ( failed_c() )
+          {
+            printf("SpiceEditor Error: Failed to obtain planet J2000 orientation data at et %lf!!!!!!!!!!!!!!!!\n", et);
+            return false;
+          }
         }
 
 
@@ -494,7 +515,31 @@ bool editSpiceFile(const Parameters &params)
         mtxm_c(planet_from_J2000_R,      spacecraftFixed_from_Planet_R,  temp_R);
         xpose_c(temp_R, spacecraftFixed_from_J2000_R);
 
-        
+/*
+    printf("\nET = %lf, Old rotation matrix (SC in J2000)\n", et);
+    for (int q=0; q<3; ++q)
+    {
+      for (int s=0; s<3; ++s)
+        std::cout << " " << spacecraft_from_J2000_R[q][s]; // Write out the new rotation
+      //std::cout << std::endl;
+    }
+    printf("\nConversion rotation matrix (planet in J2000)\n");
+    for (int q=0; q<3; ++q)
+    {
+      for (int s=0; s<3; ++s)
+        std::cout << " " << planet_from_J2000_R[q][s]; // Write out the new rotation
+      //std::cout << std::endl;
+    }
+    printf("\nNew rotation matrix (fixed SC in J2000)\n");
+    for (int q=0; q<3; ++q)
+    {
+      for (int s=0; s<3; ++s)
+        std::cout << " " << spacecraftFixed_from_J2000_R[q][s]; // Write out the new rotation
+      //std::cout << std::endl;
+    }
+    std::cout << std::endl;
+*/
+    
 
         // Dump ET, new rotation... line to a text file
         outputFile.precision(16);
@@ -511,14 +556,12 @@ bool editSpiceFile(const Parameters &params)
 
   } // End of loop through bodies
 
-  //printf("SPK file coverage:\n");
+  printf("\nSPK file coverage:\n");
 
   // Get list of bodies covered by the kernel
   SPICEINT_CELL(ids, 1000);
   spkobj_c(spkFile.c_str(), &ids);
 
-
-  //TODO: Just loop through the times we pull from the tabledump
 
   // For each body
   for (int i=0; i<card_c(&ids); ++i)
@@ -544,10 +587,10 @@ bool editSpiceFile(const Parameters &params)
       // Convert the endpoints to TDB calendar format time strings and display them.
       timout_c(b, "YYYY MON DD HR:MN:SC.### (TDB) ::TDB", 51, timeString);
 
-      //printf("\nInterval:  %ld\nStart:     %s\n", j, timeString);
+      printf("\nInterval:  %ld\nStart:     %s\n", j, timeString);
 
       timout_c(e, "YYYY MON DD HR:MN:SC.### (TDB) ::TDB", 51, timeString);
-      //printf("Stop:      %s\n", timeString);
+      printf("Stop:      %s\n", timeString);
 
       //printf("b = %lf, e = %lf\n", b, e); 
       // Modify the position at even intervals
@@ -556,8 +599,21 @@ bool editSpiceFile(const Parameters &params)
 
       if (maxSourceCubeEt > minSourceCubeEt) // Limit processing to cube duration
       {
-        startEt = minSourceCubeEt - 2;
-        stopEt  = maxSourceCubeEt + 2;
+        if ((minSourceCubeEt < b) || (maxSourceCubeEt > e))
+        {
+          printf("ERROR: cube bounds (%lf, %lf) exceed kernel bounds (%lf, %lf)!\n", minSourceCubeEt, maxSourceCubeEt, b, e);
+          return false;
+        }
+      
+        // Desired time span is cube duration plus a buffer on each side
+        startEt = minSourceCubeEt - CUBE_INTERP_ET_BUFFER;
+        stopEt  = maxSourceCubeEt + CUBE_INTERP_ET_BUFFER;
+        if (startEt < b)
+          startEt = b;
+        if (stopEt > e)
+          stopEt = e;
+        
+        //printf("startEt = %lf, stopEt = %lf\n", startEt, stopEt);
       }
       SpiceDouble stepSize = (stopEt - startEt) / NUM_STEPS;
 
@@ -577,6 +633,11 @@ bool editSpiceFile(const Parameters &params)
 
         // Retrieve the position of the spacecraft at this time
         spkez_c(bodyId,  et,  J2000_FRAME_STRING.c_str(), absCorr.c_str(), MOON_CODE, state, &lightTime); // LRO relative to Moon in J2000 frame, units are kilometers and km/sec
+        if ( failed_c() )
+        {
+          printf("SpiceEditor Error: Failed to obtain SC J2000 position data at et %lf!!!!!!!!!!!!!!!!\n", et);
+          return false;
+        }
 
         SpiceDouble tol = 0; // Make sure we can do this 
 
@@ -591,7 +652,7 @@ bool editSpiceFile(const Parameters &params)
         ckgp_c(LRO_SPACECRAFT_CODE, sclkdp, tol, J2000_FRAME_STRING.c_str(), spacecraft_from_J2000_R, &clkout, &orientationFound);
         if (!orientationFound)
         {
-          printf("SpiceEditor Error: Failed to obtain spacecraft position data at et %lf!!!!!!!!!!!!!!!!\n", et);
+          printf("SpiceEditor Error: Failed to obtain SC J2000 orientation data at et %lf!!!!!!!!!!!!!!!!\n", et);
           return false;
         }
 
@@ -599,6 +660,11 @@ bool editSpiceFile(const Parameters &params)
         SpiceDouble  planet_from_J2000_R[3][3];
         pxform_c(J2000_FRAME_STRING.c_str(), MOON_FRAME_STRING.c_str(), et, planet_from_J2000_R);
         // This matrix converts J2000 orientations to LRO orientations at et
+        if ( failed_c() )
+        {
+          printf("SpiceEditor Error: Failed to obtain planet J2000 orientation data at et %lf!!!!!!!!!!!!!!!!\n", et);
+          return false;
+        }
 
         SpiceDouble  newPosition[3];
         if (localTransform) // Apply existing lronac position offset
@@ -672,7 +738,7 @@ bool editSpiceFile(const Parameters &params)
     
   } // End of loop through bodies
   
-  printf("Finished looping through kernel data, program finished.\n");
+  printf("Finished looping through kernel data, SpiceEditor program finished.\n");
 
   return true;
 }
@@ -697,6 +763,7 @@ int main(int argc, char* argv[])
 
   } ASP_STANDARD_CATCHES;
 
+  printf("Exiting SpiceEditor program.\n");
   return 0;
 }
 
