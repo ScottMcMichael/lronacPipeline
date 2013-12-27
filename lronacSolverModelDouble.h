@@ -279,11 +279,10 @@ bool getInitialStateEstimate(const PointObsList &leftRight,   // Main pair
                              const PointObsList &leftRightS,  // LE to RE_S
                              const PointObsList &leftSRight,  // LE_S to RE
                              vw::Vector<double> &stateEstimate, //Vector<double> &packedObsVector,
+                             const double        expectedSurfaceElevation=0,
                              const std::vector<double> &inputState = std::vector<double>())
 { 
   const size_t PARAMS_PER_POINT = 3;
-  
-  double surfaceElevation = 0; //TODO: Where to get this number from?
   
   // Record observation vectors to class variables
   _leftRight   = &leftRight;   // Main   pair
@@ -380,7 +379,7 @@ bool getInitialStateEstimate(const PointObsList &leftRight,   // Main pair
   {
     vw::Vector2 leftPixel  = leftRight.leftObsList[i];
     vw::Vector2 rightPixel = leftRight.rightObsList[i];
-    computePointLocation(_leftCameraModel, _rightCameraModel, leftPixel, rightPixel, surfaceElevation, useStereo, pointLoc);
+    computePointLocation(_leftCameraModel, _rightCameraModel, leftPixel, rightPixel, expectedSurfaceElevation, useStereo, pointLoc);
 
     // Record the x/y/z value for this point
     for (size_t p=0; p<PARAMS_PER_POINT; ++p)
@@ -394,7 +393,7 @@ bool getInitialStateEstimate(const PointObsList &leftRight,   // Main pair
   {
     vw::Vector2 leftPixel  = leftSRightS.leftObsList[i];
     vw::Vector2 rightPixel = leftSRightS.rightObsList[i];
-    computePointLocation(_leftCameraModel, _rightCameraModel, leftPixel, rightPixel, surfaceElevation, useStereo, pointLoc);
+    computePointLocation(_leftCameraModel, _rightCameraModel, leftPixel, rightPixel, expectedSurfaceElevation, useStereo, pointLoc);
 
     // Record the x/y/z value for this point
     for (size_t p=0; p<PARAMS_PER_POINT; ++p)
@@ -408,7 +407,7 @@ bool getInitialStateEstimate(const PointObsList &leftRight,   // Main pair
   {
     vw::Vector2 leftPixel  = leftLeftS.leftObsList[i];
     vw::Vector2 rightPixel = leftLeftS.rightObsList[i];
-    computePointLocation(_leftCameraModel, _leftStereoCameraRotatedModel, leftPixel, rightPixel, surfaceElevation, useStereo, pointLoc);
+    computePointLocation(_leftCameraModel, _leftStereoCameraRotatedModel, leftPixel, rightPixel, expectedSurfaceElevation, useStereo, pointLoc);
     
       //std::cout << "rot*m_pose = " << _leftStereoCameraRotatedModel->camera_pose(rightPixel).rotation_matrix() << std::endl; 
     
@@ -444,7 +443,7 @@ bool getInitialStateEstimate(const PointObsList &leftRight,   // Main pair
   {
     vw::Vector2 leftPixel  = rightRightS.leftObsList[i];
     vw::Vector2 rightPixel = rightRightS.rightObsList[i];
-    computePointLocation(_rightCameraModel, _rightStereoCameraRotatedModel, leftPixel, rightPixel, surfaceElevation, useStereo, pointLoc);
+    computePointLocation(_rightCameraModel, _rightStereoCameraRotatedModel, leftPixel, rightPixel, expectedSurfaceElevation, useStereo, pointLoc);
 
     // Record the x/y/z value for this point
     for (size_t p=0; p<PARAMS_PER_POINT; ++p)
@@ -458,7 +457,7 @@ bool getInitialStateEstimate(const PointObsList &leftRight,   // Main pair
   {
     vw::Vector2 leftPixel  = leftRightS.leftObsList[i];
     vw::Vector2 rightPixel = leftRightS.rightObsList[i];
-    computePointLocation(_leftCameraModel, _rightStereoCameraRotatedModel, leftPixel, rightPixel, surfaceElevation, useStereo, pointLoc);
+    computePointLocation(_leftCameraModel, _rightStereoCameraRotatedModel, leftPixel, rightPixel, expectedSurfaceElevation, useStereo, pointLoc);
 
     // Record the x/y/z value for this point
     for (size_t p=0; p<PARAMS_PER_POINT; ++p)
@@ -472,7 +471,7 @@ bool getInitialStateEstimate(const PointObsList &leftRight,   // Main pair
   {
     vw::Vector2 leftPixel  = leftSRight.leftObsList[i];
     vw::Vector2 rightPixel = leftSRight.rightObsList[i];
-    computePointLocation(_leftStereoCameraRotatedModel, _rightCameraModel, leftPixel, rightPixel, surfaceElevation, useStereo, pointLoc);
+    computePointLocation(_leftStereoCameraRotatedModel, _rightCameraModel, leftPixel, rightPixel, expectedSurfaceElevation, useStereo, pointLoc);
 
     // Record the x/y/z value for this point
     for (size_t p=0; p<PARAMS_PER_POINT; ++p)

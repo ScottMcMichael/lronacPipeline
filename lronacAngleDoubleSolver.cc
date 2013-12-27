@@ -78,7 +78,8 @@ struct Parameters : asp::BaseOptions
   
   std::string initialValuePath;
 
-  int  cropWidth; ///< Specifies image overlap for use with ipfind
+  double expectedSurfaceElevation;
+  int cropWidth; ///< Specifies image overlap for use with ipfind
   
   bool debug;
 };
@@ -95,6 +96,7 @@ bool handle_arguments(int argc, char* argv[],
     ("initialOnly",                  po::bool_switch(&opt.initialOnly                 )->default_value(false),  "Just compute initial state (don't solve)")
     ("initialValues",                po::value      (&opt.initialValuePath            )->default_value(""),     "Path to file containing state parameter values (probably from previous output)")
     ("crop-width",                   po::value      (&opt.cropWidth                   )->default_value(200),    "Crop images to this width before disparity search")
+    ("elevation",                    po::value      (&opt.expectedSurfaceElevation    )->default_value(0.0),    "Start solver estimate at this surface elevation")
     ("matchingPixelsLeftPath",       po::value      (&opt.matchingLeftPointsPath      )->default_value(""),     "Path to left-leftS stereo pixel file")
     ("matchingPixelsRightPath",      po::value      (&opt.matchingRightPointsPath     )->default_value(""),     "Path to right-rightS stereo pixel file")
     ("matchingPixelsLeftCrossPath",  po::value      (&opt.matchingLeftCrossPointsPath )->default_value(""),     "Path to left-rightS stereo pixel file")
@@ -540,7 +542,8 @@ bool optimizeRotations(Parameters & params)
   Vector<double> initialState;
   if (!lrocClass.getInitialStateEstimate(overlapPairs,        stereoOverlapPairs,
                                          leftPixelPairs,      rightPixelPairs,
-                                         leftCrossPixelPairs, rightCrossPixelPairs, initialState,  initialValues))
+                                         leftCrossPixelPairs, rightCrossPixelPairs, initialState, 
+                                         params.expectedSurfaceElevation, initialValues))
   {
     printf("Failed to get initial state!\n");
     return false;

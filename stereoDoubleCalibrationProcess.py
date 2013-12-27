@@ -149,7 +149,7 @@ def applyNavTransform(inputCubePath, outputCubePath, transformMatrixPath, workDi
 
 # Tries to compute the internal angle between an LE/RE image pair.
 # - Output GDC points serve as a check to make sure the images are in roughly the correct place.
-def checkAdjacentPairAlignment(leftInputPath, rightInputPath, outputDirectory, forceOperation):
+def checkAdjacentPairAlignment(leftInputPath, rightInputPath, outputDirectory,  surfaceElevation=0, forceOperation=False):
 
     # Figure out output paths
     if not os.path.exists(outputDirectory):
@@ -163,7 +163,7 @@ def checkAdjacentPairAlignment(leftInputPath, rightInputPath, outputDirectory, f
 
     # Run the process
     #cmd = 'lronacAngleSolver --outputPath dummy.txt --gdcPointsOutPath ' + outputGdcPath + ' ' + leftInputPath + ' ' + rightInputPath
-    cmd = 'lronacAngleDoubleSolver --outputPrefix ' + sbaOutputPrefix + ' --leftCubePath ' + leftInputPath + ' --rightCubePath ' + rightInputPath
+    cmd = 'lronacAngleDoubleSolver --outputPrefix ' + sbaOutputPrefix + ' --leftCubePath ' + leftInputPath + ' --rightCubePath ' + rightInputPath + ' --elevation ' + str(surfaceElevation)
     print cmd
     os.system(cmd)
 
@@ -236,7 +236,7 @@ def evaluateAccuracy(leftCubePath, rightCubePath, ipFindOutputPath, workDir=''):
     print 'Evaluating accuracy between cubes ' + leftCubePath + ' and ' + rightCubePath
 
     # Run check every N lines in the file
-    lineSkip = 25
+    lineSkip = 15
     
     f = open(ipFindOutputPath)
     i = 0
@@ -344,8 +344,11 @@ def main():
         spiceInitStereoLeftPath  = prepareImgFile(options.stereoLeft,  tempFolder)
         spiceInitStereoRightPath = prepareImgFile(options.stereoRight, tempFolder)
 
+        # Get the expected surface elevation in meters
+        expectedSurfaceElevation = IsisTools.getCubeElevationEstimate(spiceInitLeftPath, tempFolder)
+
         # DEBUG: Check angle solver on input LE/RE images!
-        checkAdjacentPairAlignment(spiceInitLeftPath, spiceInitRightPath, os.path.join(tempFolder, 'initialGdcCheck'), False)
+        checkAdjacentPairAlignment(spiceInitLeftPath, spiceInitRightPath, os.path.join(tempFolder, 'initialGdcCheck'), expectedSurfaceElevation, False)
 
         # Apply LE/RE LRONAC position offsets to each of the input files
         posOffsetCorrectedLeftPath = os.path.join(tempFolder, 'left.posOffsetCorrected.cub')
@@ -365,8 +368,8 @@ def main():
         applyInterCameraPositionOffset(spiceInitStereoRightPath, posOffsetCorrectedStereoRightPath,  thisWorkDir, False)
 
         # DEBUG: Check angle solver on input LE/RE images!
-        checkAdjacentPairAlignment(posOffsetCorrectedLeftPath, posOffsetCorrectedRightPath, os.path.join(tempFolder, 'posCorrectGdcCheck'), False)
-        checkAdjacentPairAlignment(posOffsetCorrectedStereoLeftPath, posOffsetCorrectedStereoRightPath, os.path.join(tempFolder, 'posCorrectStereoGdcCheck'), False)
+        checkAdjacentPairAlignment(posOffsetCorrectedLeftPath, posOffsetCorrectedRightPath, os.path.join(tempFolder, 'posCorrectGdcCheck'), expectedSurfaceElevation, False)
+        checkAdjacentPairAlignment(posOffsetCorrectedStereoLeftPath, posOffsetCorrectedStereoRightPath, os.path.join(tempFolder, 'posCorrectStereoGdcCheck'), expectedSurfaceElevation, False)
 
         print '\n-------------------------------------------------------------------------\n'
 
@@ -469,7 +472,7 @@ def main():
         mainIpFindPath      = sbaOutputPrefix + "-mainIpFindPixels.csv"
         stereoIpFindPath    = sbaOutputPrefix + "-stereoIpFindPixels.csv"
         if not os.path.exists(globalTransformPath):
-            cmd = 'lronacAngleDoubleSolver --outputPrefix ' + sbaOutputPrefix + ' --matchingPixelsLeftPath ' + pixelPairsLeftSmall + ' --matchingPixelsRightPath ' + pixelPairsRightSmall + leftCrossString + rightCrossString + ' --leftCubePath ' + posOffsetCorrectedLeftPath + ' --rightCubePath ' + posOffsetCorrectedRightPath + ' --leftStereoCubePath ' + posOffsetCorrectedStereoLeftPath + ' --rightStereoCubePath ' + posOffsetCorrectedStereoRightPath
+            cmd = 'lronacAngleDoubleSolver --outputPrefix ' + sbaOutputPrefix + ' --matchingPixelsLeftPath ' + pixelPairsLeftSmall + ' --matchingPixelsRightPath ' + pixelPairsRightSmall + leftCrossString + rightCrossString + ' --leftCubePath ' + posOffsetCorrectedLeftPath + ' --rightCubePath ' + posOffsetCorrectedRightPath + ' --leftStereoCubePath ' + posOffsetCorrectedStereoLeftPath + ' --rightStereoCubePath ' + posOffsetCorrectedStereoRightPath + ' --elevation ' + str(expectedSurfaceElevation)
             print cmd
             os.system(cmd)
         else:
@@ -518,7 +521,7 @@ def main():
         applyNavTransform(posOffsetCorrectedStereoRightPath, rightStereoAdjustedPath, globalTransformPath, thisWorkDir, '', '', False)
 
         # DEBUG: Check angle solver on stereo adjusted LE/RE images!
-        checkAdjacentPairAlignment(leftStereoAdjustedPath, rightStereoAdjustedPath, os.path.join(tempFolder, 'stereoGlobalAdjustGdcCheck'), False)
+        checkAdjacentPairAlignment(leftStereoAdjustedPath, rightStereoAdjustedPath, os.path.join(tempFolder, 'stereoGlobalAdjustGdcCheck'), expectedSurfaceElevation, False)
 
 
         # DEBUG: Re-run the SBA solver with the global adjustment applied to the stereo images.
@@ -529,7 +532,7 @@ def main():
         if not os.path.exists(globalSbaCheckTransformPath):
             if not os.path.exists(sbaGlobalCheckFolder):
                 os.mkdir(sbaGlobalCheckFolder)
-            cmd = 'lronacAngleDoubleSolver --outputPrefix ' + sbaGlobalCheckOutputPrefix + ' --matchingPixelsLeftPath ' + pixelPairsLeftSmall + ' --matchingPixelsRightPath ' + pixelPairsRightSmall + leftCrossString + rightCrossString + ' --leftCubePath ' + posOffsetCorrectedLeftPath + ' --rightCubePath ' + posOffsetCorrectedRightPath + ' --leftStereoCubePath ' + leftStereoAdjustedPath + ' --rightStereoCubePath ' + rightStereoAdjustedPath
+            cmd = 'lronacAngleDoubleSolver --outputPrefix ' + sbaGlobalCheckOutputPrefix + ' --matchingPixelsLeftPath ' + pixelPairsLeftSmall + ' --matchingPixelsRightPath ' + pixelPairsRightSmall + leftCrossString + rightCrossString + ' --leftCubePath ' + posOffsetCorrectedLeftPath + ' --rightCubePath ' + posOffsetCorrectedRightPath + ' --leftStereoCubePath ' + leftStereoAdjustedPath + ' --rightStereoCubePath ' + rightStereoAdjustedPath + ' --elevation ' + str(expectedSurfaceElevation)
             print cmd
             os.system(cmd)
 
@@ -550,7 +553,7 @@ def main():
         largeGdcPrefix = os.path.join(tempFolder, 'gdcPointsLargeComp/out')
         largeGdcFile   = largeGdcPrefix + '-initialGdcPoints.csv'
         if not os.path.exists(largeGdcFile):
-            cmd = 'lronacAngleDoubleSolver --outputPrefix ' + largeGdcPrefix + ' --matchingPixelsLeftPath ' + pixelPairsLeftLarge + ' --leftCubePath ' + posOffsetCorrectedLeftPath + ' --leftStereoCubePath ' + posOffsetCorrectedStereoLeftPath + " --initialOnly --initialValues " + solvedParamsPath 
+            cmd = 'lronacAngleDoubleSolver --outputPrefix ' + largeGdcPrefix + ' --matchingPixelsLeftPath ' + pixelPairsLeftLarge + ' --leftCubePath ' + posOffsetCorrectedLeftPath + ' --leftStereoCubePath ' + posOffsetCorrectedStereoLeftPath + " --initialOnly --initialValues " + solvedParamsPath + ' --elevation ' + str(expectedSurfaceElevation)
             print cmd
             os.system(cmd)
         else:
@@ -605,7 +608,7 @@ def main():
         # At this point the left images are hopefully in the correct position and we can apply the offset of the RE cameras
 
         # DEBUG: Check angle solver on stereo adjusted LE/RE images!
-        checkAdjacentPairAlignment(options.outputPathStereoLeft, partialCorrectedStereoRightPath, os.path.join(tempFolder, 'pcAlignStereoGdcCheck'), False)
+        checkAdjacentPairAlignment(options.outputPathStereoLeft, partialCorrectedStereoRightPath, os.path.join(tempFolder, 'pcAlignStereoGdcCheck'), expectedSurfaceElevation, False)
 
 
         print '\n-------------------------------------------------------------------------\n'
@@ -620,10 +623,10 @@ def main():
 
 
         # DEBUG: Check angle solver on adjusted LE/RE images!
-        checkAdjacentPairAlignment(options.outputPathLeft, options.outputPathRight, os.path.join(tempFolder, 'finalGdcCheck'), False)
+        checkAdjacentPairAlignment(options.outputPathLeft, options.outputPathRight, os.path.join(tempFolder, 'finalGdcCheck'), expectedSurfaceElevation, False)
 
         # DEBUG: Check angle solver on stereo adjusted LE/RE images!
-        checkAdjacentPairAlignment(options.outputPathStereoLeft, options.outputPathStereoRight, os.path.join(tempFolder, 'finalStereoGdcCheck'), False)
+        checkAdjacentPairAlignment(options.outputPathStereoLeft, options.outputPathStereoRight, os.path.join(tempFolder, 'finalStereoGdcCheck'), expectedSurfaceElevation, False)
         
         print '\n-------------------------------------------------------------------------\n'
 

@@ -323,6 +323,7 @@ def makeSpkSetupFile(leapSecondFilePath, outputPath):
     f.write("\\begintext\n")
     f.close()
 
+# TODO: Combine this with other functions to return all information about a cube from campt
 # Returns the BodyFixedCoordinate of a pixel from a cube.
 def getPixelLocInCube(cubePath, sample, line, workDir=''):
 
@@ -377,7 +378,7 @@ def getPixelLocInCube(cubePath, sample, line, workDir=''):
     #print numString
     x,y,z = numString.split(',')
 
-    # Convert output from kilometers to pixels
+    # Convert output from kilometers to meters
     pixelLocation[0] = float(x) * 1000.0
     pixelLocation[1] = float(y) * 1000.0
     pixelLocation[2] = float(z) * 1000.0
@@ -385,6 +386,67 @@ def getPixelLocInCube(cubePath, sample, line, workDir=''):
     return pixelLocation
 
 
+
+# Returns the surface elevation at the center of a cube
+def getCubeElevationEstimate(cubePath, workDir=''):
+
+    DEFAULT_MOON_RADIUS = 1737400 # In meters
+
+    # TODO: Get these values from the file!
+    sample = 2500
+    line   = 25000
+
+    # Make sure the input file exists
+    if not os.path.exists(cubePath):
+        raise Exception('Cube file ' + cubePath + ' not found!')
+
+    # Default working directory is the cubePath folder
+    outputFolder = workDir
+    if workDir == '':
+        outputFolder = os.path.dirname(cubePath)
+       
+    if not os.path.exists(outputFolder):
+        os.mkdir(outputFolder)
+
+    # Call ISIS campt function to compute the pixel location
+    tempTextPath = os.path.join(outputFolder, 'camptOutput.txt')
+    if os.path.exists(tempTextPath):
+        os.remove(tempTextPath) # Make sure any existing file is removed!
+        
+    # Use subprocess to suppress the command output
+    cmd = ['campt', 'from=', cubePath, 'to=', tempTextPath, 'sample=', str(sample), 'line=', str(line)]
+    FNULL = open(os.devnull, 'w')
+    subprocess.call(cmd, stdout=FNULL, stderr=subprocess.STDOUT)
+
+    # Check that we created the temporary file
+    if not os.path.exists(tempTextPath):
+        raise Exception('campt failed to create temporary file ' + tempTextPath)
+        
+    # Read in the output file to extract the pixel coordinates
+    foundLine   = ''
+    infoFile    = open(tempTextPath, 'r')
+    for line in infoFile:
+        if (line.find('LocalRadius') >= 0):
+            foundLine = line
+            break
+
+    os.remove(tempTextPath) # Remove the file to clean up
+
+    # Make sure we found the desired lines
+    if (foundLine == ''):
+        raise Exception("Unable to find LocalRadius in file " + tempTextPath)
+
+    # ExtractfoundLine the desired coordinates
+    eqPos     = foundLine.find('=')
+    endPos    = foundLine.find('<')
+    numString = foundLine[eqPos+2:endPos-2]
+
+    # Convert the absolute radius into a height relative to the mean radius of the moon
+    localRadius = float(numString) - DEFAULT_MOON_RADIUS
+    print numString
+    print 'found local radius ' + str(localRadius)
+
+    return localRadius
 
 
 

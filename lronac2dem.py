@@ -38,6 +38,7 @@ class Usage(Exception):
 # Generates a KML file to describe a set of GDC points on the moon
 def generateKmlFromGdcPoints(inputFolder, outputFolder, filename, pointSkip, color, forceOperation):
 
+    # TODO: Clean up the way this works!!!
     # Determine input and output paths
     inputPath      = os.path.join(inputFolder,  'SBA_check-outputGdcPoints.csv')
     if not os.path.exists(inputPath):
@@ -203,15 +204,24 @@ def main():
         rightStereoCorrectedPath = os.path.join(tempFolder, 'rightStereoFinalCorrected.cub')
         correct = os.path.join(tempFolder, 'rightStereoFinalCorrected.cub')
 
+        # Generate a kml plot of the input LOLA data
+        lolaKmlPath = os.path.join(tempFolder, 'lolaRdrPoints.kml')
+        if not os.path.exists(lolaKmlPath):
+            cmd = 'calibrationReport.py --input ' + options.lolaPath + ' --output ' + lolaKmlPath + ' --name ' + 'lolaRdrPoints' +  ' --skip ' + str(250) + ' --color ' + 'blue'
+            print cmd
+            os.system(cmd)
+
         # Correct all four input images at once
         caughtException = False
         try:
-            if not os.path.exists(leftCorrectedPath):
+            if True:#not os.path.exists(leftCorrectedPath):
                 print '\n=============================================================================\n'
                 cmd = 'stereoDoubleCalibrationProcess.py --left ' + options.leftPath + ' --right ' +  options.rightPath + ' --stereo-left ' + options.stereoLeft + ' --stereo-right ' + options.stereoRight + ' --lola ' + options.lolaPath + ' --keep --outputL ' + leftCorrectedPath + ' --outputR ' + rightCorrectedPath + ' --outputSL ' + leftStereoCorrectedPath + ' --outputSR ' + rightStereoCorrectedPath + ' --workDir ' + options.workDir
                 print cmd
                 os.system(cmd)
                 print '\n============================================================================\n'
+                
+                #raise Exception('Buggin out')
                 
                 # Convert GDC output files into KML plots 
                 # - This is just to help with debugging
