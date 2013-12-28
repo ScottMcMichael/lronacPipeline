@@ -448,6 +448,84 @@ def getCubeElevationEstimate(cubePath, workDir=''):
 
     return localRadius
 
+# Returns the percentage of good pixels in a stereo output
+def getStereoGoodPixelPercentage(inputPrefix, workDir=''):
+
+    # Set up input folder
+    inputFolder = os.path.dirname(inputPrefix)
+    if not os.path.exists(inputFolder):
+        raise Exception('Input folder ' + inputFolder + ' not found!')    
+    if workDir == '':
+        workDir = inputFolder
+
+    
+    #TODO: Look for goodPixelMap file!
+    
+    #TODO: Look for later stage estimates!
+    
+    # If the later stage files were not found, use the integer correlation file 
+    
+    # Extract the third band of the D_sub.tif image which contains a good pixel map
+    inputPath = inputPrefix + '-D_sub.tif'
+    if not os.path.exists(inputPath):
+        raise Exception('Could not find file ' + inputPath)
+    convertedImagePath = os.path.join(workDir,     'goodPixelMap-D_sub.tif')
+    cmd = 'gdal_translate -of GTiff -ot BYTE -b 3 ' + inputPath + ' ' + convertedImagePath
+    #print cmd
+    #os.system(cmd)
+    
+    # Determine the percentage of good pixels   
+    cmd = ['gdalinfo', '-hist', convertedImagePath]
+    p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+    translateOut, err = p.communicate()
+
+    # Parse the gdalinfo output
+    bucket  = translateOut.find('buckets')
+    colon   = translateOut.find(':', bucket)
+    start   = translateOut.find('\n', colon)
+    end     = translateOut.find('\n', start+1)
+    buckets = translateOut[start+1:end] # Pick off the string containing the buckets
+    numbers = buckets.strip().split(' ')
+    
+    numBad      = int(numbers[0]) # All pixels are in the first (bad) or last (good) buckets
+    numGood     = int(numbers[-1])
+    percentGood = float(numGood) / float(numGood + numBad)
+
+    return percentGood
+  
+
+# Returns the size [samples, lines] in a cube
+def getCubeSize(cubePath):
+    # Make sure the input file exists
+    if not os.path.exists(cubePath):
+        raise Exception('Cube file ' + cubePath + ' not found!')
+       
+    # Use subprocess to suppress the command output
+    cmd = ['gdalinfo', cubePath]
+    p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+    textOutput, err = p.communicate()
+
+    # Extract the size from the text
+    sizePos    = textOutput.find('Size is')
+    endPos     = textOutput.find('\n', sizePos+7)
+    sizeStr    = textOutput[sizePos+7:endPos]
+    sizeStrs   = sizeStr.strip().split(',')
+    numSamples = int(sizeStrs[0])
+    numLines   = int(sizeStrs[1])
+    
+    size = [numSamples, numLines]
+    return size
+
+
+
+
+
+
+
+
+
+
+
 
 
 
