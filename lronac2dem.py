@@ -16,18 +16,17 @@
 #  limitations under the License.
 # __END_LICENSE__
 
-import sys
-
-import os, glob, optparse, re, shutil, subprocess, string, time
+import sys, os, glob, optparse, re, shutil, subprocess, string, time, logging
 
 import IsisTools
 
-#def man(option, opt, value, parser):
-#    print >>sys.stderr, parser.usage
-#    print >>sys.stderr, '''\
-#Generates a stereo DEM from two LRONAC pairs, trying to use LOLA data for increased accuracy.
-#'''
-#    sys.exit()
+def man(option, opt, value, parser):
+    print >>sys.stderr, parser.usage
+    print >>sys.stderr, '''\
+Generates a stereo DEM from two LRONAC pairs, trying to use LOLA data for increased accuracy.
+Uses the StereoCalibrationProcess function to align the input images.
+'''
+    sys.exit()
 
 class Usage(Exception):
     def __init__(self, msg):
@@ -58,14 +57,16 @@ def generateKmlFromGdcPoints(inputFolder, outputFolder, filename, pointSkip, col
         return True
 
     # Generate the new file
-    cmd = 'calibrationReport.py --input ' + inputPath + ' --output ' + outputPath + ' --name ' + kmlName +  ' --skip ' + str(pointSkip) + ' --color ' + color
+    cmd = ('calibrationReport.py --input ' + inputPath + ' --output ' + outputPath + 
+          ' --name ' + kmlName +  ' --skip ' + str(pointSkip) + ' --color ' + color)
     print cmd
     os.system(cmd)
 
     # Check to make sure we actually created the file
     # - Don't throw an exception here since this is only a debug step
     if not os.path.exists(outputPath):
-        print '=======> WARNING: Kml point generation failed to create output file ' + outputPath + ' from input file ' + inputPath
+        print ('=======> WARNING: Kml point generation failed to create output file ' + outputPath + 
+               ' from input file ' + inputPath)
         return False
 
     return True
@@ -80,13 +81,15 @@ def noprojCubePair(inputCube, outputCube, matchCube, pvlPath, forceOperation):
         return True
 
     # Generate the new file
-    cmd = 'noproj from= ' + inputCube + ' to= ' + outputCube + ' match= ' + matchCube + ' specs= ' + pvlPath
+    cmd = ('noproj from= '  + inputCube + ' to= '    + outputCube + 
+                 ' match= ' + matchCube + ' specs= ' + pvlPath)
     print cmd
     os.system(cmd)
 
     # Check to make sure we actually created the file
     if not os.path.exists(outputCube):
-        raise Exception('noproj failed to create output file ' + outputCube + ' from input file ' + inputCube)
+        raise Exception('noproj failed to create output file ' + outputCube + 
+                        ' from input file ' + inputCube)
 
     return True
 
@@ -103,12 +106,15 @@ def createMosaic(leftCube, rightCube, outputCube, workDir, forceOperation):
 
     # Call lronacjitreg to determine any remaining offset between the two input files
     jitRegOutputPath = os.path.join(workDir, 'jitregResults.txt')
-    cmd = 'lronacjitreg --correlator-type 2 --kernel 15 15 --output-log ' + jitRegOutputPath + ' ' + leftCube + ' ' + rightCube;
+    cmd = ('lronacjitreg --correlator-type 2 --kernel 15 15 --output-log ' + jitRegOutputPath + 
+                        ' ' + leftCube + ' ' + rightCube)
     print cmd
     os.system(cmd)
 
     # Read in the output from lronacjitreg
     jitRegOffsets = IsisTools.readJitregFile(jitRegOutputPath)
+    logging.info('For cubes %s and %s', leftCube, rightCube)
+    logging.info('- jitreg offsets = %s', str(jitRegOffsets))
 
     # Set intermediate mosaic file path and start on mosaic
     mosaicCube = os.path.join(workDir, 'mosaic.cub')
@@ -118,7 +124,10 @@ def createMosaic(leftCube, rightCube, outputCube, workDir, forceOperation):
     
     # TODO: Try out more advanced ISIS mosaic merging functions!
     # Create the mosaic, applying offsets from jitreg (converting into handmos conventions)
-    cmd = 'handmos from= ' + rightCube + ' mosaic= ' + mosaicCube + ' outsample= ' + str(int(round(1 - jitRegOffsets[0]))) + ' outline= ' + str(int(round(1 - jitRegOffsets[1]))) + ' matchbandbin=FALSE priority=ontop'
+    cmd = ('handmos from= ' + rightCube + ' mosaic= ' + mosaicCube + 
+                  ' outsample= ' + str(int(round(1 - jitRegOffsets[0]))) + 
+                  ' outline= ' + str(int(round(1 - jitRegOffsets[1]))) + 
+                  ' matchbandbin=FALSE priority=ontop')
     print cmd
     os.system(cmd)
 
@@ -129,8 +138,21 @@ def createMosaic(leftCube, rightCube, outputCube, workDir, forceOperation):
 
     # Check to make sure we actually created the file
     if not os.path.exists(outputCube):
-        raise Exception('Failed to create mosaic file ' + outputCube + ' from input files ' + leftCube + ' and ' + rightCube)
+        raise Exception('Failed to create mosaic file ' + outputCube + 
+                        ' from input files ' + leftCube + ' and ' + rightCube)
 
+    return True
+
+
+# Generate a comparison of a DEM to the LOLA point cloud
+def compareDemToLola(lolaPath, demPath, outputPath, force):
+
+    if force or not os.path.exists(outputPath):
+        cmd = ('lola_compare --absolute 1 --limit-hist=2 -l "' + lolaPath + 
+                             '" -d ' + demPath + ' -o ' + outputPath)
+        print cmd
+        os.system(cmd)
+        
     return True
 
 #--------------------------------------------------------------------------------
@@ -144,23 +166,30 @@ def main():
         try:
             usage = "usage: lronac2dem.py [--output <path>][--manual]\n  "
             parser = optparse.OptionParser(usage=usage)
-            parser.add_option("--left",  dest="leftPath",  help="Path to LE .IMG file")
-            parser.add_option("--right", dest="rightPath", help="Path to RE .IMG file")
-
             
-            parser.add_option("--stereo-left", dest="stereoLeft", help="Path to LE .IMG file with overlapping view of --left file")
-            parser.add_option("--stereo-right", dest="stereoRight", help="Path to RE .IMG file with overlapping view of --right file")
+            inputGroup = outparse.OptionGroup(parser, 'Input Paths')
+            inputGroup.add_option("--left",  dest="leftPath",  help="Path to LE .IMG file")
+            inputGroup.add_option("--right", dest="rightPath", help="Path to RE .IMG file")            
+            inputGroup.add_option("--stereo-left",  dest="stereoLeft", 
+                                  help="Path to LE .IMG file with overlapping view of --left file")
+            inputGroup.add_option("--stereo-right", dest="stereoRight", 
+                                  help="Path to RE .IMG file with overlapping view of --right file")
+
+            inputGroup.add_option("--lola",    dest="lolaPath", help="Path to LOLA DEM")
+            inputGroup.add_option("--asu",     dest="asuPath",  help="Path to ASU DEM")
+            
+            parser.add_option_group(inputGroup)
 
             # The default working directory path is kind of ugly...
             parser.add_option("--workDir", dest="workDir",  help="Folder to store temporary files in")
-            parser.add_option("--lola",    dest="lolaPath", help="Path to LOLA DEM")
 
             parser.add_option("--prefix",  dest="prefix",   help="Output prefix.")
 
-            parser.add_option("--crop",  dest="cropAmount", help="Crops the output image to reduce processing time.")
+            parser.add_option("--crop",  dest="cropAmount", 
+                              help="Crops the output image to reduce processing time.")
 
-#            parser.add_option("--help", action="callback", callback=man,
-#                              help="Read the manual.")
+            parser.add_option("--manual", action="callback", callback=man,
+                              help="Read the manual.")
             #parser.add_option("--keep", action="store_true", dest="keep",
             #                  help="Do not delete the temporary files.")
             (options, args) = parser.parse_args()
@@ -184,6 +213,21 @@ def main():
         print "Beginning processing....."
 
         startTime = time.time()
+        
+        # Set this to true to force steps after it to activate
+        carry = False
+
+        # Verify input files are present
+        if not os.path.exists(options.leftPath):
+            raise Exception('Input file ' + options.leftPath + ' not found!')
+        if not os.path.exists(options.rightPath):
+            raise Exception('Input file ' + options.rightPath + ' not found!')
+        if not os.path.exists(options.stereoLeft):
+            raise Exception('Input file ' + options.stereoLeft + ' not found!')
+        if not os.path.exists(options.stereoRight):
+            raise Exception('Input file ' + options.stereoRight + ' not found!')
+        if not os.path.exists(options.lolaPath):
+            raise Exception('Input file ' + options.lolaPath + ' not found!')
 
         # Set up the output folders
         outputFolder  = os.path.dirname(options.prefix)
@@ -195,6 +239,10 @@ def main():
             os.mkdir(outputFolder) 
         if not os.path.exists(tempFolder):
             os.mkdir(tempFolder) 
+        
+        # Set up logging
+        logPath = options.prefix + '-Log.txt'
+        logging.basicConfig(filename=logPath,level=logging.INFO)
 
 
         # Set up output paths for the stereo calibration call
@@ -207,14 +255,20 @@ def main():
         # Generate a kml plot of the input LOLA data
         lolaKmlPath = os.path.join(tempFolder, 'lolaRdrPoints.kml')
         if not os.path.exists(lolaKmlPath):
-            cmd = 'calibrationReport.py --input ' + options.lolaPath + ' --output ' + lolaKmlPath + ' --name ' + 'lolaRdrPoints' +  ' --skip ' + str(250) + ' --color ' + 'blue'
+            cmd = ('calibrationReport.py --input '  + options.lolaPath + 
+                                       ' --output ' + lolaKmlPath + 
+                                       ' --name '   + 'lolaRdrPoints' + 
+                                       ' --skip '   + str(100) + ' --color ' + 'blue')
             print cmd
             os.system(cmd)
-
+                       
+        #raise Exception('done')
+        carry = True
+                       
         # Correct all four input images at once
         caughtException = False
         try:
-            if True:#not os.path.exists(leftCorrectedPath):
+            if not os.path.exists(leftCorrectedPath):
                 print '\n=============================================================================\n'
                 cmd = 'stereoDoubleCalibrationProcess.py --left ' + options.leftPath + ' --right ' +  options.rightPath + ' --stereo-left ' + options.stereoLeft + ' --stereo-right ' + options.stereoRight + ' --lola ' + options.lolaPath + ' --keep --outputL ' + leftCorrectedPath + ' --outputR ' + rightCorrectedPath + ' --outputSL ' + leftStereoCorrectedPath + ' --outputSR ' + rightStereoCorrectedPath + ' --workDir ' + options.workDir
                 print cmd
@@ -225,16 +279,16 @@ def main():
                 
                 # Convert GDC output files into KML plots 
                 # - This is just to help with debugging
-                generateKmlFromGdcPoints(os.path.join(tempFolder, 'initialGdcCheck'), tempFolder, 'pairGdcCheckInitial.csv',          1,      'blue', False)
-                generateKmlFromGdcPoints(os.path.join(tempFolder, 'posCorrectGdcCheck'), tempFolder, 'pairGdcCheckPos.csv',              1,      'red',  False)
-                generateKmlFromGdcPoints(os.path.join(tempFolder, 'posCorrectStereoGdcCheck'), tempFolder, 'pairGdcStereoCheckPos.csv',              1,      'red',  False)
-                generateKmlFromGdcPoints(os.path.join(tempFolder, 'stereoGlobalAdjustGdcCheck'), tempFolder, 'pairGdcCheckGlobalAdjustStero.csv',       1,      'blue', False)
-                generateKmlFromGdcPoints(os.path.join(tempFolder, 'pcAlignStereoGdcCheck'), tempFolder, 'pairGdcCheckPcAlign.csv', 1,      'red', False)
-                generateKmlFromGdcPoints(os.path.join(tempFolder, 'finalGdcCheck'), tempFolder, 'pairGdcCheckFinal.csv', 1,      'blue', False)
-                generateKmlFromGdcPoints(os.path.join(tempFolder, 'finalStereoGdcCheck'), tempFolder, 'pairGdcCheckFinalStereo.csv', 1,      'red', False)
-                generateKmlFromGdcPoints(os.path.join(tempFolder, 'gdcPointsLargeComp'), tempFolder, 'inputGdcPoints.csv',               1000, 'blue', False)
-                #generateKmlFromGdcPoints(os.path.join(tempFolder, 'initialGdcCheck'), tempFolder, 'dem-trans_source.csv',             'blue', False)
-                generateKmlFromGdcPoints(os.path.join(tempFolder, 'pcAlignOutput'), tempFolder, 'dem-trans_reference.csv',   1000, 'red',  False)
+                generateKmlFromGdcPoints(os.path.join(tempFolder, 'initialGdcCheck'),            tempFolder, 'pairGdcCheckInitial.csv',           1,    'blue', False)
+                generateKmlFromGdcPoints(os.path.join(tempFolder, 'posCorrectGdcCheck'),         tempFolder, 'pairGdcCheckPos.csv',               1,    'red',  False)
+                generateKmlFromGdcPoints(os.path.join(tempFolder, 'posCorrectStereoGdcCheck'),   tempFolder, 'pairGdcStereoCheckPos.csv',         1,    'red',  False)
+                generateKmlFromGdcPoints(os.path.join(tempFolder, 'stereoGlobalAdjustGdcCheck'), tempFolder, 'pairGdcCheckGlobalAdjustStero.csv', 1,    'blue', False)
+                generateKmlFromGdcPoints(os.path.join(tempFolder, 'pcAlignStereoGdcCheck'),      tempFolder, 'pairGdcCheckPcAlign.csv',           1,    'red',  False)
+                generateKmlFromGdcPoints(os.path.join(tempFolder, 'finalGdcCheck'),              tempFolder, 'pairGdcCheckFinal.csv',             1,    'blue', False)
+                generateKmlFromGdcPoints(os.path.join(tempFolder, 'finalStereoGdcCheck'),        tempFolder, 'pairGdcCheckFinalStereo.csv',       1,    'red',  False)
+                generateKmlFromGdcPoints(os.path.join(tempFolder, 'gdcPointsLargeComp'),         tempFolder, 'inputGdcPoints.csv',                1000, 'blue', True)
+                #generateKmlFromGdcPoints(os.path.join(tempFolder, 'initialGdcCheck'),            tempFolder, 'dem-trans_source.csv',              1000, 'blue', False)
+                generateKmlFromGdcPoints(os.path.join(tempFolder, 'pcAlignOutput'),              tempFolder, 'dem-trans_reference.csv',           1000, 'red',  True)
 
                 print 'Finished generating KML plots'
                 
@@ -263,10 +317,10 @@ def main():
         leftStereoNoprojPath  = os.path.join(tempFolder, 'leftStereoFinalCorrected.noproj.cub')
         rightStereoNoprojPath = os.path.join(tempFolder, 'rightStereoFinalCorrected.noproj.cub')
 
-        noprojCubePair(leftCorrectedPath,        leftNoprojPath,        leftCorrectedPath,       pvlPath, False)
-        noprojCubePair(rightCorrectedPath,       rightNoprojPath,       leftCorrectedPath,       pvlPath, False)
-        noprojCubePair(leftStereoCorrectedPath,  leftStereoNoprojPath,  leftStereoCorrectedPath, pvlPath, False)
-        noprojCubePair(rightStereoCorrectedPath, rightStereoNoprojPath, leftStereoCorrectedPath, pvlPath, False)
+        noprojCubePair(leftCorrectedPath,        leftNoprojPath,        leftCorrectedPath,       pvlPath, carry)
+        noprojCubePair(rightCorrectedPath,       rightNoprojPath,       leftCorrectedPath,       pvlPath, carry)
+        noprojCubePair(leftStereoCorrectedPath,  leftStereoNoprojPath,  leftStereoCorrectedPath, pvlPath, carry)
+        noprojCubePair(rightStereoCorrectedPath, rightStereoNoprojPath, leftStereoCorrectedPath, pvlPath, carry)
 
 
         # Combine the noproj files to make a mosaic.
@@ -283,8 +337,8 @@ def main():
             os.mkdir(stereoMosaicWorkDir)
 
 
-        createMosaic(leftNoprojPath,       rightNoprojPath,       mainMosaicPath,   mainMosaicWorkDir,   False)
-        createMosaic(leftStereoNoprojPath, rightStereoNoprojPath, stereoMosaicPath, stereoMosaicWorkDir, False)
+        createMosaic(leftNoprojPath,       rightNoprojPath,       mainMosaicPath,   mainMosaicWorkDir,   carry)
+        createMosaic(leftStereoNoprojPath, rightStereoNoprojPath, stereoMosaicPath, stereoMosaicWorkDir, carry)
 
         # TODO: Testing use of the handmos blend feature!
         #mainMosaicPath   = os.path.join(tempFolder, 'mosaicBlend.cub')
@@ -295,11 +349,13 @@ def main():
             mainMosaicCroppedPath   = os.path.join(tempFolder, 'mainMosaicCropped.cub')
             stereoMosaicCroppedPath = os.path.join(tempFolder, 'stereoMosaicCropped.cub')
             if not os.path.exists(mainMosaicCroppedPath):
-                cmd = 'crop from= ' + mainMosaicPath   + ' to= ' + mainMosaicCroppedPath + ' nlines= ' + str(options.cropAmount)
+                cmd = ('crop from= ' + mainMosaicPath   + ' to= ' + mainMosaicCroppedPath + 
+                           ' nlines= ' + str(options.cropAmount))
                 print cmd
                 os.system(cmd)
             if not os.path.exists(stereoMosaicCroppedPath):
-                cmd = 'crop from= ' + stereoMosaicPath + ' to= ' + stereoMosaicCroppedPath + ' nlines= ' + str(options.cropAmount)
+                cmd = ('crop from= ' + stereoMosaicPath + ' to= ' + stereoMosaicCroppedPath + 
+                           ' nlines= ' + str(options.cropAmount))
                 print cmd
                 os.system(cmd)
             stereoInputLeft  = mainMosaicCroppedPath
@@ -307,8 +363,6 @@ def main():
         else:
             stereoInputLeft  = mainMosaicPath
             stereoInputRight = stereoMosaicPath
-
-
 
         print '\n-------------------------------------------------------------------------\n'
 
@@ -318,12 +372,21 @@ def main():
         stereoOutputPrefix = os.path.join(tempFolder, 'stereoWorkDir/stereo')
         pointCloudPath     = stereoOutputPrefix + '-PC.tif'
         if not os.path.exists(pointCloudPath):
-            cmd = 'parallel_stereo --corr-timeout 400 --alignment affineepipolar --subpixel-mode 1 --disable-fill-holes ' +  stereoInputLeft + ' ' + stereoInputRight + ' ' + stereoOutputPrefix + ' --processes 8 --threads-multiprocess 4 --threads-singleprocess 32 --compute-error-vector'
+            cmd = ('parallel_stereo --corr-timeout 400 --alignment affineepipolar --subpixel-mode 1' +
+                                  ' --disable-fill-holes ' +  stereoInputLeft + ' ' + stereoInputRight + 
+                                  ' ' + stereoOutputPrefix + ' --processes 8 --threads-multiprocess 4' +
+                                  ' --threads-singleprocess 32 --compute-error-vector')
             print cmd
             os.system(cmd)
             #--nodes-list PBS_NODEFILE --processes 4 --threads-multiprocess 16 --threads-singleprocess 32
         else:
             print 'Stereo file ' + pointCloudPath + ' already exists, skipping stereo step.'
+
+        # Compute percentage of good pixels
+        percentGood = IsisTools.getStereoGoodPixelPercentage(stereoOutputPrefix)
+        print 'Stereo completed with good pixel percentage: ' + str(percentGood)
+        logging.info('Final stereo completed with good pixel percentage: %s', str(percentGood))
+
 
         # Find out the center latitude of the mosaic
         centerLat = IsisTools.getCubeCenterLatitude(mainMosaicPath, tempFolder)
@@ -332,7 +395,9 @@ def main():
         demPrefix = os.path.join(outputFolder, 'p2d')
         demPath   = demPrefix + '-DEM.tif'
         if not os.path.exists(demPath):
-            cmd = 'point2dem --errorimage -o ' + demPrefix + ' ' + pointCloudPath + ' -r moon --tr 1 --t_srs "+proj=eqc +lat_ts=' + str(centerLat) + ' +lat_0=0 +a=1737400 +b=1737400 +units=m" --nodata -32767'
+            cmd = ('point2dem --errorimage -o ' + demPrefix + ' ' + pointCloudPath + 
+                            ' -r moon --tr 1 --t_srs "+proj=eqc +lat_ts=' + str(centerLat) + 
+                            ' +lat_0=0 +a=1737400 +b=1737400 +units=m" --nodata -32767')
             print cmd
             os.system(cmd)
         else:
@@ -348,11 +413,23 @@ def main():
             print 'DEM file ' + hillshadePath + ' already exists, skipping hillshade step.'
 
 
+
+        # Call script to compare LOLA data with the DEM
+        lolaDiffStatsPath = os.path.join(outputFolder, 'LOLA_diff_stats.txt')
+        compareDemToLola(options.lolaPath, demPath, lolaDiffStatsPath, carry)
+        
+
+        # Call script to compare LOLA data with the ASU DEM
+        lolaAsuDiffStatsPath = os.path.join(outputFolder, 'ASU_LOLA_diff_stats.txt')
+        if (options.asuPath):
+            compareDemToLola(options.lolaPath, options.asuPath, lolaAsuDiffStatsPath, carry)
+        
+        
+
         # Clean up temporary files
     #        if not options.keep:
     #            os.remove(tempTextPath)
 
-      
 
         endTime = time.time()
 

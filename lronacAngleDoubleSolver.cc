@@ -823,7 +823,7 @@ bool optimizeRotations(Parameters & params)
   solverOptions.use_nonmonotonic_steps = false; // Allow non-descent steps to try to find global minimum --> Seems to lead to bad results!
   solverOptions.max_num_consecutive_invalid_steps = 10;
   solverOptions.num_threads = 1; // SPICE cannot handle multiple threads here!
-  solverOptions.num_linear_solver_threads = 8; //TODO: Try this out
+  solverOptions.num_linear_solver_threads = 8; 
   //solverOptions.solver_log = "~/data/ceresOutput.txt";
   // There are many more options to play with!
   

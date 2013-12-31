@@ -81,7 +81,8 @@ def readRotationFile(rotFilePath):
     f = open(rotFilePath)
     rotData = []
     for line in f:
-        rotData.append(float(line)) # Each line just contains the floating point value of the rotation matrix
+        # Each line just contains the floating point value of the rotation matrix
+        rotData.append(float(line)) 
     f.close()
 
     return rotData
@@ -103,7 +104,8 @@ def main():
             parser.add_option("-c", "--ck",  dest="ckPath",  help="Path to write new CK file to.")
             parser.add_option("-o", "--output", dest="outputPath",
                               help="Where to write the output file.")
-            parser.add_option("--transformPath",  dest="transformPath",  help="Path to input file containing transform to apply")
+            parser.add_option("--transformPath",  dest="transformPath",  
+                              help="Path to input file containing transform to apply")
 
             # The default working directory path is kind of ugly...
             parser.add_option("--workDir", dest="workDir",  help="Folder to store temporary files in")
@@ -176,7 +178,10 @@ def main():
             os.remove(ckDataPath)
 
         # Call lronac spice editor tool to generate modified text file
-        cmd = 'spiceEditor --transformType 0 --transformFile ' + options.transformPath + ' --outputPrefix ' + tempDataPrefix + ' --kernels ' + kernelStringList + ' --sourceCube ' + options.inputPath
+        cmd = ('spiceEditor --transformType 0 --transformFile ' + options.transformPath + 
+                          ' --outputPrefix ' + tempDataPrefix + 
+                          ' --kernels '      + kernelStringList + 
+                          ' --sourceCube '   + options.inputPath)
         print cmd
         os.system(cmd)
         if not os.path.exists(spkDataPath):
@@ -239,7 +244,8 @@ def main():
 
 
         # Re-run spiceinit using the new SPK and CK file
-        cmd = "spiceinit attach=true from=" + options.outputPath + " spk=" + tempSpkPath + " ck=" + tempCkPath# + " fk=../../lroFrameZero.tf"
+        cmd = ("spiceinit attach=true from=" + options.outputPath + 
+                           " spk=" + tempSpkPath + " ck=" + tempCkPath) # + " fk=../../lroFrameZero.tf"
         print cmd
         os.system(cmd)
 

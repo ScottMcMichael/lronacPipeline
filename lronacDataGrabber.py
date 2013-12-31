@@ -113,7 +113,8 @@ def retrieveLolaFile(minLat, maxLat, minLon, maxLon, outputFolder):
     # Build a query to the WUSTL REST interface for LOLA data
     lolaUrl        = 'http://oderest.rsl.wustl.edu/test/'
     baseQuery      = '?query=lolardr&results=v&'
-    locationParams = 'maxlat='+str(maxLat)+'&minlat='+str(minLat)+'&westernlon='+str(minLon)+'&easternlon='+str(maxLon)
+    locationParams = ('maxlat='      + str(maxLat) + '&minlat='     + str(minLat) +
+                      '&westernlon=' + str(minLon) + '&easternlon=' + str(maxLon))
 
     queryUrl = lolaUrl + baseQuery + locationParams
     print queryUrl
@@ -366,11 +367,14 @@ def main():
                               dest="fetch",
                               help="Fetch the list of data locations (slow).")
             parser.add_option("-i", "--input-file", dest="inputFile",
-                              help="Specifies the data list file to read from.")
+                              help="Specifies the data list file to read from.",
+                              default='lronacDataSourceList.txt')
             parser.add_option("-o", "--output-folder", dest="outputFolder",
-                              help="Specifies the folder to copy the data to.")
+                              help="Specifies the folder to copy the data to.",
+                              default='.')
             parser.add_option("-n", "--name", dest="name",
-                              help="Only get the data for the DTM with this name.")
+                              help="Only get the data for the DTM with this name.",
+                              default='')
                               
             parser.add_option("--manual", action="callback", callback=man,
                               help="Read the manual.")
@@ -379,14 +383,6 @@ def main():
             if (not options.fetch) and (not options.inputFile):
                 print 'Error: Need to either fetch or specify an input file!'
                 return 1
-
-            # Set default options
-            if not options.inputFile:
-                options.inputFile = 'lronacDataSourceList.txt'
-            if not options.outputFolder:
-                options.outputFolder = '.'
-            if not options.name:
-                options.name = ''
 
         except optparse.OptionError, msg:
             raise Usage(msg)

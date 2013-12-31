@@ -92,7 +92,9 @@ def parseHeadOutput(textPath, cubePath):
         while (len(remainingSearchLine) > 3):
         
             # Look through the line for the next kernel
-            m = re.search('[$a-zA-Z0-9/._\-]*((\.tls)|(\.tpc)|(\.tf)|(\.bpc)|(\.bsp)|(\.bc)|(\.tf)|(\.ti)|(\.tsc)|(\.cub))', remainingSearchLine) 
+            m = re.search('[$a-zA-Z0-9/._\-]*'+
+                          '((\.tls)|(\.tpc)|(\.tf)|(\.bpc)|(\.bsp)|(\.bc)|(\.tf)|(\.ti)|(\.tsc)|(\.cub))', 
+                          remainingSearchLine) 
             
             if not m: # Did not find a kernel
                 #print 'Failed to find kernel in line: ' + workingLine
@@ -191,8 +193,10 @@ def readPositions(positionFilePath):
     #print pointList
     return pointList
 
-# Reads the output file from a lronacjitreg call and returns [meanSampleOffset, meanLineOffset]
+
 def readJitregFile(filePath):
+"""Reads the output file from a lronacjitreg call and returns [meanSampleOffset, meanLineOffset]"""
+
     # Fail if the input file is not present
     if not os.path.isfile(filePath):
         raise Exception('File ' + filePath + ' is missing!')
@@ -223,9 +227,12 @@ def readJitregFile(filePath):
     return averages
 
 
-# Generates a .pvl file needed to use noproj with an LRONAC camera pair.
-# - Can generate a version for either full or half sample resolution files.
+
 def writeLronacPvlFile(outputPath, isHalfRes):
+"""
+Generates a .pvl file needed to use noproj with an LRONAC camera pair.
+- Can generate a version for either full or half sample resolution files.
+"""
 
     if os.path.exists(outputPath):
         print outputPath + ' already exists, using existing file.'
@@ -260,8 +267,8 @@ def writeLronacPvlFile(outputPath, isHalfRes):
 
     f.close()
 
-# Calls caminfo on a mosaic and returns the CenterLatitude value
 def getCubeCenterLatitude(cubePath, workDir='tmp'):
+"""Calls caminfo on a mosaic and returns the CenterLatitude value"""
 
     # Make sure the requested file is present
     if not os.path.exists(cubePath):
@@ -293,8 +300,10 @@ def getCubeCenterLatitude(cubePath, workDir='tmp'):
 
     return centerLatitude # Return the latitude we found
 
-# Creates the required mkspk setup file if it does not already exist
+
+
 def makeSpkSetupFile(leapSecondFilePath, outputPath):
+"""Creates the required mkspk setup file if it does not already exist"""
 
     # If the file already exists, delete it and rewrite it.
     if os.path.exists(outputPath):
@@ -323,9 +332,10 @@ def makeSpkSetupFile(leapSecondFilePath, outputPath):
     f.write("\\begintext\n")
     f.close()
 
+
 # TODO: Combine this with other functions to return all information about a cube from campt
-# Returns the BodyFixedCoordinate of a pixel from a cube.
 def getPixelLocInCube(cubePath, sample, line, workDir=''):
+"""Returns the BodyFixedCoordinate of a pixel from a cube"""
 
     # Make sure the input file exists
     if not os.path.exists(cubePath):
@@ -387,8 +397,8 @@ def getPixelLocInCube(cubePath, sample, line, workDir=''):
 
 
 
-# Returns the surface elevation at the center of a cube
 def getCubeElevationEstimate(cubePath, workDir=''):
+"""Returns the surface elevation at the center of a cube"""
 
     DEFAULT_MOON_RADIUS = 1737400 # In meters
 
@@ -443,13 +453,13 @@ def getCubeElevationEstimate(cubePath, workDir=''):
 
     # Convert the absolute radius into a height relative to the mean radius of the moon
     localRadius = float(numString) - DEFAULT_MOON_RADIUS
-    print numString
     print 'found local radius ' + str(localRadius)
 
     return localRadius
 
-# Returns the percentage of good pixels in a stereo output
+
 def getStereoGoodPixelPercentage(inputPrefix, workDir=''):
+"""Returns the percentage of good pixels in a stereo output"""
 
     # Set up input folder
     inputFolder = os.path.dirname(inputPrefix)
@@ -471,8 +481,8 @@ def getStereoGoodPixelPercentage(inputPrefix, workDir=''):
         raise Exception('Could not find file ' + inputPath)
     convertedImagePath = os.path.join(workDir,     'goodPixelMap-D_sub.tif')
     cmd = 'gdal_translate -of GTiff -ot BYTE -b 3 ' + inputPath + ' ' + convertedImagePath
-    #print cmd
-    #os.system(cmd)
+    print cmd
+    os.system(cmd)
     
     # Determine the percentage of good pixels   
     cmd = ['gdalinfo', '-hist', convertedImagePath]
@@ -494,8 +504,10 @@ def getStereoGoodPixelPercentage(inputPrefix, workDir=''):
     return percentGood
   
 
-# Returns the size [samples, lines] in a cube
+
 def getCubeSize(cubePath):
+"""Returns the size [samples, lines] in a cube"""
+
     # Make sure the input file exists
     if not os.path.exists(cubePath):
         raise Exception('Cube file ' + cubePath + ' not found!')
