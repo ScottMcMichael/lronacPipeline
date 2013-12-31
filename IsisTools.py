@@ -195,7 +195,7 @@ def readPositions(positionFilePath):
 
 
 def readJitregFile(filePath):
-"""Reads the output file from a lronacjitreg call and returns [meanSampleOffset, meanLineOffset]"""
+    """Reads the output file from a lronacjitreg call and returns [meanSampleOffset, meanLineOffset]"""
 
     # Fail if the input file is not present
     if not os.path.isfile(filePath):
@@ -229,10 +229,10 @@ def readJitregFile(filePath):
 
 
 def writeLronacPvlFile(outputPath, isHalfRes):
-"""
-Generates a .pvl file needed to use noproj with an LRONAC camera pair.
-- Can generate a version for either full or half sample resolution files.
-"""
+    """
+    Generates a .pvl file needed to use noproj with an LRONAC camera pair.
+    - Can generate a version for either full or half sample resolution files.
+    """
 
     if os.path.exists(outputPath):
         print outputPath + ' already exists, using existing file.'
@@ -268,7 +268,7 @@ Generates a .pvl file needed to use noproj with an LRONAC camera pair.
     f.close()
 
 def getCubeCenterLatitude(cubePath, workDir='tmp'):
-"""Calls caminfo on a mosaic and returns the CenterLatitude value"""
+    """Calls caminfo on a mosaic and returns the CenterLatitude value"""
 
     # Make sure the requested file is present
     if not os.path.exists(cubePath):
@@ -303,7 +303,7 @@ def getCubeCenterLatitude(cubePath, workDir='tmp'):
 
 
 def makeSpkSetupFile(leapSecondFilePath, outputPath):
-"""Creates the required mkspk setup file if it does not already exist"""
+    """Creates the required mkspk setup file if it does not already exist"""
 
     # If the file already exists, delete it and rewrite it.
     if os.path.exists(outputPath):
@@ -335,7 +335,7 @@ def makeSpkSetupFile(leapSecondFilePath, outputPath):
 
 # TODO: Combine this with other functions to return all information about a cube from campt
 def getPixelLocInCube(cubePath, sample, line, workDir=''):
-"""Returns the BodyFixedCoordinate of a pixel from a cube"""
+    """Returns the BodyFixedCoordinate of a pixel from a cube"""
 
     # Make sure the input file exists
     if not os.path.exists(cubePath):
@@ -398,7 +398,7 @@ def getPixelLocInCube(cubePath, sample, line, workDir=''):
 
 
 def getCubeElevationEstimate(cubePath, workDir=''):
-"""Returns the surface elevation at the center of a cube"""
+    """Returns the surface elevation at the center of a cube"""
 
     DEFAULT_MOON_RADIUS = 1737400 # In meters
 
@@ -459,7 +459,7 @@ def getCubeElevationEstimate(cubePath, workDir=''):
 
 
 def getStereoGoodPixelPercentage(inputPrefix, workDir=''):
-"""Returns the percentage of good pixels in a stereo output"""
+    """Returns the percentage of good pixels in a stereo output"""
 
     # Set up input folder
     inputFolder = os.path.dirname(inputPrefix)
@@ -506,7 +506,7 @@ def getStereoGoodPixelPercentage(inputPrefix, workDir=''):
 
 
 def getCubeSize(cubePath):
-"""Returns the size [samples, lines] in a cube"""
+    """Returns the size [samples, lines] in a cube"""
 
     # Make sure the input file exists
     if not os.path.exists(cubePath):

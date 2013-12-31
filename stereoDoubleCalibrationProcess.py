@@ -311,7 +311,7 @@ def main():
             usage = "usage: stereoDoubleCalibrationProcess.py TODO [--manual]\n  "
             parser = optparse.OptionParser(usage=usage)
             
-            inputGroup = outparse.OptionGroup(parser, 'Input Paths')
+            inputGroup = optparse.OptionGroup(parser, 'Input Paths')
             inputGroup.add_option("--left",  dest="leftPath",  help="Path to LE .IMG file")
             inputGroup.add_option("--right", dest="rightPath", help="Path to RE .IMG file")
             
@@ -323,7 +323,7 @@ def main():
             inputGroup.add_option("--lola",    dest="lolaPath", help="Path to LOLA DEM")
             parser.add_option_group(inputGroup)
   
-            outputGroup = outparse.OptionGroup(parser, 'Input Paths')
+            outputGroup = optparse.OptionGroup(parser, 'Input Paths')
             outputGroup.add_option("--outputL",  dest="outputPathLeft",        
                                    help="Where to write the output LE file.")
             outputGroup.add_option("--outputR",  dest="outputPathRight",       
@@ -641,7 +641,7 @@ def main():
                                           ' --rightCubePath '           + posOffsetCorrectedRightPath + 
                                           ' --leftStereoCubePath '      + leftStereoAdjustedPath + 
                                           ' --rightStereoCubePath '     + rightStereoAdjustedPath + 
-                                          ' --elevation '               + str(expectedSurfaceElevation)
+                                          ' --elevation '               + str(expectedSurfaceElevation) +
                                           leftCrossString + rightCrossString)
             print cmd
             os.system(cmd)

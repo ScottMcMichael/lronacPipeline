@@ -167,7 +167,7 @@ def main():
             usage = "usage: lronac2dem.py [--output <path>][--manual]\n  "
             parser = optparse.OptionParser(usage=usage)
             
-            inputGroup = outparse.OptionGroup(parser, 'Input Paths')
+            inputGroup = optparse.OptionGroup(parser, 'Input Paths')
             inputGroup.add_option("--left",  dest="leftPath",  help="Path to LE .IMG file")
             inputGroup.add_option("--right", dest="rightPath", help="Path to RE .IMG file")            
             inputGroup.add_option("--stereo-left",  dest="stereoLeft", 
@@ -263,7 +263,7 @@ def main():
             os.system(cmd)
                        
         #raise Exception('done')
-        carry = True
+        carry = False
                        
         # Correct all four input images at once
         caughtException = False
