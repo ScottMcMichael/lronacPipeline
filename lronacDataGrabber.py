@@ -356,15 +356,16 @@ def retrieveDataFiles(logPath, outputDir, name=''):
 
 def main():
 
-    print "Started lronacPipeline.py"
+    print "Started lronacDataGrabber.py"
 
     try:
         try:
-            usage = "usage: lronacPipeline.py [--help][--manual]\n  "
+            usage = "usage: lronacDataGrabber.py [--help][--manual]\n  "
             parser = optparse.OptionParser(usage=usage)
-            parser.set_defaults(lowMem =False)
-#            parser.set_defaults(threads=4)
-            parser.add_option("-i", "--inputFile", dest="inputFile",
+            parser.add_option("-f", "--fetch", action="store_true",
+                              dest="fetch",
+                              help="Fetch the list of data locations (slow).")
+            parser.add_option("-i", "--input-file", dest="inputFile",
                               help="Specifies the data list file to read from.")
             parser.add_option("-o", "--output-folder", dest="outputFolder",
                               help="Specifies the folder to copy the data to.")
@@ -375,15 +376,20 @@ def main():
                               help="Read the manual.")
             (options, args) = parser.parse_args()
 
+            if (not options.fetch) and (not options.inputFile):
+                print 'Error: Need to either fetch or specify an input file!'
+                return 1
+
+            # Set default options
+            if not options.inputFile:
+                options.inputFile = 'lronacDataSourceList.txt'
+            if not options.outputFolder:
+                options.outputFolder = '.'
             if not options.name:
                 options.name = ''
 
-#            if not args: parser.error("need .IMG files")
-
         except optparse.OptionError, msg:
             raise Usage(msg)
-
-#TODO: Verify input folder is present!
 
         print "Beginning processing....."
 
@@ -391,13 +397,17 @@ def main():
 
 #        retrieveLolaFile(12.0, 12.1, 10.0, 10.1, '~/repot/lronacPipeline')
 
-#TODO: Fix the lat/lon coordinates being saved!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-#        getDataList(options.inputFile)
-	
-        # Download all of the data we need 
-        print 'Retrieving data files'
-        retrieveDataFiles(options.inputFile, options.outputFolder, options.name)
+        # If option was passed in, build the list of data locations.
+        if options.fetch:
+            print 'Searching for data sources'
+            getDataList(options.inputFile)
+            
+        else: # Download all of the data we need 
+            if options.name:
+                print 'Retrieving data for location ' + option.name
+            else:
+                print 'Retrieving ALL data files'
+            retrieveDataFiles(options.inputFile, options.outputFolder, options.name)
 
         endTime = time.time()
 

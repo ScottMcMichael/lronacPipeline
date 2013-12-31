@@ -1,6 +1,6 @@
 
 
-======= Build instructions =======
+======= Build instructions ===========================================
 
 - Make sure your StereoPipeline installation is up to date.
 
@@ -21,7 +21,8 @@ make
 - Add lronacPipeline and lronacPipeline/build to your path.
 
 
-======= Running the LRONAC Pipeline =======
+
+======= Running the LRONAC Pipeline =======================================
 
 - To generate a fully corrected DEM, call lronac2dem.py similar to this:
 
@@ -31,7 +32,54 @@ Note that you need the two pairs of LRONAC IMG files plus the LOLA data covering
 
 
 
-======= Overview of files =======
+======= Downloading data ==================================================
+
+- Use the lronacDataGrabber.py tool to generate a list of data locations.
+
+lronacDataGrabber.py --fetch --input-file lronacDataSourceList.txt
+
+- Then use the same script to retrieve data files from the list.
+
+lronacDataGrabber.py --input-file lronacDataSourceList.txt --output-folder . --name BHABHAPLAIN
+
+Currently the server for automated LOLA data downloads is not working so they needed to be downloaded by hand at the following address:  http://ode.rsl.wustl.edu/moon/lrololadataPointSearch.aspx
+The minimum bounds for each data set are listed in the data grabber source location file and in the command line output when retrieving data.  A 0.25 to 0.5 degree buffer in each direction is reccomended.  
+
+
+
+======= Processing description =====================================================
+
+--- Overview
+
+1 - Apply known position offset (about 1 meter per camera)
+2 - Run stereo program to find pixel matches between all camera pairs
+3 - Put all pixel pairs through SBA solver to compute transforms between cameras
+4 - Use pc_align to find offset of transformed cameras from the LOLA data.
+5 - Apply all internal (SBA) and external (pc_align) transforms to cameras
+6 - Generate mosaics from corrected cameras.
+7 - Generate final stereo DEM from mosaics.
+
+
+--- Detailed steps
+
+Inputs: Lola point cloud, four images (LE1, RE1, LE2, RE2)
+1  - Preprocess data with lronac2isis, lronacecho, spiceinit
+2  - Apply known position offset (about 1 meter per camera)
+3  - Run stereo program to find pixel matches between all camera pairs
+4  - Put all pixel pairs through SBA solver to compute transforms between cameras
+   - Solve for local rotation (RE to LE) and global rotation (2 to 1)
+5  - Apply global transform to the stereo camera pair (LE2 and RE2).
+6  - Generate a point cloud from LE1 and LE2
+7  - Use pc_align to find offset of the new point cloud to the LOLA point cloud
+8  - Apply pc_align computed transform to all four cameras.
+9  - Apply local transform to RE1 and RE2
+10 - Noproj the two pairs of cameras
+11 - Make a mosaic with each of the two pairs using lronacjitreg and handmos
+12 - Generate final stereo DEM from mosaics.
+
+
+
+======= Overview of files =====================================================
 
 ----- Configuration files -----
 
@@ -86,6 +134,4 @@ makePcAlignPlots.py         = Tool to help visualize pc_align output.  Not curre
 lronacMathTester.py         = Debug script.
 extractQtieControlPoints.py = Converts a Qtie control points file to a simple csv format.
 
-lronacAngleSolver.cc        = Older version of the SBA tool using the CERES solver.
-lronacSolverModel.h         = Camera model code for old SBA tool.
 
