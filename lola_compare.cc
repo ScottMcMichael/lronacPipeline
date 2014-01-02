@@ -174,7 +174,7 @@ int main( int argc, char *argv[] )
 
   const int numBins = 20; // 5% intervals
 
-  std::string demPath, lolaDataPath, outputPath="";
+  std::string demPath, lolaDataPath, outputPath="", mapPath="";
   int removeHistogramOutliers=0;
   bool useAbsolute;
 
@@ -184,6 +184,7 @@ int main( int argc, char *argv[] )
     ("input-dem,d",   po::value<std::string>(&demPath),                           "Explicitly specify the DEM  file")
     ("input-lola,l",  po::value<std::string>(&lolaDataPath),                      "Explicitly specify the LOLA file")
     ("output-file,o", po::value<std::string>(&outputPath)->default_value(""),     "Specify an output text file to store the program output")
+    ("map,m",         po::value<std::string>(&mapPath)->default_value(""),        "Write output diagnostic image to file.")
     ("absolute",      po::value<bool       >(&useAbsolute)->default_value(false), "Output the absolute difference as opposed to just the difference.")
     ("limit-hist",    po::value<int        >(&removeHistogramOutliers)->default_value(0), "Limits the histogram to +/- N standard deviations from the mean");
     
@@ -205,17 +206,21 @@ int main( int argc, char *argv[] )
     std::cout << usage.str();
     return 1;
   }
+  
+  if ( !vm.count("input-image") || !vm.count("input-lola") )
+    vw_throw( ArgumentErr() << "Requires <left> and <right> input in order to proceed.\n\n"
+              << usage << general_options );
 
+  // Load the input DEM
   ImageView<PixelGray<float> > inputDem;
   cartography::GeoReference georef;
-
   if (!read_georeferenced_image(inputDem, georef, demPath))
   {
     printf("Failed to read image!\n");
     return false;
   }
   std::cout << "Image size = " << inputDem.rows() << ", " << inputDem.cols() << std::endl;
-    
+
   // Loop through all lines in the LOLA data file
   std::ifstream lolaFile;
   lolaFile.open(lolaDataPath.c_str());
@@ -231,45 +236,44 @@ int main( int argc, char *argv[] )
   unsigned int numValidPixels = 0;
   RunningStatistics statCalc;
   double  demValue = 0;
+  std::list<vw::Vector3> hitList;
   std::vector<float> diffVector;
   diffVector.reserve(5000); // Init this to an estimated size
   while (std::getline(lolaFile, currentLine))
   {
-
     // Get the location of the first few commas
     size_t timeComma    = currentLine.find(",");            
     size_t lonComma     = currentLine.find(",", timeComma+1); 
     size_t latComma     = currentLine.find(",", lonComma+1);  
     size_t radiusComma  = currentLine.find(",", latComma+1);  
-    
+
     // Extract text containing the numbers we need    
-    std::string lonString    = currentLine.substr(timeComma+1, lonComma   -timeComma-1); 
-    std::string latString    = currentLine.substr(lonComma +1, latComma   -lonComma -1);     
-    std::string radiusString = currentLine.substr(latComma +1, radiusComma-latComma -1); 
-    
+    std::string lonString    = currentLine.substr(timeComma+1, lonComma   -timeComma-1);
+    std::string latString    = currentLine.substr(lonComma +1, latComma   -lonComma -1);
+    std::string radiusString = currentLine.substr(latComma +1, radiusComma-latComma -1);
+
 
     // Convert to floating point
     double ptLonDeg   = atof(lonString.c_str()   );
     double ptLatDeg   = atof(latString.c_str()   );
     double ptRadiusKm = atof(radiusString.c_str());
-    
+
     // Convert to common elevation datum
     double lolaElevation = (ptRadiusKm*1000.0) - MEAN_MOON_RADIUS;
 
     // Find the equivalent location in the image
-      
     Vector2 gdcCoord(ptLonDeg, ptLatDeg);
-
     Vector2 gccCoord   = georef.lonlat_to_point(gdcCoord);
-    
     Vector2 pixelCoord = georef.point_to_pixel(gccCoord);
-    
+
+    // Throw out pixel misses
     if ( (pixelCoord[0] < 0) ||
          (pixelCoord[0] >= inputDem.cols()) ||
          (pixelCoord[1] < 0) ||
          (pixelCoord[1] >= inputDem.rows())   )
-      continue; // Throw out pixel misses
+      continue; 
 
+    // Get DEM value and make sure it is valid
     demValue = inputDem(pixelCoord[0], pixelCoord[1])[0];
     if (demValue <= -32767) //TODO: Obtain the no-data value!
       continue; // Throw out flag values
@@ -286,8 +290,10 @@ int main( int argc, char *argv[] )
     // Update records
     statCalc.Push(diff);
     diffVector.push_back(diff); // Record difference values for computing histogram later
-
+    hitList.push_back(vw::Vector3(pixelCoord[0], pixelCoord[1], fabs(diff)));
+    
   } // End of loop through lines
+  
 
   printf("Found %d valid pixels\n", numValidPixels);
 
@@ -346,8 +352,60 @@ int main( int argc, char *argv[] )
     std::ofstream file(outputPath.c_str());
     writeOutput(diffVector, levels, hist, statCalc, file);
     file.close();
-  }     
+  }
+
+  // Optionally write a diagnostic image
+  if (mapPath.size() > 0)
+  {
+    double outputFraction = 0.1; // Currently output image is just a fraction of the input image
+    
+    //TODO: Use existing functions to do this!
+    // Initialize a diagnostic image
+    // - Convert the input image from float32 grayscale to uint8 RGB
+    int plotWidth  = inputDem.cols() * outputFraction;
+    int plotHeight = inputDem.rows() * outputFraction;
+    ImageView<PixelRGB<unsigned char> > diffPlot(plotWidth, plotHeight);
+    
+    for (int r=0; r<plotHeight; ++r)
+    {
+      for (int c=0; c<plotWidth; ++c)
+      {
+        //TODO: Get scaling factors for input image!
+        float         originalValue = inputDem(r*outputFraction, c*outputFraction);
+        unsigned char grayValue     = 0;//(originalValue - minVal) * (range/255.0);
+        diffPlot(r,c) = PixelRGB<unsigned char>(grayValue, grayValue, grayValue);
+      }
+    }
+
+    //ImageViewRef<float> diffPlot = vw::resize(inputDem, plotWidth, plotHeight);
+
+    
+    //boost::scoped_ptr<DiskImageResourceGDAL> rsrc( asp::build_gdal_rsrc( output_file,
+    //                                                                     diffPlot, opt ) );
+    //rsrc->set_nodata_write( opt.nodata_value );
+    //write_georeference( *rsrc, dem1_georef );
+    //block_write_image( *rsrc, difference,
+    //                    TerminalProgressCallback("asp", "\t--> Differencing: ") );
   
+    
+    
+    // Loop through all valid pixel hits and draw a scaled error in red
+    std::list<vw::Vector3>::const_iterator iter;
+    for (iter=hitList.begin(); iter!=hitList.end(); ++iter)
+    {
+      double diff = iter->z();
+      unsigned char scaledDiff = (diff - minVal) * (range/255.0);
+      diffPlot(iter->x(), iter->y()) = PixelRGB<unsigned char>(scaledDiff, 0, 0);
+    }
+
+    
+    vw_out() << "Writing error diagram: " << mapPath << "\n";
+    write_image(mapPath, diffPlot);
+
+    
+    
+  } // End of wrriting diagnostic image
+
   return 0;
 }
 
