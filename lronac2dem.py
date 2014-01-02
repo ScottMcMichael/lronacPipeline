@@ -270,12 +270,21 @@ def main():
         try:
             if not os.path.exists(leftCorrectedPath):
                 print '\n=============================================================================\n'
-                cmd = 'stereoDoubleCalibrationProcess.py --left ' + options.leftPath + ' --right ' +  options.rightPath + ' --stereo-left ' + options.stereoLeft + ' --stereo-right ' + options.stereoRight + ' --lola ' + options.lolaPath + ' --keep --outputL ' + leftCorrectedPath + ' --outputR ' + rightCorrectedPath + ' --outputSL ' + leftStereoCorrectedPath + ' --outputSR ' + rightStereoCorrectedPath + ' --workDir ' + options.workDir
+                cmd = ('stereoDoubleCalibrationProcess.py --left '  + options.leftPath + 
+                                                        ' --right ' +  options.rightPath + 
+                                                        ' --stereo-left '  + options.stereoLeft + 
+                                                        ' --stereo-right ' + options.stereoRight + 
+                                                        ' --keep --lola '  + options.lolaPath + 
+                                                        ' --outputL '  + leftCorrectedPath + 
+                                                        ' --outputR '  + rightCorrectedPath + 
+                                                        ' --outputSL ' + leftStereoCorrectedPath + 
+                                                        ' --outputSR ' + rightStereoCorrectedPath + 
+                                                        ' --workDir '  + options.workDir + 
+                                                        ' --log-path ' + logPath)
                 print cmd
-                os.system(cmd)
+                #os.system(cmd)
                 print '\n============================================================================\n'
                 
-                #raise Exception('Buggin out')
                 
                 # Convert GDC output files into KML plots 
                 # - This is just to help with debugging

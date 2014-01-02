@@ -371,7 +371,7 @@ def main():
                               default='lronacDataSourceList.txt')
             parser.add_option("-o", "--output-folder", dest="outputFolder",
                               help="Specifies the folder to copy the data to.",
-                              default='.')
+                              default='./')
             parser.add_option("-n", "--name", dest="name",
                               help="Only get the data for the DTM with this name.",
                               default='')
@@ -400,7 +400,7 @@ def main():
             
         else: # Download all of the data we need 
             if options.name:
-                print 'Retrieving data for location ' + option.name
+                print 'Retrieving data for location ' + options.name
             else:
                 print 'Retrieving ALL data files'
             retrieveDataFiles(options.inputFile, options.outputFolder, options.name)

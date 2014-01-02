@@ -173,12 +173,18 @@ def checkAdjacentPairAlignment(leftInputPath, rightInputPath, outputDirectory,  
 
     # Run the process
     #cmd = 'lronacAngleSolver --outputPath dummy.txt --gdcPointsOutPath ' + outputGdcPath + ' ' + leftInputPath + ' ' + rightInputPath
-    cmd = ('lronacAngleDoubleSolver --outputPrefix '  + sbaOutputPrefix + 
-                                  ' --leftCubePath '  + leftInputPath   + 
-                                  ' --rightCubePath ' + rightInputPath + 
-                                  ' --elevation '     + str(surfaceElevation))
-    print cmd
-    os.system(cmd)
+#    cmd = ('lronacAngleDoubleSolver --outputPrefix '  + sbaOutputPrefix + 
+#                                  ' --leftCubePath '  + leftInputPath   + 
+#                                  ' --rightCubePath ' + rightInputPath + 
+#                                  ' --elevation '     + str(surfaceElevation))
+#    print cmd
+#    os.system(cmd)
+    cmd = ['lronacAngleDoubleSolver',  '--outputPrefix',            sbaOutputPrefix, 
+                                       '--leftCubePath',            leftInputPath, 
+                                       '--rightCubePath',           rightInputPath, 
+                                       '--elevation',               str(surfaceElevation)]
+    p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+    outputText, err = p.communicate()
 
     # Check to make sure we actually created the file
     if not os.path.exists(defaultGdcPath):
@@ -323,7 +329,7 @@ def main():
             inputGroup.add_option("--lola",    dest="lolaPath", help="Path to LOLA DEM")
             parser.add_option_group(inputGroup)
   
-            outputGroup = optparse.OptionGroup(parser, 'Input Paths')
+            outputGroup = optparse.OptionGroup(parser, 'Output Paths')
             outputGroup.add_option("--outputL",  dest="outputPathLeft",        
                                    help="Where to write the output LE file.")
             outputGroup.add_option("--outputR",  dest="outputPathRight",       
@@ -332,6 +338,8 @@ def main():
                                    help="Where to write the output Stereo LE file.")
             outputGroup.add_option("--outputSR", dest="outputPathStereoRight", 
                                    help="Where to write the output Stereo RE file.")
+            outputGroup.add_option("--log-path",  dest="logPath",        
+                                   help="Where to write the output log file.")
             parser.add_option_group(outputGroup)
   
             # The default working directory path is kind of ugly...
@@ -383,8 +391,10 @@ def main():
             os.mkdir(tempFolder)
 
         # Set up logging
-        logPath = options.workDir + 'stereoDoubleCalLog.txt'
-        logging.basicConfig(filename=logPath,level=logging.INFO)
+        if not options.logPath:
+            options.logPath = options.workDir + '/stereoDoubleCalLog.txt'
+        logging.basicConfig(filename=options.logPath,level=logging.INFO)      
+        
 
         # Convert the input files from IMG files to spiceinit'ed cubes in the output folder
         spiceInitLeftPath        = prepareImgFile(options.leftPath,    tempFolder)
@@ -572,6 +582,23 @@ def main():
             print '-------'
             p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
             outputText, err = p.communicate()
+            
+            # Extract pertinent output information and log it
+            initialErrorLine = outputText.find('>>>>')
+            initialLineEnd   = outputText.find('\n', initialErrorLine)
+            medianErrorLine  = outputText.find('>>>>', initialLineEnd)
+            medianLineEnd    = outputText.find('\n', medianErrorLine)
+            meanErrorLine    = outputText.find('>>>>', medianLineEnd)
+            meanLineEnd      = outputText.find('\n', meanErrorLine)
+            changeErrorLine  = outputText.find('>>>>', meanLineEnd)
+            changeLineEnd    = outputText.find('\n', changeErrorLine)            
+            
+            logging.info(outputText[initialErrorLine:initialLineEnd])
+            logging.info(outputText[medianErrorLine :medianLineEnd ])
+            logging.info(outputText[meanErrorLine   :meanLineEnd   ])
+            logging.info(outputText[changeErrorLine :changeLineEnd ])
+            
+            
             print '====='
             print outputText
         else:
