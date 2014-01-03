@@ -207,9 +207,10 @@ int main( int argc, char *argv[] )
     return 1;
   }
   
-  if ( !vm.count("input-image") || !vm.count("input-lola") )
-    vw_throw( ArgumentErr() << "Requires <left> and <right> input in order to proceed.\n\n"
-              << usage << general_options );
+  //TODO: Why is this not working?
+  //if ( !vm.count("input-image") || !vm.count("input-lola") )
+  //  vw_throw( ArgumentErr() << "Requires <left> and <right> input in order to proceed.\n\n"
+  //            << usage << general_options );
 
   // Load the input DEM
   ImageView<PixelGray<float> > inputDem;
