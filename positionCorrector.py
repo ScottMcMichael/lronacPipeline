@@ -97,8 +97,10 @@ def main():
         # Convert the kernels into a space delimited string to pass as arguments
         kernelStringList = ""
         for k, v in kernelDict.iteritems(): # Iterate through dictionary entries
-            for i in v: # Iterate through type lists
-                kernelStringList = kernelStringList + ' ' + str(i)
+            # Add everything except the gigantic shape model (DEM)
+            if k != 'ShapeModel':
+                for i in v: # Iterate through type lists
+                    kernelStringList = kernelStringList + ' ' + str(i)
 
 
         # Determine if the input file is LE or RE
