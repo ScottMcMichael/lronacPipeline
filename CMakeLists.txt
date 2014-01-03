@@ -170,7 +170,7 @@ include_directories("${EIGEN_INCLUDE_DIR}")
 
 include_directories("${SUITESPARSE_INSTALL_DIR}/include")
 link_directories("${SUITESPARSE_INSTALL_DIR}/lib")
-set(SUITESPARSE_LIBRARIES  libamd.a   libccolamd.a  libcolamd.a    libklu.a   libspqr.a libbtf.a   libcerbla.a   libcsparse.a   libldl.a libsuitesparseconfig.a  libcholmod.a  libcxsparse.a  librbio.a  libumfpack.a libcamd.a)
+set(SUITESPARSE_LIBRARIES  libamd.a   libccolamd.a  libcolamd.a    libklu.a   libspqr.a libbtf.a    libcxsparse.a   libldl.a libsuitesparseconfig.a  libcholmod.a  libcxsparse.a  librbio.a  libumfpack.a libcamd.a)
 # The order of the libraries here is important
 
 FIND_PACKAGE(OpenMP REQUIRED)
