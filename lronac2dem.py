@@ -282,7 +282,7 @@ def main():
                                                         ' --workDir '  + options.workDir + 
                                                         ' --log-path ' + logPath)
                 print cmd
-                #os.system(cmd)
+                os.system(cmd)
                 print '\n============================================================================\n'
                 
                 
