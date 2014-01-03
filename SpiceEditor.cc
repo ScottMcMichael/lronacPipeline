@@ -25,6 +25,7 @@
 #include <list>
 #include <vector>
 #include <string>
+#include <iomanip>
 
 // CSpice include files
 #include "SpiceUsr.h"

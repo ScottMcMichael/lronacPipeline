@@ -20,6 +20,7 @@
 ///
 
 #include <iostream>
+#include <iomanip>
 
 #include <iTime.h> // Isis time class
 
