@@ -255,6 +255,43 @@ def callStereoCorrelation(leftInputPath, rightInputPath, outputPrefix, correlati
 
     return disparityImagePath
 
+
+# Quickly obtains a list of matched pixel pairs between two images
+def getInterestPointPairs(leftInputPath, rightInputPath, outputPath, forceOperation):
+
+    # Quit immediately if the output file already exists
+    if (not forceOperation) and (os.path.exists(outputPath)):
+        print 'File ' + outputPath + ' already exists, skipping point pair calculation.'
+    else:
+
+        # Generate intermediate binary file
+        binaryPath = outputPath + '.bin'
+        cmd = 'stereoIpFind -l '+ leftInputPath + ' -r ' + rightInputPath + ' -o ' + binaryPath
+        print cmd
+        os.system(cmd)
+
+        if not os.path.exists(binaryPath):
+            raise Exception('stereoIpFind failed to create output file ' + outputPath + 
+                            ' from input files ' + leftInputPath + ' and ' + rightInputPath)
+
+        # Convert from the binary file to an easy to read CSV final
+        cmd = 'matchBinaryToCsv -i '+ binaryPath + ' -o ' + outputPath
+        print cmd
+        os.system(cmd)
+
+        # Check to make sure we actually created the file
+        if not os.path.exists(outputPath):
+            raise Exception('matchBinaryToCsv call failed on file ' + outputPath)
+
+    # Count the number of point pairs we found
+    numPairs = getFileLineCount(outputPath)
+    print 'For cubes %s and %s found %d point pairs', leftInputPath, rightInputPath, numPairs
+    logging.info('For cubes %s and %s', leftInputPath, rightInputPath)
+    logging.info('- Found %d point pairs', numPairs)
+
+    return numPairs
+
+
 # Counts the number of lines in a file
 def getFileLineCount(filePath):
     f = open(filePath)
@@ -406,9 +443,9 @@ def main():
         expectedSurfaceElevation = IsisTools.getCubeElevationEstimate(spiceInitLeftPath, tempFolder)
 
         # DEBUG: Check angle solver on input LE/RE images!
-        checkAdjacentPairAlignment(spiceInitLeftPath, spiceInitRightPath, 
-                                   os.path.join(tempFolder, 'initialGdcCheck'), 
-                                   expectedSurfaceElevation, carry)
+#        checkAdjacentPairAlignment(spiceInitLeftPath, spiceInitRightPath, 
+#                                   os.path.join(tempFolder, 'initialGdcCheck'), 
+#                                   expectedSurfaceElevation, carry)
 
         # Apply LE/RE LRONAC position offsets to each of the input files
         posOffsetCorrectedLeftPath = os.path.join(tempFolder, 'left.posOffsetCorrected.cub')
@@ -430,12 +467,12 @@ def main():
                                        thisWorkDir, carry)
 
         # DEBUG: Check angle solver on input LE/RE images!
-        checkAdjacentPairAlignment(posOffsetCorrectedLeftPath, posOffsetCorrectedRightPath, 
-                                   os.path.join(tempFolder, 'posCorrectGdcCheck'), 
-                                   expectedSurfaceElevation, carry)
-        checkAdjacentPairAlignment(posOffsetCorrectedStereoLeftPath, posOffsetCorrectedStereoRightPath, 
-                                   os.path.join(tempFolder, 'posCorrectStereoGdcCheck'), 
-                                   expectedSurfaceElevation, carry)
+#        checkAdjacentPairAlignment(posOffsetCorrectedLeftPath, posOffsetCorrectedRightPath, 
+#                                   os.path.join(tempFolder, 'posCorrectGdcCheck'), 
+#                                   expectedSurfaceElevation, carry)
+#        checkAdjacentPairAlignment(posOffsetCorrectedStereoLeftPath, posOffsetCorrectedStereoRightPath, 
+#                                   os.path.join(tempFolder, 'posCorrectStereoGdcCheck'), 
+#                                   expectedSurfaceElevation, carry)
 
         print '\n-------------------------------------------------------------------------\n'
 
@@ -445,22 +482,25 @@ def main():
                                                    posOffsetCorrectedStereoLeftPath, 
                                                    stereoPrefixLeft, 400, carry)
 
-        #raise Exception('Done running left stereo!')
-
         # Perform initial stereo step on two RE cubes to generate a large number of point correspondences
-        stereoPrefixRight   = os.path.join(tempFolder, 'stereoOutputRight/out')
-        disparityImageRight = callStereoCorrelation(posOffsetCorrectedRightPath, 
-                                                    posOffsetCorrectedStereoRightPath, 
-                                                    stereoPrefixRight, 400, carry)
+        #stereoPrefixRight   = os.path.join(tempFolder, 'stereoOutputRight/out')
+        #disparityImageRight = callStereoCorrelation(posOffsetCorrectedRightPath, 
+        #                                            posOffsetCorrectedStereoRightPath, 
+        #                                            stereoPrefixRight, 400, carry)
 
 
         # Extract a small number of matching pixel locations from the LE and RE disparity images ( < 300 pairs)
         pixelPairsLeftSmall  = extractPixelPairsFromStereoResults(disparityImageLeft, tempFolder, 
                                                                   'stereoPixelPairsLeftSmall.csv', 
                                                                   800, carry)
-        pixelPairsRightSmall = extractPixelPairsFromStereoResults(disparityImageRight, tempFolder, 
-                                                                  'stereoPixelPairsRightSmall.csv', 
-                                                                  800, carry)
+        #pixelPairsRightSmall = extractPixelPairsFromStereoResults(disparityImageRight, tempFolder, 
+        #                                                          'stereoPixelPairsRightSmall.csv', 
+        #                                                          800, carry)
+
+        # Get small number of matching pixels for the right side quickly
+        pixelPairsRightSmall = os.path.join(tempFolder, 'stereoPixelPairsRightSmall.csv')
+        getInterestPointPairs(posOffsetCorrectedRightPath, posOffsetCorrectedStereoRightPath, 
+                              pixelPairsRightSmall, carry)
 
         print '\n-------------------------------------------------------------------------\n'
 
@@ -494,58 +534,68 @@ def main():
             print cmd
             os.system(cmd)
 
+        # Get small numbers of pixels for the two cross pairs quickly
 
-        # Use stereo command on two cross-pair cubes
-        # - Timeouts are shorter on these since there is probably less image overlap
+#        # Use stereo command on two cross-pair cubes
+#        # - Timeouts are shorter on these since there is probably less image overlap
         
         # First is left in main pair to right in the stereo pair
-        stereoPrefixLeftCross   = os.path.join(tempFolder, 'stereoOutputLeftCross/out')
+#        stereoPrefixLeftCross   = os.path.join(tempFolder, 'stereoOutputLeftCross/out')
+        numLeftCrossPairs = 0
+        pixelPairsLeftCrossSmall = os.path.join(tempFolder, 'stereoPixelPairsLeftCrossSmall.csv')
         try:
-            disparityImageLeftCross = callStereoCorrelation(leftPosCorrectedCropped, 
-                                                            rightStereoPosCorrectedCropped, 
-                                                            stereoPrefixLeftCross, 100, carry)
+            numLeftCrossPairs  = getInterestPointPairs(leftPosCorrectedCropped, rightStereoPosCorrectedCropped, 
+                                                       pixelPairsLeftCrossSmall, carry)
+
+#            disparityImageLeftCross = callStereoCorrelation(leftPosCorrectedCropped, 
+#                                                            rightStereoPosCorrectedCropped, 
+#                                                            stereoPrefixLeftCross, 100, carry)
             usingLeftCross = True
         except:
             print 'Failed to find left-cross match, ignoring this data source.'
             usingLeftCross = False
 
         # Next is left in the stereo pair to right in the main pair
-        stereoPrefixRightCross   = os.path.join(tempFolder, 'stereoOutputRightCross/out')
+#        stereoPrefixRightCross   = os.path.join(tempFolder, 'stereoOutputRightCross/out')
+        numRightCrossPairs = 0
+        pixelPairsRightCrossSmall = os.path.join(tempFolder, 'stereoPixelPairsRightCrossSmall.csv')
         try:
-            disparityImageRightCross = callStereoCorrelation(leftStereoPosCorrectedCropped, 
-                                                             rightPosCorrectedCropped, 
-                                                             stereoPrefixRightCross, 100, carry)
-            usingRightCross = True
+            numRightCrossPairs = getInterestPointPairs(leftStereoPosCorrectedCropped, rightPosCorrectedCropped, 
+                                                       pixelPairsRightCrossSmall, carry)
+#            disparityImageRightCross = callStereoCorrelation(leftStereoPosCorrectedCropped, 
+#                                                             rightPosCorrectedCropped, 
+#                                                             stereoPrefixRightCross, 100, carry)
+#            usingRightCross = True
         except:
             print 'Failed to find right-cross match, ignoring this data source.'
             usingRightCross = False
 
         # Extract a small number of matching pixel locations from the disparity images ( < 300 pairs)
         # - The pixels are extracted more densely because there is much less overlap area to work with.
-        if usingLeftCross:
-            pixelPairsLeftCrossSmall = extractPixelPairsFromStereoResults(disparityImageLeftCross, 
-                                                                          tempFolder, 
-                                                                          'stereoPixelPairsLeftCrossSmall.csv', 
-                                                                          400, carry)
-            numLeftCrossPairs = getFileLineCount(pixelPairsLeftCrossSmall)
-        if usingRightCross:
-            pixelPairsRightCrossSmall = extractPixelPairsFromStereoResults(disparityImageRightCross, 
-                                                                           tempFolder, 
-                                                                           'stereoPixelPairsRightCrossSmall.csv', 
-                                                                           400, carry)
-            numRightCrossPairs = getFileLineCount(pixelPairsRightCrossSmall)
+#        if usingLeftCross:
+#            pixelPairsLeftCrossSmall = extractPixelPairsFromStereoResults(disparityImageLeftCross, 
+#                                                                          tempFolder, 
+#                                                                          'stereoPixelPairsLeftCrossSmall.csv', 
+#                                                                          400, carry)
+#            numLeftCrossPairs = getFileLineCount(pixelPairsLeftCrossSmall)
+#        if usingRightCross:
+#            pixelPairsRightCrossSmall = extractPixelPairsFromStereoResults(disparityImageRightCross, 
+#                                                                           tempFolder, 
+#                                                                           'stereoPixelPairsRightCrossSmall.csv', 
+#                                                                           400, carry)
+#            numRightCrossPairs = getFileLineCount(pixelPairsRightCrossSmall)
 
         # Left and right cross pixels may not be used depending on the image overlap
         # - If a small number of pixel pairs was found that suggests we may have a high ratio of bad pixels
-        leftCrossString  = ''
-        rightCrossString = ''
+        #leftCrossString  = ''
+        #rightCrossString = ''
         leftCrossElems   = []
         rightCrossElems  = []
-        if usingLeftCross and (numLeftCrossPairs > 100):
-            leftCrossString  = ' --matchingPixelsLeftCrossPath '  + pixelPairsLeftCrossSmall
+        if usingLeftCross and (numLeftCrossPairs > 50):
+            #leftCrossString  = ' --matchingPixelsLeftCrossPath '  + pixelPairsLeftCrossSmall
             leftCrossElems   = ['--matchingPixelsLeftCrossPath', pixelPairsLeftCrossSmall]
-        if usingRightCross and (numRightCrossPairs > 100):
-            rightCrossString = ' --matchingPixelsRightCrossPath ' + pixelPairsRightCrossSmall
+        if usingRightCross and (numRightCrossPairs > 50):
+            #rightCrossString = ' --matchingPixelsRightCrossPath ' + pixelPairsRightCrossSmall
             rightCrossElems  = ['--matchingPixelsRightCrossPath', pixelPairsRightCrossSmall]
 
         print '\n-------------------------------------------------------------------------\n'
@@ -563,12 +613,7 @@ def main():
         solvedParamsPath    = sbaOutputPrefix + "-finalParamState.csv"
         mainIpFindPath      = sbaOutputPrefix + "-mainIpFindPixels.csv"
         stereoIpFindPath    = sbaOutputPrefix + "-stereoIpFindPixels.csv"
-        if not os.path.exists(globalTransformPath):
-#            cmd = 'lronacAngleDoubleSolver --outputPrefix ' + sbaOutputPrefix + ' --matchingPixelsLeftPath ' + pixelPairsLeftSmall + ' --matchingPixelsRightPath ' + pixelPairsRightSmall + leftCrossString + rightCrossString + ' --leftCubePath ' + posOffsetCorrectedLeftPath + ' --rightCubePath ' + posOffsetCorrectedRightPath + ' --leftStereoCubePath ' + posOffsetCorrectedStereoLeftPath + ' --rightStereoCubePath ' + posOffsetCorrectedStereoRightPath + ' --elevation ' + str(expectedSurfaceElevation)
-#            print cmd
-#            os.system(cmd)           
-         
-            # TODO: Extract selected text for easier debugging?
+        if (not os.path.exists(globalTransformPath)) or carry:
             cmd = ['lronacAngleDoubleSolver',  '--outputPrefix',            sbaOutputPrefix, 
                                                '--matchingPixelsLeftPath',  pixelPairsLeftSmall, 
                                                '--matchingPixelsRightPath', pixelPairsRightSmall, 
@@ -604,44 +649,15 @@ def main():
         else:
             print 'Skipping stereo transform calculation step'
 
-#        # DEBUG - Confirm output results are roughly the same
-#        zeroParamsPath           = '/byss/moon/lronacPipeline_V2/zeroParamsFile.csv'
-#        scPosCube     = os.path.join(tempFolder, 'stereoLeft.sc.cub')
-#        sbaOutputPrefixDebug     = os.path.join(tempFolder, 'SBA_solutionDEBUG3')
-#        posOffsetCorrectedStereoLeftPath
-#        cmd = 'lronacAngleDoubleSolver --outputPrefix ' + sbaOutputPrefixDebug+ ' --matchingPixelsLeftPath ' + pixelPairsLeftSmall + ' --leftCubePath ' + posOffsetCorrectedLeftPath + ' --leftStereoCubePath ' + scPosCube + " --initialOnly --initialValues " + zeroParamsPath 
-#        print cmd
-#        os.system(cmd)   
-#        raise Exception('buggin out')
-
-#        # DEBUG - Confirm output results are roughly the same
-#        sbaOutputPrefixDebug     = os.path.join(tempFolder, 'SBA_solutionDEBUG')
-#        cmd = 'lronacAngleDoubleSolver --outputPrefix ' + sbaOutputPrefixDebug+ ' --matchingPixelsLeftPath ' + pixelPairsLeftSmall + ' --leftCubePath ' + posOffsetCorrectedLeftPath + ' --leftStereoCubePath ' + posOffsetCorrectedStereoLeftPath + " --initialOnly --initialValues " + solvedParamsPath 
-#        print cmd
-#        os.system(cmd)   
-#        raise Exception('buggin out')
-        
         # Apply the planet-centered rotation/translation to both cameras in the stereo pair.
         # - This corrects the stereo pair relative to the main pair.
         # - The RE relative to LE corrections are performed later for convenience.
-#        zeroRotParamsPath           = os.path.join(tempFolder, 'zeroRotGlobalTransformMatrix.csv')
         leftStereoAdjustedPath = os.path.join(tempFolder, 'leftStereoAdjusted.cub')
         thisWorkDir            = os.path.join(tempFolder, 'stereoLeftStereoCorrection/')
         applyNavTransform(posOffsetCorrectedStereoLeftPath, leftStereoAdjustedPath, 
                           globalTransformPath, thisWorkDir, '', '', carry)
 
 
-#        meanLeftError = evaluateAccuracy(posOffsetCorrectedLeftPath, leftStereoAdjustedPath, pixelPairsLeftSmall, os.path.join(tempFolder, 'finalGdcCheck'))       
-#        print '=====> Mean left pair error = %.4f meters' % meanLeftError        
-#        raise Exception('buggin out')
-        
-        
-#        # DEBUG - Outputs here should be identical to the ones from the previous DEBUG call!
-#        sbaOutputPrefixDebug     = os.path.join(tempFolder, 'SBA_solutionDEBUG2')
-#        cmd = 'lronacAngleDoubleSolver --outputPrefix ' + sbaOutputPrefixDebug+ ' --matchingPixelsLeftPath ' + pixelPairsLeftSmall + ' --leftCubePath ' + posOffsetCorrectedLeftPath + ' --leftStereoCubePath ' + leftStereoAdjustedPath + " --initialOnly --initialValues " + zeroParamsPath 
-#        print cmd
-#        os.system(cmd)
-        
         rightStereoAdjustedPath = os.path.join(tempFolder, 'rightStereoAdjusted.cub')
         thisWorkDir             = os.path.join(tempFolder, 'stereoRightStereoCorrection/')
         applyNavTransform(posOffsetCorrectedStereoRightPath, rightStereoAdjustedPath, 
@@ -653,26 +669,29 @@ def main():
                                    expectedSurfaceElevation, carry)
 
 
-        # DEBUG: Re-run the SBA solver with the global adjustment applied to the stereo images.
-        # - Since we just applied the solved for transform, we expect global transform parameters to be near zero.
-        sbaGlobalCheckFolder = os.path.join(tempFolder, 'globalSbaCheck/')
-        sbaGlobalCheckOutputPrefix   = os.path.join(tempFolder, 'globalSbaCheck/SBA_solution')
-        globalSbaCheckTransformPath = sbaGlobalCheckOutputPrefix + "-globalTransformMatrix.csv"
-        if not os.path.exists(globalSbaCheckTransformPath):
-            if not os.path.exists(sbaGlobalCheckFolder):
-                os.mkdir(sbaGlobalCheckFolder)
-            cmd = ('lronacAngleDoubleSolver --outputPrefix '            + sbaGlobalCheckOutputPrefix + 
-                                          ' --matchingPixelsLeftPath '  + pixelPairsLeftSmall + 
-                                          ' --matchingPixelsRightPath ' + pixelPairsRightSmall + 
-                                          ' --leftCubePath '            + posOffsetCorrectedLeftPath + 
-                                          ' --rightCubePath '           + posOffsetCorrectedRightPath + 
-                                          ' --leftStereoCubePath '      + leftStereoAdjustedPath + 
-                                          ' --rightStereoCubePath '     + rightStereoAdjustedPath + 
-                                          ' --elevation '               + str(expectedSurfaceElevation) +
-                                          leftCrossString + rightCrossString)
-            print cmd
-            os.system(cmd)
-
+#        # DEBUG: Re-run the SBA solver with the global adjustment applied to the stereo images.
+#        # - Since we just applied the solved for transform, we expect global transform parameters to be near zero.
+#        sbaGlobalCheckFolder = os.path.join(tempFolder, 'globalSbaCheck/')
+#        sbaGlobalCheckOutputPrefix   = os.path.join(tempFolder, 'globalSbaCheck/SBA_solution')
+#        globalSbaCheckTransformPath = sbaGlobalCheckOutputPrefix + "-globalTransformMatrix.csv"
+#        if (not os.path.exists(globalSbaCheckTransformPath)) or carry:
+#            if not os.path.exists(sbaGlobalCheckFolder):
+#                os.mkdir(sbaGlobalCheckFolder)
+#            # TODO: Extract selected text for easier debugging?
+#            cmd = ['lronacAngleDoubleSolver',  '--outputPrefix',            sbaGlobalCheckOutputPrefix, 
+#                                               '--matchingPixelsLeftPath',  pixelPairsLeftSmall, 
+#                                               '--matchingPixelsRightPath', pixelPairsRightSmall, 
+#                                               '--leftCubePath',            posOffsetCorrectedLeftPath, 
+#                                               '--rightCubePath',           posOffsetCorrectedRightPath, 
+#                                               '--leftStereoCubePath',      leftStereoAdjustedPath, 
+#                                               '--rightStereoCubePath',     rightStereoAdjustedPath, 
+#                                               '--elevation',               str(expectedSurfaceElevation)]
+#            cmd = cmd + leftCrossElems + rightCrossElems
+#            print cmd
+#            print '-------'
+#            p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+#            outputText, err = p.communicate()
+#            print outputText
         print '\n-------------------------------------------------------------------------\n'
 
         # Extract a large number of matching pixel locations (many thousands) from the LE/LE and RE/RE.
@@ -690,7 +709,7 @@ def main():
             os.mkdir(largeGdcFolder)
         largeGdcPrefix = os.path.join(tempFolder, 'gdcPointsLargeComp/out')
         largeGdcFile   = largeGdcPrefix + '-initialGdcPoints.csv'
-        if not os.path.exists(largeGdcFile):
+        if (not os.path.exists(largeGdcFile)) or carry:
             cmd = ('lronacAngleDoubleSolver --outputPrefix '           + largeGdcPrefix + 
                                           ' --matchingPixelsLeftPath ' + pixelPairsLeftLarge + 
                                           ' --leftCubePath '           + posOffsetCorrectedLeftPath + 
@@ -708,7 +727,7 @@ def main():
         #largeGdcTransformedFile = os.path.joint(tempFolder, 'gdcPointsTransformedLarge.csv')
         #transformedPointsFile = os.path.join(tempFolder, 'pcAlignOutput-trans_source.csv')
         pcAlignTransformPath  = pcAlignOutputPrefix + '-inverse-transform.txt'
-        if not os.path.exists(pcAlignTransformPath):
+        if (not os.path.exists(pcAlignTransformPath)) or carry:
             # TODO: Confirm which input order works best
             #cmd = 'pc_align --highest-accuracy --max-displacement 1500 --datum D_MOON --max-num-reference-points 25000000 --save-transformed-source-points ' + options.lolaPath + ' ' + largeGdcFile + ' -o ' + pcAlignOutputPrefix + ' --compute-translation-only'
             cmd = ('pc_align --highest-accuracy --max-displacement 100 --datum D_MOON ' + 
@@ -719,7 +738,7 @@ def main():
             os.system(cmd)
         else:
             print 'Skipping pc_align step'
-            
+
         if not os.path.exists(pcAlignTransformPath):
             raise Exception('pc_align call failed!')
 

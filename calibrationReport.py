@@ -38,7 +38,7 @@ class Usage(Exception):
 #--------------------------------------------------------------------------------
 
 
-def plotPoints(pointList, kml, color, prefix, lineSkip):
+def plotPoints(pointList, kml, color, size, prefix, lineSkip):
     
     numPoints = len(pointList) / 3
     
@@ -49,8 +49,26 @@ def plotPoints(pointList, kml, color, prefix, lineSkip):
     style = simplekml.Style()
     if color=='blue':
         style.labelstyle.color = simplekml.Color.blue
-    else:
+    elif color=='red':
         style.labelstyle.color = simplekml.Color.red
+    elif color=='green':
+        style.labelstyle.color = simplekml.Color.green
+    elif color=='yellow':
+        style.labelstyle.color = simplekml.Color.yellow
+    else: 
+        style.labelstyle.color = simplekml.Color.white
+
+    if size=='small':
+        style.labelstyle.scale    = 0
+        style.iconstyle.scale     = 0.7
+        style.iconstyle.icon.href = 'http://maps.google.com/mapfiles/kml/shapes/open-diamond.png'
+        style.iconstyle.color = style.labelstyle.color
+    elif size=='tiny':
+        style.labelstyle.scale    = 0
+        style.iconstyle.scale     = 0.5
+        style.iconstyle.icon.href = 'http://maps.google.com/mapfiles/kml/shapes/placemark_circle.png'
+        style.iconstyle.color = style.labelstyle.color
+    # All other words trigger the default
 
     # Plot each point
     counter = 0
@@ -84,6 +102,7 @@ def main():
             parser.add_option("--output", dest="outputPath", help="Path of output kml file to write")
             parser.add_option("--name",   dest="name",       help="Name used to identify KML data")
             parser.add_option("--color",  dest="color",      help="Color used to plot points")
+            parser.add_option("--size",   dest="size",       help="Size shortcut: (normal / small / tiny)")
             parser.add_option("--skip",   dest="skip",       help="Only sample every N points")
             
             (options, args) = parser.parse_args()
@@ -103,6 +122,8 @@ def main():
             options.name  = 'gdcToKml'
         if not options.color:
             options.color = 'red'
+        if not options.size:
+            options.color = 'normal'
         if not options.skip:
             options.skip = 1
 
@@ -116,7 +137,7 @@ def main():
         kml.document.name = options.name
         kml.hint = 'target=moon'
 
-        kml = plotPoints(points, kml, options.color, 'I_', int(options.skip))
+        kml = plotPoints(points, kml, options.color, options.size, 'I_', int(options.skip))
 
         # Save kml document
         kml.save(options.outputPath)

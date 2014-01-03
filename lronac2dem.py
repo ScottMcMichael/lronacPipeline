@@ -35,7 +35,7 @@ class Usage(Exception):
 #--------------------------------------------------------------------------------
 
 # Generates a KML file to describe a set of GDC points on the moon
-def generateKmlFromGdcPoints(inputFolder, outputFolder, filename, pointSkip, color, forceOperation):
+def generateKmlFromGdcPoints(inputFolder, outputFolder, filename, pointSkip, color, size, forceOperation):
 
     # TODO: Clean up the way this works!!!
     # Determine input and output paths
@@ -58,7 +58,7 @@ def generateKmlFromGdcPoints(inputFolder, outputFolder, filename, pointSkip, col
 
     # Generate the new file
     cmd = ('calibrationReport.py --input ' + inputPath + ' --output ' + outputPath + 
-          ' --name ' + kmlName +  ' --skip ' + str(pointSkip) + ' --color ' + color)
+          ' --name ' + kmlName +  ' --skip ' + str(pointSkip) + ' --color ' + color + ' --size ' + size)
     print cmd
     os.system(cmd)
 
@@ -258,17 +258,16 @@ def main():
             cmd = ('calibrationReport.py --input '  + options.lolaPath + 
                                        ' --output ' + lolaKmlPath + 
                                        ' --name '   + 'lolaRdrPoints' + 
-                                       ' --skip '   + str(100) + ' --color ' + 'blue')
+                                       ' --skip '   + str(100) + ' --color ' + 'blue', + ' --size small')
             print cmd
             os.system(cmd)
                        
-        #raise Exception('done')
         carry = False
                        
         # Correct all four input images at once
         caughtException = False
         try:
-            if not os.path.exists(leftCorrectedPath):
+            if (not os.path.exists(leftCorrectedPath)) or carry:
                 print '\n=============================================================================\n'
                 cmd = ('stereoDoubleCalibrationProcess.py --left '  + options.leftPath + 
                                                         ' --right ' +  options.rightPath + 
@@ -285,19 +284,18 @@ def main():
                 os.system(cmd)
                 print '\n============================================================================\n'
                 
-                
                 # Convert GDC output files into KML plots 
                 # - This is just to help with debugging
-                generateKmlFromGdcPoints(os.path.join(tempFolder, 'initialGdcCheck'),            tempFolder, 'pairGdcCheckInitial.csv',           1,    'blue', False)
-                generateKmlFromGdcPoints(os.path.join(tempFolder, 'posCorrectGdcCheck'),         tempFolder, 'pairGdcCheckPos.csv',               1,    'red',  False)
-                generateKmlFromGdcPoints(os.path.join(tempFolder, 'posCorrectStereoGdcCheck'),   tempFolder, 'pairGdcStereoCheckPos.csv',         1,    'red',  False)
-                generateKmlFromGdcPoints(os.path.join(tempFolder, 'stereoGlobalAdjustGdcCheck'), tempFolder, 'pairGdcCheckGlobalAdjustStero.csv', 1,    'blue', False)
-                generateKmlFromGdcPoints(os.path.join(tempFolder, 'pcAlignStereoGdcCheck'),      tempFolder, 'pairGdcCheckPcAlign.csv',           1,    'red',  False)
-                generateKmlFromGdcPoints(os.path.join(tempFolder, 'finalGdcCheck'),              tempFolder, 'pairGdcCheckFinal.csv',             1,    'blue', False)
-                generateKmlFromGdcPoints(os.path.join(tempFolder, 'finalStereoGdcCheck'),        tempFolder, 'pairGdcCheckFinalStereo.csv',       1,    'red',  False)
-                generateKmlFromGdcPoints(os.path.join(tempFolder, 'gdcPointsLargeComp'),         tempFolder, 'inputGdcPoints.csv',                1000, 'blue', True)
-                #generateKmlFromGdcPoints(os.path.join(tempFolder, 'initialGdcCheck'),            tempFolder, 'dem-trans_source.csv',              1000, 'blue', False)
-                generateKmlFromGdcPoints(os.path.join(tempFolder, 'pcAlignOutput'),              tempFolder, 'dem-trans_reference.csv',           1000, 'red',  True)
+                generateKmlFromGdcPoints(os.path.join(tempFolder, 'initialGdcCheck'),            tempFolder, 'pairGdcCheckInitial.csv',           1,    'blue', 'normal', carry)
+                generateKmlFromGdcPoints(os.path.join(tempFolder, 'posCorrectGdcCheck'),         tempFolder, 'pairGdcCheckPos.csv',               1,    'green', 'normal',  carry)
+                generateKmlFromGdcPoints(os.path.join(tempFolder, 'posCorrectStereoGdcCheck'),   tempFolder, 'pairGdcStereoCheckPos.csv',         1,    'green', 'normal',  carry)
+                generateKmlFromGdcPoints(os.path.join(tempFolder, 'stereoGlobalAdjustGdcCheck'), tempFolder, 'pairGdcCheckGlobalAdjustStero.csv', 1,    'blue', 'normal', carry)
+                generateKmlFromGdcPoints(os.path.join(tempFolder, 'pcAlignStereoGdcCheck'),      tempFolder, 'pairGdcCheckPcAlign.csv',           1,    'red', 'normal',  carry)
+                generateKmlFromGdcPoints(os.path.join(tempFolder, 'finalGdcCheck'),              tempFolder, 'pairGdcCheckFinal.csv',             1,    'white', 'normal', carry)
+                generateKmlFromGdcPoints(os.path.join(tempFolder, 'finalStereoGdcCheck'),        tempFolder, 'pairGdcCheckFinalStereo.csv',       1,    'white', 'normal',  carry)
+                generateKmlFromGdcPoints(os.path.join(tempFolder, 'gdcPointsLargeComp'),         tempFolder, 'inputGdcPoints.csv',                1000, 'blue', 'tiny', True)
+                #generateKmlFromGdcPoints(os.path.join(tempFolder, 'initialGdcCheck'),            tempFolder, 'dem-trans_source.csv',              1000, 'blue', 'normal', , False)
+                generateKmlFromGdcPoints(os.path.join(tempFolder, 'pcAlignOutput'),              tempFolder, 'dem-trans_reference.csv',           1000, 'red', 'tiny',  True)
 
                 print 'Finished generating KML plots'
                 
@@ -357,12 +355,12 @@ def main():
         if (options.cropAmount > 0):
             mainMosaicCroppedPath   = os.path.join(tempFolder, 'mainMosaicCropped.cub')
             stereoMosaicCroppedPath = os.path.join(tempFolder, 'stereoMosaicCropped.cub')
-            if not os.path.exists(mainMosaicCroppedPath):
+            if (not os.path.exists(mainMosaicCroppedPath)) or carry:
                 cmd = ('crop from= ' + mainMosaicPath   + ' to= ' + mainMosaicCroppedPath + 
                            ' nlines= ' + str(options.cropAmount))
                 print cmd
                 os.system(cmd)
-            if not os.path.exists(stereoMosaicCroppedPath):
+            if (not os.path.exists(stereoMosaicCroppedPath) or carry):
                 cmd = ('crop from= ' + stereoMosaicPath + ' to= ' + stereoMosaicCroppedPath + 
                            ' nlines= ' + str(options.cropAmount))
                 print cmd
@@ -380,7 +378,7 @@ def main():
 
         stereoOutputPrefix = os.path.join(tempFolder, 'stereoWorkDir/stereo')
         pointCloudPath     = stereoOutputPrefix + '-PC.tif'
-        if not os.path.exists(pointCloudPath):
+        if (not os.path.exists(pointCloudPath)) or carry:
             cmd = ('parallel_stereo --corr-timeout 400 --alignment affineepipolar --subpixel-mode 1' +
                                   ' --disable-fill-holes ' +  stereoInputLeft + ' ' + stereoInputRight + 
                                   ' ' + stereoOutputPrefix + ' --processes 8 --threads-multiprocess 4' +
@@ -403,7 +401,7 @@ def main():
         # Generate a DEM
         demPrefix = os.path.join(outputFolder, 'p2d')
         demPath   = demPrefix + '-DEM.tif'
-        if not os.path.exists(demPath):
+        if (not os.path.exists(demPath)) or carry:
             cmd = ('point2dem --errorimage -o ' + demPrefix + ' ' + pointCloudPath + 
                             ' -r moon --tr 1 --t_srs "+proj=eqc +lat_ts=' + str(centerLat) + 
                             ' +lat_0=0 +a=1737400 +b=1737400 +units=m" --nodata -32767')
@@ -414,7 +412,7 @@ def main():
 
         # Create a hillshade image to check if the central errors are gone
         hillshadePath = os.path.join(outputFolder, 'outputHillshade.tif')
-        if not os.path.exists(hillshadePath):
+        if (not os.path.exists(hillshadePath)) or carry:
             cmd = 'hillshade ' + demPath + ' -o ' + hillshadePath
             print cmd
             os.system(cmd)

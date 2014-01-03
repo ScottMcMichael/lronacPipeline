@@ -14,11 +14,11 @@ set(PACKAGE_BUGREPORT "scott.t.mcmichael@nasa.gov")
 
 
 #TODO: Remove this, the find functions should handle it!
-set(BASESYSTEM_INSTALL_DIR  "/home/smcmich1/repot/BaseSystem")
-set(VISIONWORKBENCH_ROOT    "/home/smcmich1/repot/visionworkbench/build")
-set(StereoPipeline_ROOT     "/home/smcmich1/repot/StereoPipeline/build")
-set(CERES_INSTALL_DIR       "/home/smcmich1/repot/ceres-solver")
-set(SUITESPARSE_INSTALL_DIR "/home/smcmich1/programs/SuiteSparse")
+set(BASESYSTEM_INSTALL_DIR  "/home/smcmich1/repo/BaseSystem")
+set(VISIONWORKBENCH_ROOT    "/home/smcmich1/repo/visionworkbench/build")
+set(StereoPipeline_ROOT     "/home/smcmich1/repo/StereoPipeline/build")
+set(CERES_INSTALL_DIR       "/home/smcmich1/repo/ceres-solver")
+set(SUITESPARSE_INSTALL_DIR "/home/smcmich1/repo/SuiteSparse")
 
 # Custom options
 option(BUILD_SHARED_LIBS "Produce shared libraries." TRUE)
@@ -213,11 +213,20 @@ endforeach(f)
 add_executable(imagestats imagestats.cc) 
 target_link_libraries(imagestats  ${VISIONWORKBENCH_LIBRARIES}) 
 
-add_executable(pixelPairsFromStereo pixelPairsFromStereo.cc) 
-target_link_libraries(pixelPairsFromStereo  ${VISIONWORKBENCH_LIBRARIES}  ${StereoPipeline_LIBRARIES}) 
+add_executable(matchBinaryToCsv matchBinaryToCsv.cc) 
+target_link_libraries(matchBinaryToCsv  ${VISIONWORKBENCH_LIBRARIES}) 
 
 add_executable(lola_compare lola_compare.cc) 
 target_link_libraries(lola_compare  ${VISIONWORKBENCH_LIBRARIES}) 
+
+add_executable(pixelPairsFromStereo pixelPairsFromStereo.cc) 
+target_link_libraries(pixelPairsFromStereo  ${VISIONWORKBENCH_LIBRARIES}  ${StereoPipeline_LIBRARIES}) 
+
+
+
+
+add_executable(stereoIpFind stereoIpFind.cc)
+target_link_libraries(stereoIpFind  ${VISIONWORKBENCH_LIBRARIES}  ${StereoPipeline_LIBRARIES}) 
 
 add_executable(lronacAngleDoubleSolver IsisInterfaceLineScanRot.h IsisInterfaceLineScanRot.cc lronacAngleDoubleSolver.cc lronacSolverSupport.h lronacSolverModelDouble.h) 
 target_link_libraries(lronacAngleDoubleSolver  ${QT_LIBRARIES} ${VISIONWORKBENCH_LIBRARIES} ${StereoPipeline_LIBRARIES}  ${CERES_LIBRARIES} ${SUITESPARSE_LIBRARIES}) 

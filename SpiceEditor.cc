@@ -181,9 +181,13 @@ bool editSpiceFile(const Parameters &params)
   }
   
   // Load all of the kernel files
-  printf("Loading all source kernels (this can take a while)\n");
+  printf("Loading all source kernels\n");
   for (size_t i=0; i<params.kernelPaths.size(); ++i)
+  {
+    //printf("Loading kernel %s\n", params.kernelPaths[i].c_str());
     furnsh_c(params.kernelPaths[i].c_str());
+  }
+  //printf("Finished loading kernels.\n");
 
   
   // Try loading the source cube
