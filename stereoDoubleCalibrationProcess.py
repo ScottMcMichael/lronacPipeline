@@ -240,15 +240,30 @@ def callStereoCorrelation(leftInputPath, rightInputPath, outputPrefix, correlati
         print 'File ' + disparityImagePath + ' already exists, skipping stereo computation.'
         return disparityImagePath
 
-    # Use parallel stereo call, steps 0 and 1 only.  Other options to try and increase speed.
-    cmd = ('parallel_stereo  --corr-max-levels 3 --compute-error-vector --entry-point 0 --stop-point 2' + 
-           ' --alignment none --subpixel-mode 1 --disable-fill-holes --processes 8 ' + 
-           ' --threads-multiprocess 4 --threads-singleprocess 32 --cost-mode 0 --corr-timeout ' + 
-           str(correlationTimeout) + ' ' + leftInputPath + ' ' + rightInputPath + ' ' + outputPrefix)
-    # TODO: Alignment methods mess up the disparity numbers without some further processing!
-#    cmd = 'parallel_stereo --compute-error-vector --entry-point 0 --stop-point 2 --alignment affineepipolar --subpixel-mode 1 --disable-fill-holes --processes 8 --threads-multiprocess 4 --threads-singleprocess 32 --cost-mode 0 --corr-timeout ' + str(correlationTimeout) + ' ' + leftInputPath + ' ' + rightInputPath + ' ' + outputPrefix
+#    # Use parallel stereo call, steps 0 and 1 only.  Other options to try and increase speed.
+#    cmd = ('parallel_stereo  --corr-max-levels 3 --compute-error-vector --entry-point 0 --stop-point 2' + 
+#           ' --alignment none --subpixel-mode 1 --disable-fill-holes --processes 8 ' + 
+#           ' --threads-multiprocess 4 --threads-singleprocess 32 --cost-mode 0 --corr-timeout ' + 
+#           str(correlationTimeout) + ' ' + leftInputPath + ' ' + rightInputPath + ' ' + outputPrefix)
+#    print cmd
+#    os.system(cmd)
+
+    # Call only the initial stereo stages to cut down on processing time
+
+    # Stage 0 (fast)
+    cmd = ('stereo_pprc --corr-max-levels 3 --compute-error-vector --cost-mode 0 --alignment none' + 
+                      ' --subpixel-mode 1 --disable-fill-holes --corr-timeout ' + str(correlationTimeout) + 
+                      ' ' + leftInputPath + ' ' + rightInputPath + ' ' + outputPrefix)
     print cmd
     os.system(cmd)
+    # Stage 1 (slow!)
+    cmd = ('stereo_corr --corr-max-levels 3 --compute-error-vector --cost-mode 0 --alignment none' + 
+                      ' --subpixel-mode 1 --disable-fill-holes --corr-timeout ' + str(correlationTimeout) + 
+                      ' ' + leftInputPath + ' ' + rightInputPath + ' ' + outputPrefix)
+    print cmd
+    os.system(cmd)
+
+
 
     # Generate disparity images for debugging
     #cmd = 'disparitydebug ' + disparityImagePath
