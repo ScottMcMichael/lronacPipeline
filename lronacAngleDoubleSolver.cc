@@ -815,7 +815,7 @@ bool optimizeRotations(Parameters & params)
        
   // TODO: Select solver options
   ceres::Solver::Options solverOptions;
-  solverOptions.max_num_iterations           = 100; //TODO: Play with these again!
+  solverOptions.max_num_iterations           = 150; //TODO: Play with these again!
   //solverOptions.linear_solver_type           = ceres::DENSE_SCHUR;
   solverOptions.linear_solver_type           = ceres::SPARSE_SCHUR;
   solverOptions.minimizer_progress_to_stdout = true;
@@ -824,6 +824,7 @@ bool optimizeRotations(Parameters & params)
   solverOptions.max_num_consecutive_invalid_steps = 10;
   solverOptions.num_threads = 1; // SPICE cannot handle multiple threads here!
   solverOptions.num_linear_solver_threads = 8; 
+  solverOptions.use_approximate_eigenvalue_bfgs_scaling = false; // Use approximate eigenvalue scaling
   //solverOptions.solver_log = "~/data/ceresOutput.txt";
   // There are many more options to play with!
   

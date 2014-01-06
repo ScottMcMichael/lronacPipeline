@@ -16,7 +16,7 @@
 #  limitations under the License.
 # __END_LICENSE__
 
-import sys, os, glob, optparse, re, shutil, subprocess, string, time, logging
+import sys, os, glob, optparse, re, shutil, subprocess, string, time, logging, threading
 
 import IsisTools
 
@@ -80,9 +80,24 @@ def noprojCubePair(inputCube, outputCube, matchCube, pvlPath, forceOperation):
         print 'File ' + outputCube + ' already exists, skipping noproj.'
         return True
 
-    # Generate the new file
-    cmd = ('noproj from= '  + inputCube + ' to= '    + outputCube + 
-                 ' match= ' + matchCube + ' specs= ' + pvlPath)
+    # Determine working directory
+    outputFolder   = os.path.dirname(outputCube)
+    outputBaseName = os.path.basename(outputCube)
+    folderName     = outputBaseName + '_workDir' 
+    tempDirectory  = os.path.join(outputFolder, folderName)
+
+    # Execute command to go to temp directory, execute noproj, then clean up
+    cmd = ('mkdir -p '           + tempDirectory + ' && '
+           + ' cd '              + tempDirectory + ' && '
+           + ' noproj from='     + inputCube
+           +       ' match= '    + matchCube
+           +       ' specs= '    + pvlPath
+           +          ' to='     + outputCube    + ' && '
+           + ' cd .. && rm -rf ' + tempDirectory)
+
+    ## Generate the new file
+    #cmd = ('noproj from= '  + inputCube + ' to= '    + outputCube + 
+    #             ' match= ' + matchCube + ' specs= ' + pvlPath)
     print cmd
     os.system(cmd)
 
@@ -154,6 +169,7 @@ def compareDemToLola(lolaPath, demPath, outputPath, force):
         os.system(cmd)
         
     return True
+
 
 #--------------------------------------------------------------------------------
 
@@ -258,12 +274,12 @@ def main():
             cmd = ('calibrationReport.py --input '  + options.lolaPath + 
                                        ' --output ' + lolaKmlPath + 
                                        ' --name '   + 'lolaRdrPoints' + 
-                                       ' --skip '   + str(100) + ' --color ' + 'blue', + ' --size small')
+                                       ' --skip '   + str(100) + ' --color ' + 'blue' + ' --size small')
             print cmd
             os.system(cmd)
-                       
+
         carry = False
-                       
+
         # Correct all four input images at once
         caughtException = False
         try:
@@ -284,6 +300,7 @@ def main():
                 os.system(cmd)
                 print '\n============================================================================\n'
                 
+            
                 # Convert GDC output files into KML plots 
                 # - This is just to help with debugging
                 generateKmlFromGdcPoints(os.path.join(tempFolder, 'initialGdcCheck'),            tempFolder, 'pairGdcCheckInitial.csv',           1,    'blue', 'normal', carry)
@@ -316,19 +333,44 @@ def main():
             print 'Writing PVL'
             IsisTools.writeLronacPvlFile(pvlPath, isHalfRes)
 
+        correctTime = time.time()
+        logging.info('Nav correction finished in %f seconds', correctTime - startTime)
 
         # Noproj the corrected data
-        print 'Starting noproj calls'
         leftNoprojPath        = os.path.join(tempFolder, 'leftFinalCorrected.noproj.cub')
         rightNoprojPath       = os.path.join(tempFolder, 'rightFinalCorrected.noproj.cub')
         leftStereoNoprojPath  = os.path.join(tempFolder, 'leftStereoFinalCorrected.noproj.cub')
         rightStereoNoprojPath = os.path.join(tempFolder, 'rightStereoFinalCorrected.noproj.cub')
 
-        noprojCubePair(leftCorrectedPath,        leftNoprojPath,        leftCorrectedPath,       pvlPath, carry)
-        noprojCubePair(rightCorrectedPath,       rightNoprojPath,       leftCorrectedPath,       pvlPath, carry)
-        noprojCubePair(leftStereoCorrectedPath,  leftStereoNoprojPath,  leftStereoCorrectedPath, pvlPath, carry)
-        noprojCubePair(rightStereoCorrectedPath, rightStereoNoprojPath, leftStereoCorrectedPath, pvlPath, carry)
+        # Set up thread objects
+        leftThread        = threading.Thread(target=noprojCubePair, 
+                                               args=(leftCorrectedPath, leftNoprojPath, 
+                                                     leftCorrectedPath, pvlPath, carry))
+        rightThread       = threading.Thread(target=noprojCubePair, 
+                                               args=(rightCorrectedPath, rightNoprojPath, 
+                                                     leftCorrectedPath, pvlPath, carry))
+        leftStereoThread  = threading.Thread(target=noprojCubePair, 
+                                             args  =(leftStereoCorrectedPath, leftStereoNoprojPath, 
+                                                     leftStereoCorrectedPath, pvlPath, carry))
+        rightStereoThread = threading.Thread(target=noprojCubePair, 
+                                             args  =(rightStereoCorrectedPath, rightStereoNoprojPath, 
+                                                     leftStereoCorrectedPath, pvlPath, carry))
+        print 'Starting noproj call threads'
+        leftThread.start()
+        rightThread.start()
+        leftStereoThread.start()
+        rightStereoThread.start()
 
+        print 'Waiting for noproj threads to complete...'
+        leftThread.join()
+        rightThread.join()
+        leftStereoThread.join()
+        rightStereoThread.join()
+
+        print 'noproj threads finished.'
+
+        noprojTime = time.time()
+        logging.info('noproj finished in %f seconds', noprojTime - correctTime)
 
         # Combine the noproj files to make a mosaic.
         # - This also takes care of the cubenorm step.
@@ -343,9 +385,23 @@ def main():
         if not os.path.exists(stereoMosaicWorkDir):
             os.mkdir(stereoMosaicWorkDir)
 
+        # Set up thread objects
+        leftThread  = threading.Thread(target=createMosaic, 
+                                         args=(leftNoprojPath, rightNoprojPath, 
+                                               mainMosaicPath, mainMosaicWorkDir, carry))
+        rightThread = threading.Thread(target=createMosaic, 
+                                         args=(leftStereoNoprojPath, rightStereoNoprojPath, 
+                                               stereoMosaicPath,     stereoMosaicWorkDir,  carry))
+        print 'Starting mosaic call threads'
+        leftThread.start()
+        rightThread.start()
 
-        createMosaic(leftNoprojPath,       rightNoprojPath,       mainMosaicPath,   mainMosaicWorkDir,   carry)
-        createMosaic(leftStereoNoprojPath, rightStereoNoprojPath, stereoMosaicPath, stereoMosaicWorkDir, carry)
+        print 'Waiting for mosaic threads to complete...'
+        leftThread.join()
+        rightThread.join()
+
+        mosaicTime = time.time()
+        logging.info('Mosaics finished in %f seconds', mosaicTime - noprojTime)
 
         # TODO: Testing use of the handmos blend feature!
         #mainMosaicPath   = os.path.join(tempFolder, 'mosaicBlend.cub')
@@ -389,6 +445,9 @@ def main():
         else:
             print 'Stereo file ' + pointCloudPath + ' already exists, skipping stereo step.'
 
+        stereoTime = time.time()
+        logging.info('Stereo finished in %f seconds', stereoTime - mosaicTime)
+
         # Compute percentage of good pixels
         percentGood = IsisTools.getStereoGoodPixelPercentage(stereoOutputPrefix)
         print 'Stereo completed with good pixel percentage: ' + str(percentGood)
@@ -420,7 +479,6 @@ def main():
             print 'DEM file ' + hillshadePath + ' already exists, skipping hillshade step.'
 
 
-
         # Call script to compare LOLA data with the DEM
         lolaDiffStatsPath = os.path.join(outputFolder, 'LOLA_diff_stats.txt')
         compareDemToLola(options.lolaPath, demPath, lolaDiffStatsPath, carry)
@@ -430,8 +488,9 @@ def main():
         lolaAsuDiffStatsPath = os.path.join(outputFolder, 'ASU_LOLA_diff_stats.txt')
         if (options.asuPath):
             compareDemToLola(options.lolaPath, options.asuPath, lolaAsuDiffStatsPath, carry)
-        
-        
+
+        statsTime = time.time()
+        logging.info('Final results finished in %f seconds', statsTime - stereoTime)
 
         # Clean up temporary files
     #        if not options.keep:
@@ -440,6 +499,7 @@ def main():
 
         endTime = time.time()
 
+        logging.info('lronac2dem finished in %f seconds', endTime - startTime)
         print "Finished in " + str(endTime - startTime) + " seconds."
         print '#################################################################################'
         return 0
