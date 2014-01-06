@@ -31,6 +31,22 @@ Contains utilities for working with ISIS data files.
     sys.exit()
 
 
+def checkIfToolExists(toolName):
+    """Returns true if the system knows about the utility with this name (it is on the PATH)"""
+
+    # Determine the percentage of good pixels   
+    cmd = ['which', toolName]
+    p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+    translateOut, err = p.communicate()
+
+    # Parse the output
+    failString = 'no ' + toolName + ' in ('
+    if translateOut.find(failString) >= 0:
+        raise Exception('Missing requested tool ' + toolName)
+    else:
+        return True
+
+
 def parseHeadOutput(textPath, cubePath):
     """Parses the output from head [cube path] and returns a dictionary containing all kernels"""
 

@@ -362,6 +362,28 @@ def evaluateAccuracy(leftCubePath, rightCubePath, ipFindOutputPath, workDir=''):
     return meanDistance
 
 
+# Makes sure all needed functions are found in the PATH
+def functionStartupCheck():
+
+    # These calls will raise an exception if the tool is not found
+    IsisTools.checkIfToolExists('pc_align')
+    IsisTools.checkIfToolExists('lronacAngleDoubleSolver')
+    IsisTools.checkIfToolExists('lronac2isis')
+    IsisTools.checkIfToolExists('lronaccal')
+    IsisTools.checkIfToolExists('lronacecho')
+    IsisTools.checkIfToolExists('spiceinit')
+    IsisTools.checkIfToolExists('positionCorrector.py')
+    IsisTools.checkIfToolExists('pixelPairsFromStereo')
+    IsisTools.checkIfToolExists('rotationCorrector.py')
+    IsisTools.checkIfToolExists('lronacCameraRotationCorrector.py')
+    IsisTools.checkIfToolExists('stereo_corr')
+    IsisTools.checkIfToolExists('stereo_pprc')
+    IsisTools.checkIfToolExists('crop')
+
+    return True
+
+
+
 #==========================================================================================
 
 def main():
@@ -432,6 +454,9 @@ def main():
         print "Beginning processing....."
 
         startTime = time.time()
+
+        # Make sure we have all the functions we need
+        functionStartupCheck()
 
         # Set this to true to force steps after it
         carry = False

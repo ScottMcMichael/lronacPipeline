@@ -171,6 +171,24 @@ def compareDemToLola(lolaPath, demPath, outputPath, force):
     return True
 
 
+# Makes sure all needed functions are found in the PATH
+def functionStartupCheck():
+
+    # These calls will raise an exception if the tool is not found
+    IsisTools.checkIfToolExists('calibrationReport.py')
+    IsisTools.checkIfToolExists('noproj')
+    IsisTools.checkIfToolExists('lronacjitreg')
+    IsisTools.checkIfToolExists('handmos')
+    IsisTools.checkIfToolExists('cubenorm')
+    IsisTools.checkIfToolExists('lola_compare')
+    IsisTools.checkIfToolExists('stereoDoubleCalibrationProcess.py')
+    IsisTools.checkIfToolExists('parallel_stereo')
+    IsisTools.checkIfToolExists('point2dem')
+    IsisTools.checkIfToolExists('hillshade')
+    IsisTools.checkIfToolExists('crop')
+
+    return True
+
 #--------------------------------------------------------------------------------
 
 def main():
@@ -229,7 +247,10 @@ def main():
         print "Beginning processing....."
 
         startTime = time.time()
-        
+
+        # Make sure we have all the functions we need
+        functionStartupCheck()
+
         # Set this to true to force steps after it to activate
         carry = False
 
@@ -299,8 +320,8 @@ def main():
                 print cmd
                 os.system(cmd)
                 print '\n============================================================================\n'
-                
-            
+
+
                 # Convert GDC output files into KML plots 
                 # - This is just to help with debugging
                 generateKmlFromGdcPoints(os.path.join(tempFolder, 'initialGdcCheck'),            tempFolder, 'pairGdcCheckInitial.csv',           1,    'blue', 'normal', carry)
