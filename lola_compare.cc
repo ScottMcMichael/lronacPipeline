@@ -175,7 +175,7 @@ int main( int argc, char *argv[] )
 
   const int numBins = 20; // 5% intervals
 
-  std::string demPath, lolaDataPath, outputPath="", mapPath="";
+  std::string demPath, lolaDataPath, outputPath="", mapPath="", csvPath="";
   int removeHistogramOutliers=0;
   bool useAbsolute;
 
@@ -185,6 +185,7 @@ int main( int argc, char *argv[] )
     ("input-dem,d",   po::value<std::string>(&demPath),                           "Explicitly specify the DEM  file")
     ("input-lola,l",  po::value<std::string>(&lolaDataPath),                      "Explicitly specify the LOLA file")
     ("output-file,o", po::value<std::string>(&outputPath)->default_value(""),     "Specify an output text file to store the program output")
+    ("csv-log,c",     po::value<std::string>(&csvPath)->default_value(""),        "Specify an csv file to record individual point errors to")
     ("map,m",         po::value<std::string>(&mapPath)->default_value(""),        "Write output diagnostic image to file.")
     ("absolute",      po::value<bool       >(&useAbsolute)->default_value(false), "Output the absolute difference as opposed to just the difference.")
     ("limit-hist",    po::value<int        >(&removeHistogramOutliers)->default_value(0), "Limits the histogram to +/- N standard deviations from the mean");
@@ -223,6 +224,15 @@ int main( int argc, char *argv[] )
   }
   std::cout << "Image size = " << inputDem.rows() << ", " << inputDem.cols() << std::endl;
 
+  //// Pixel check
+  //Vector2 pixelCoord(0,0);
+  //Vector2 gdcCoord = georef.pixel_to_lonlat(pixelCoord);
+  //std::cout << "0,0 = " << gdcCoord.x() << ", " << gdcCoord.y() << std::endl;
+
+  //pixelCoord = Vector2(inputDem.cols()-1,inputDem.rows()-1);
+  //gdcCoord = georef.pixel_to_lonlat(pixelCoord);
+  //std::cout << inputDem.cols()-1 << "," << inputDem.rows()-1 << " = " << gdcCoord.x() << ", " << gdcCoord.y() << std::endl;
+
   // Loop through all lines in the LOLA data file
   std::ifstream lolaFile;
   lolaFile.open(lolaDataPath.c_str());
@@ -233,7 +243,11 @@ int main( int argc, char *argv[] )
     printf("Failed to open LOLA data file %s\n", lolaDataPath.c_str());
     return false;
   }
-  
+
+  std::ofstream csvFile;
+  if (csvPath.size() > 0)
+    csvFile.open(csvPath.c_str());
+
   // Loop through all the lines in the file
   unsigned int numValidPixels = 0;
   RunningStatistics statCalc;
@@ -268,6 +282,9 @@ int main( int argc, char *argv[] )
     Vector2 gccCoord   = georef.lonlat_to_point(gdcCoord);
     Vector2 pixelCoord = georef.point_to_pixel(gccCoord);
 
+    //std::cout << "gdcCoord = " << gdcCoord << std::endl;
+    //std::cout << "pixelCoord = " << pixelCoord << std::endl;
+
     // Throw out pixel misses
     if ( (pixelCoord[0] < 0) ||
          (pixelCoord[0] >= inputDem.cols()) ||
@@ -275,12 +292,15 @@ int main( int argc, char *argv[] )
          (pixelCoord[1] >= inputDem.rows())   )
       continue; 
 
+//    std::cout << "pixelCoord VALID = " << pixelCoord << std::endl;
+
+
     // Get DEM value and make sure it is valid
     demValue = inputDem(pixelCoord[0], pixelCoord[1])[0];
     if (demValue <= -32767) //TODO: Obtain the no-data value!
       continue; // Throw out flag values
 
-//    std::cout << "demHeight     = " << demValue      << std::endl;    
+//    std::cout << "demHeight     = " << demValue      << std::endl;
 //    std::cout << "lolaElevation = " << lolaElevation << std::endl;    
 
     // Check difference
@@ -294,8 +314,18 @@ int main( int argc, char *argv[] )
     diffVector.push_back(diff); // Record difference values for computing histogram later
     hitList.push_back(vw::Vector3(pixelCoord[0], pixelCoord[1], fabs(diff)));
     
+    // Write a file listing all the compared locations
+    if (csvPath.size() > 0)
+    {
+      csvFile.precision(12);
+      //if (ptLonDeg > 180)
+      //  ptLonDeg -= 360;
+      csvFile << ptLatDeg << ", " << ptLonDeg << ", " << lolaElevation << ", " << diff << std::endl;
+    }
   } // End of loop through lines
   
+  if (csvPath.size() > 0)
+    csvFile.close();
 
   printf("Found %d valid pixels\n", numValidPixels);
 
@@ -307,8 +337,8 @@ int main( int argc, char *argv[] )
 
   if (removeHistogramOutliers > 0) // Cut off range at +/- N std
   {
-    printf("Image min = %lf\n", minVal);
-    printf("Image max = %lf\n", maxVal);
+    printf("Diff min = %lf\n", minVal);
+    printf("Diff max = %lf\n", maxVal);
 
     minVal = meanValue - removeHistogramOutliers*stdDevVal;
     if (minVal < statCalc.Min())
@@ -378,17 +408,6 @@ int main( int argc, char *argv[] )
         diffPlot(r,c) = PixelRGB<unsigned char>(grayValue, grayValue, grayValue);
       }
     }
-
-    //ImageViewRef<float> diffPlot = vw::resize(inputDem, plotWidth, plotHeight);
-
-    
-    //boost::scoped_ptr<DiskImageResourceGDAL> rsrc( asp::build_gdal_rsrc( output_file,
-    //                                                                     diffPlot, opt ) );
-    //rsrc->set_nodata_write( opt.nodata_value );
-    //write_georeference( *rsrc, dem1_georef );
-    //block_write_image( *rsrc, difference,
-    //                    TerminalProgressCallback("asp", "\t--> Differencing: ") );
-  
     
     
     // Loop through all valid pixel hits and draw a scaled error in red
