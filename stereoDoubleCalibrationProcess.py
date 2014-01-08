@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 # __BEGIN_LICENSE__
 #  Copyright (c) 2009-2013, United States Government as represented by the
 #  Administrator of the National Aeronautics and Space Administration. All
@@ -408,14 +409,9 @@ def main():
             parser.add_option_group(inputGroup)
   
             outputGroup = optparse.OptionGroup(parser, 'Output Paths')
-            outputGroup.add_option("--outputL",  dest="outputPathLeft",        
-                                   help="Where to write the output LE file.")
-            outputGroup.add_option("--outputR",  dest="outputPathRight",       
-                                   help="Where to write the output RE file.")
-            outputGroup.add_option("--outputSL", dest="outputPathStereoLeft",  
-                                   help="Where to write the output Stereo LE file.")
-            outputGroup.add_option("--outputSR", dest="outputPathStereoRight", 
-                                   help="Where to write the output Stereo RE file.")
+
+            outputGroup.add_option("--output-folder", dest="outputFolder",  
+                                   help="Output folder to store results in")
             outputGroup.add_option("--log-path",  dest="logPath",        
                                    help="Where to write the output log file.")
             parser.add_option_group(outputGroup)
@@ -437,16 +433,10 @@ def main():
                 parser.error("Need stereo left input path")
             if not options.stereoRight: 
                 parser.error("Need stereo right input path")
+            if not options.outputFolder: 
+                parser.error("Need output folder")
             if not options.lolaPath: 
                 parser.error("Need LOLA DEM path")
-            if not options.outputPathLeft: 
-                parser.error("Need left output path")
-            if not options.outputPathRight: 
-                parser.error("Need right output path")
-            if not options.outputPathStereoLeft: 
-                parser.error("Need stereo left output path")
-            if not options.outputPathStereoRight: 
-                parser.error("Need stereo right output path")
 
         except optparse.OptionError, msg:
             raise Usage(msg)
@@ -461,7 +451,7 @@ def main():
         # Set this to true to force steps after it
         carry = False
 
-        outputFolder  = os.path.dirname(options.outputPathLeft)
+        outputFolder  = options.outputFolder
         inputBaseName = os.path.basename(options.leftPath)
         tempFolder    = outputFolder + '/' + inputBaseName + '_stereoCalibrationTemp/'
         if (options.workDir):
@@ -476,6 +466,17 @@ def main():
             options.logPath = options.workDir + '/stereoDoubleCalLog.txt'
         logging.basicConfig(filename=options.logPath,level=logging.INFO)      
         
+
+        # Set output paths
+        filename              = os.path.splitext(options.leftPath)[0]    + '.geoCorrected.cub'
+        outputPathLeft        = os.path.join(outputFolder, os.path.basename(filename))
+        filename              = os.path.splitext(options.rightPath)[0]   + '.geoCorrected.cub'
+        outputPathRight       = os.path.join(outputFolder, os.path.basename(filename))
+        filename              = os.path.splitext(options.stereoLeft)[0]  + '.geoCorrected.cub'
+        outputPathStereoLeft  = os.path.join(outputFolder, os.path.basename(filename))
+        filename              = os.path.splitext(options.stereoRight)[0] + '.geoCorrected.cub'
+        outputPathStereoRight = os.path.join(outputFolder, os.path.basename(filename))
+
 
         # Convert the input files from IMG files to spiceinit'ed cubes in the output folder
         leftThread        = threading.Thread(target=prepareImgFile, 
@@ -810,7 +811,7 @@ def main():
         leftCkPath  = os.path.join(tempFolder, 'leftFinalCk.bc')
         leftSpkPath = os.path.join(tempFolder, 'leftFinalSpk.bsp')
         thisWorkDir = os.path.join(tempFolder, 'leftFullCorrection')
-        applyNavTransform(posOffsetCorrectedLeftPath, options.outputPathLeft, 
+        applyNavTransform(posOffsetCorrectedLeftPath, outputPathLeft, 
                           pcAlignTransformPath, thisWorkDir, leftCkPath, leftSpkPath, carry)
 
         partialCorrectedRightPath = os.path.join(tempFolder, 'partial_corrected_RE.cub')
@@ -824,7 +825,7 @@ def main():
         leftStereoCkPath  = os.path.join(tempFolder, 'leftStereoFinalCk.bc') 
         leftStereoSpkPath = os.path.join(tempFolder, 'leftStereoFinalSpk.bsp')
         thisWorkDir       = os.path.join(tempFolder, 'leftStereoFullCorrection')
-        applyNavTransform(leftStereoAdjustedPath, options.outputPathStereoLeft, 
+        applyNavTransform(leftStereoAdjustedPath, outputPathStereoLeft, 
                           pcAlignTransformPath, thisWorkDir, leftStereoCkPath, leftStereoSpkPath, carry)
 
 
@@ -838,7 +839,7 @@ def main():
         # At this point the left images are hopefully in the correct position and we can apply the offset of the RE cameras
 
         # DEBUG: Check angle solver on stereo adjusted LE/RE images!
-        checkAdjacentPairAlignment(options.outputPathStereoLeft, partialCorrectedStereoRightPath, 
+        checkAdjacentPairAlignment(outputPathStereoLeft, partialCorrectedStereoRightPath, 
                                    os.path.join(tempFolder, 'pcAlignStereoGdcCheck'), 
                                    expectedSurfaceElevation, carry)
 
@@ -852,23 +853,23 @@ def main():
         # Apply local transforms to both pairs of images!
 
         # Apply the local rotation to the adjusted RE cube
-        applyInterCameraPairRotation(options.outputPathLeft, partialCorrectedRightPath, 
-                                    localRotationPath, options.outputPathRight, 
+        applyInterCameraPairRotation(outputPathLeft, partialCorrectedRightPath, 
+                                    localRotationPath, outputPathRight, 
                                     rightCkPath, rightSpkPath, carry)
 
         # Apply the local rotation to the adjusted stereo RE cube
-        applyInterCameraPairRotation(options.outputPathStereoLeft, partialCorrectedStereoRightPath, 
-                                     stereoRotationPath, options.outputPathStereoRight, 
+        applyInterCameraPairRotation(outputPathStereoLeft, partialCorrectedStereoRightPath, 
+                                     stereoRotationPath, outputPathStereoRight, 
                                      rightStereoCkPath, rightStereoSpkPath, carry)
 
 
         # DEBUG: Check angle solver on adjusted LE/RE images!
-        checkAdjacentPairAlignment(options.outputPathLeft, options.outputPathRight, 
+        checkAdjacentPairAlignment(outputPathLeft, outputPathRight, 
                                    os.path.join(tempFolder, 'finalGdcCheck'), 
                                    expectedSurfaceElevation, carry)
 
         # DEBUG: Check angle solver on stereo adjusted LE/RE images!
-        checkAdjacentPairAlignment(options.outputPathStereoLeft, options.outputPathStereoRight, 
+        checkAdjacentPairAlignment(outputPathStereoLeft, outputPathStereoRight, 
                                    os.path.join(tempFolder, 'finalStereoGdcCheck'), 
                                    expectedSurfaceElevation, carry)
 
@@ -879,13 +880,13 @@ def main():
 
         # One last pair of checks to compute accuracy
         # - This calls campt for pixel pairs and finds the GCC location difference
-        meanMainError   = evaluateAccuracy(options.outputPathLeft,       options.outputPathRight, 
-                                           mainIpFindPath, os.path.join(tempFolder, 'finalGdcCheck'))
-        meanStereoError = evaluateAccuracy(options.outputPathStereoLeft, options.outputPathStereoRight, 
-                                           stereoIpFindPath, os.path.join(tempFolder, 'finalGdcCheck'))
-        meanLeftError   = evaluateAccuracy(options.outputPathLeft,       options.outputPathStereoLeft,
-                                           pixelPairsLeftSmall, os.path.join(tempFolder, 'finalGdcCheck'))
-        meanRightError  = evaluateAccuracy(options.outputPathRight,      options.outputPathStereoRight, 
+        meanMainError   = evaluateAccuracy(outputPathLeft,       outputPathRight, 
+                                           mainIpFindPath,       os.path.join(tempFolder, 'finalGdcCheck'))
+        meanStereoError = evaluateAccuracy(outputPathStereoLeft, outputPathStereoRight, 
+                                           stereoIpFindPath,     os.path.join(tempFolder, 'finalGdcCheck'))
+        meanLeftError   = evaluateAccuracy(outputPathLeft,       outputPathStereoLeft,
+                                           pixelPairsLeftSmall,  os.path.join(tempFolder, 'finalGdcCheck'))
+        meanRightError  = evaluateAccuracy(outputPathRight,      outputPathStereoRight, 
                                            pixelPairsRightSmall, os.path.join(tempFolder, 'finalGdcCheck'))
         
         print '=====> Mean main   pair error = %.4f meters' % meanMainError

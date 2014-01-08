@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 # __BEGIN_LICENSE__
 #  Copyright (c) 2009-2013, United States Government as represented by the
 #  Administrator of the National Aeronautics and Space Administration. All
@@ -96,7 +97,7 @@ def main():
 
     try:
         try:
-            usage = "usage: rotationCorrector.py [--output <path>][--manual]\n  "
+            usage = "usage: lronacCameraRotationCorrector.py [--output <path>][--manual]\n  "
             parser = optparse.OptionParser(usage=usage)
             parser.add_option("--left",  dest="leftPath",  help="Path to LE .cub file")
             parser.add_option("--right", dest="rightPath", help="Path to RE .cub file")
