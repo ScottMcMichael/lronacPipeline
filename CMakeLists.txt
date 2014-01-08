@@ -14,11 +14,11 @@ set(PACKAGE_BUGREPORT "scott.t.mcmichael@nasa.gov")
 
 
 #TODO: Remove this, the find functions should handle it!
-set(BASESYSTEM_INSTALL_DIR  "/home/smcmich1/repo/BaseSystem")
-set(VISIONWORKBENCH_ROOT    "/home/smcmich1/repo/visionworkbench/build")
-set(StereoPipeline_ROOT     "/home/smcmich1/repo/StereoPipeline/build")
-set(CERES_INSTALL_DIR       "/home/smcmich1/repo/ceres-solver")
-set(SUITESPARSE_INSTALL_DIR "/home/smcmich1/repo/SuiteSparse")
+set(BASESYSTEM_INSTALL_DIR  "/home/smcmich1/repot/BaseSystem")
+set(VISIONWORKBENCH_ROOT    "/home/smcmich1/repot/visionworkbench/build")
+set(StereoPipeline_ROOT     "/home/smcmich1/repot/StereoPipeline/build")
+set(CERES_INSTALL_DIR       ${BASESYSTEM_INSTALL_DIR})
+set(SUITESPARSE_INSTALL_DIR ${BASESYSTEM_INSTALL_DIR})
 
 # Custom options
 option(BUILD_SHARED_LIBS "Produce shared libraries." TRUE)
@@ -46,9 +46,9 @@ set(CMAKE_BUILD_TYPE RelWithDebInfo)
 message("--------------------------------------------------------------")
 message("Searching for boost...")
 
-set(BOOST_ROOT "${BASESYSTEM_INSTALL_DIR}/include/boost-1_54")
+set(BOOST_ROOT "${BASESYSTEM_INSTALL_DIR}/include/boost-1_55")
 set(BOOST_LIBRARYDIR  "${BASESYSTEM_INSTALL_DIR}/lib")
-set(BOOST_INCLUDEDIR "${BASESYSTEM_INSTALL_DIR}/include/boost-1_54/boost")
+set(BOOST_INCLUDEDIR "${BASESYSTEM_INSTALL_DIR}/include/boost-1_55/boost")
 set(Boost_NO_SYSTEM_PATHS ON) #This does not seem to work
 #set(Boost_DEBUG 1) # Uncomment for useful finding boost debug output
 set(BOOST_MIN_VERSION "1.54.0")
