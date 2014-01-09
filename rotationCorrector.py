@@ -50,9 +50,9 @@ def makeCkSetupFile(leapSecondFilePath, clockFilePath, frameFilePath, outputPath
     leapSymPath   = os.path.join('/tmp', leapFileName)
     clockSymPath  = os.path.join('/tmp', clockFileName)
     frameSymPath  = os.path.join('/tmp', frameFileName)
-    os.system('ln -s ' + leapSecondFilePath + ' ' + leapSymPath)
-    os.system('ln -s ' + clockFilePath      + ' ' + clockSymPath)
-    os.system('ln -s ' + frameFilePath      + ' ' + frameSymPath)
+    os.system('ln -f -s ' + leapSecondFilePath + ' ' + leapSymPath)
+    os.system('ln -f -s ' + clockFilePath      + ' ' + clockSymPath)
+    os.system('ln -f -s ' + frameFilePath      + ' ' + frameSymPath)
 
     f = open(outputPath, 'w')
     f.write("\\begindata\n")
@@ -69,6 +69,40 @@ def makeCkSetupFile(leapSecondFilePath, clockFilePath, frameFilePath, outputPath
     f.write("CK_SEGMENT_ID        = 'CK_MATRICES'\n")
     f.write("\\begintext\n")
     f.close()
+
+# Runs the msopck tool, handling its weird qwirks.
+def run_msopck(inputBaseName, msopckConfigPath, ckDataPath, outputCkPath):
+
+    # There seem to be serious restrictions about the length of the command line that can
+    #  be passed in to msopck.  This function works around that with symbolic links and 
+    #  temporary files.
+    
+    # We work around this by writing to a 'safe' path and copying the output to the desired location.
+    shortOutputCkPath = os.path.join('/tmp/', inputBaseName + '_modifiedLrocCk.bc')  
+    if os.path.exists(shortOutputCkPath):
+        os.remove(shortOutputCkPath)
+
+    # The program can't handle long paths so we need to replace them with short symlinks
+    configName    = os.path.basename(msopckConfigPath)
+    dataName      = os.path.basename(ckDataPath)
+    configSymPath = os.path.join('/tmp', configName) # TODO: Need to improve names for multi-threading!
+    dataSymPath   = os.path.join('/tmp', dataName)
+    os.system('ln -f -s ' + msopckConfigPath + ' ' + configSymPath)
+    os.system('ln -f -s ' + ckDataPath       + ' ' + dataSymPath)
+
+    # Create new CK file using modified data
+    cmd = 'msopck ' + configSymPath + ' ' + dataSymPath + '  ' + shortOutputCkPath
+    print cmd
+    os.system(cmd)
+    if not os.path.exists(shortOutputCkPath):
+        return False
+
+    # Copy the CK file to the actual desired location
+    cmd = 'cp ' + shortOutputCkPath + ' ' + outputCkPath
+    print cmd
+    os.system(cmd)
+    
+    return True
 
 # Parses the output from head [cube path]
 def readRotationFile(rotFilePath):
@@ -151,14 +185,17 @@ def main():
 
         # Locate required kernels
         if not ('LeapSecond' in kernelDict):
+            os.remove(options.outputPath)
             raise Exception('Error! Unable to find leap second file!')
         leapSecondFilePath = kernelDict['LeapSecond'][0] # Only deal with a single file
 
         if not ('SpacecraftClock' in kernelDict):
+            os.remove(options.outputPath)
             raise Exception('Error! Unable to find clock kernel file!')
         clockFilePath = kernelDict['SpacecraftClock'][0] # Only deal with a single file
 
         if not ('Frame' in kernelDict):
+            os.remove(options.outputPath)
             raise Exception('Error! Unable to find frame kernel file!')
         frameFilePath = kernelDict['Frame'][0] # Only deal with a single file
 
@@ -187,8 +224,10 @@ def main():
         print cmd
         os.system(cmd)
         if not os.path.exists(spkDataPath):
+            os.remove(options.outputPath)
             raise Exception('Error! Failed to create modified SPK data!')
         if not os.path.exists(ckDataPath):
+            os.remove(options.outputPath)
             raise Exception('Error! Failed to create modified CK data!')
 
         # Write the config file needed for the mkspk function
@@ -210,6 +249,7 @@ def main():
         print cmd
         os.system(cmd)
         if not os.path.exists(tempSpkPath):
+            os.remove(options.outputPath)
             raise Exception('Error! Failed to create modified SPK file!')
 
         # Write the config file needed for the msopck function
@@ -226,24 +266,11 @@ def main():
         if os.path.exists(tempCkPath):
             os.remove(tempCkPath)
 
-        # For unknown reasons there seems to be serious restrictions on directories this will actually write to.
-        # We work around this by writing to a 'safe' path and copying the output to the desired location.
-        reallyTempCkPath = os.path.join('/tmp/', inputBaseName + '_modifiedLrocCk.bc')  
-        if os.path.exists(reallyTempCkPath):
-            os.remove(reallyTempCkPath)
 
-        # Create new CK file using modified data
-        cmd = 'msopck ' + msopckConfigPath + ' ' + ckDataPath + '  ' + reallyTempCkPath
-        print cmd
-        os.system(cmd)
-        if not os.path.exists(reallyTempCkPath):
-            raise Exception('Error! Failed to create modified CK file!')
-
-        # Copy the CK file to the actual desired location
-        cmd = 'cp ' + reallyTempCkPath + ' ' + tempCkPath
-        print cmd
-        os.system(cmd)
-
+        # Run the delicate msopck program
+        if not run_msopck(inputBaseName, msopckConfigPath, ckDataPath, tempCkPath):
+            os.remove(options.outputPath)
+            raise Exception('Error running msopck!')
 
         # Re-run spiceinit using the new SPK and CK file
         cmd = ("spiceinit attach=true from=" + options.outputPath + 

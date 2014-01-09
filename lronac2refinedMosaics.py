@@ -340,7 +340,7 @@ def main():
 
 
         # Delay check for left path to allow debug KML files to be generated
-        if caughtException or not os.path.exists(leftCorrectedPath):
+        if caughtException or not os.path.exists(leftCorrectedPath) or not os.path.exists(rightStereoCorrectedPath):
             raise Exception('Failed to run stereo calibration process!')
 
         print '\n-------------------------------------------------------------------------\n'
