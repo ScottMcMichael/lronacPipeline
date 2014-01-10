@@ -17,7 +17,7 @@
 #  limitations under the License.
 # __END_LICENSE__
 
-import sys, os, glob, optparse, re, shutil, subprocess, string, time, logging, threading
+import sys, os, glob, optparse, re, subprocess, string, time, logging, threading
 
 import IsisTools
 
@@ -36,11 +36,11 @@ class Usage(Exception):
 
 
 # Generate a comparison of a DEM to the LOLA point cloud
-def compareDemToLola(lolaPath, demPath, outputPath, force):
+def compareDemToLola(lolaPath, demPath, outputPath, csvPath, force):
 
     if force or not os.path.exists(outputPath):
         cmd = ('lola_compare --absolute 1 --limit-hist=2 -l "' + lolaPath + 
-                             '" -d ' + demPath + ' -o ' + outputPath)
+                             '" -d ' + demPath + ' -o ' + outputPath + ' -c ' + csvPath)
         print cmd
         os.system(cmd)
         
@@ -94,8 +94,8 @@ def main():
 
             parser.add_option("--manual", action="callback", callback=man,
                               help="Read the manual.")
-            #parser.add_option("--keep", action="store_true", dest="keep",
-            #                  help="Do not delete the temporary files.")
+            parser.add_option("--keep", action="store_true", dest="keep",
+                              help="Do not delete the temporary files.")
             (options, args) = parser.parse_args()
 
             if not options.leftPath: 
@@ -132,6 +132,7 @@ def main():
             tempFolder = options.workDir
         if not os.path.exists(outputFolder):
             os.mkdir(outputFolder) 
+        hadToCreateTempFolder = not os.path.exists(tempFolder)
         if not os.path.exists(tempFolder):
             os.mkdir(tempFolder) 
         
@@ -141,9 +142,9 @@ def main():
             logging.basicConfig(filename=options.logPath,level=logging.INFO)
 
         # If specified, crop the inputs that will be passed into the stereo function to reduce processing time
+        mainMosaicCroppedPath   = os.path.join(tempFolder, 'mainMosaicCropped.cub')
+        stereoMosaicCroppedPath = os.path.join(tempFolder, 'stereoMosaicCropped.cub')
         if options.cropAmount and (options.cropAmount > 0):
-            mainMosaicCroppedPath   = os.path.join(tempFolder, 'mainMosaicCropped.cub')
-            stereoMosaicCroppedPath = os.path.join(tempFolder, 'stereoMosaicCropped.cub')
             if (not os.path.exists(mainMosaicCroppedPath)) or carry:
                 cmd = ('crop from= ' + options.leftPath   + ' to= ' + mainMosaicCroppedPath + 
                            ' nlines= ' + str(options.cropAmount))
@@ -211,20 +212,25 @@ def main():
 
         # Call script to compare LOLA data with the DEM
         if options.lolaPath or carry:
-            lolaDiffStatsPath = os.path.join(outputFolder, 'LOLA_diff_stats.txt')
-            compareDemToLola(options.lolaPath, demPath, lolaDiffStatsPath, carry)
+            lolaDiffStatsPath  = os.path.join(outputFolder, 'LOLA_diff_stats.txt')
+            lolaDiffPointsPath = os.path.join(outputFolder, 'LOLA_diff_points.csv')
+            compareDemToLola(options.lolaPath, demPath, lolaDiffStatsPath, lolaDiffPointsPath, carry)
 
         # Call script to compare LOLA data with the ASU DEM
         if options.asuPath or carry:
-            lolaAsuDiffStatsPath = os.path.join(outputFolder, 'ASU_LOLA_diff_stats.txt')
-            compareDemToLola(options.lolaPath, options.asuPath, lolaAsuDiffStatsPath, carry)
+            lolaAsuDiffStatsPath  = os.path.join(outputFolder, 'ASU_LOLA_diff_stats.txt')
+            lolaAsuDiffPointsPath = os.path.join(outputFolder, 'ASU_LOLA_diff_points.csv')
+            compareDemToLola(options.lolaPath, options.asuPath, lolaAsuDiffStatsPath, lolaAsuDiffPointsPath, carry)
 
         statsTime = time.time()
         logging.info('Final results finished in %f seconds', statsTime - stereoTime)
 
         # Clean up temporary files
-    #        if not options.keep:
-    #            os.remove(tempTextPath)
+        if not options.keep:
+            print 'Removing temporary files'
+            IsisTools.removeIfExists(mainMosaicCroppedPath)
+            IsisTools.removeIfExists(stereoMosaicCroppedPath)
+            IsisTools.removeIntermediateStereoFiles(stereoOutputPrefix)
 
 
         endTime = time.time()

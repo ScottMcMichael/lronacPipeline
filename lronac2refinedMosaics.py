@@ -185,7 +185,9 @@ def main():
         try:
             usage = "usage: lronac2refinedMosaics.py [--output <path>][--manual]\n  "
             parser = optparse.OptionParser(usage=usage)
-            
+            parser.set_defaults(keep=False)
+
+
             inputGroup = optparse.OptionGroup(parser, 'Input Paths')
             inputGroup.add_option("--left",  dest="leftPath",  help="Path to LE .IMG file")
             inputGroup.add_option("--right", dest="rightPath", help="Path to RE .IMG file")            
@@ -208,8 +210,8 @@ def main():
 
             parser.add_option("--manual", action="callback", callback=man,
                               help="Read the manual.")
-            #parser.add_option("--keep", action="store_true", dest="keep",
-            #                  help="Do not delete the temporary files.")
+            parser.add_option("--keep", action="store_true", dest="keep",
+                              help="Do not delete the temporary files.")
             (options, args) = parser.parse_args()
 
             if not options.leftPath: 
@@ -272,12 +274,6 @@ def main():
         filename         = os.path.splitext(options.stereoLeft)[0] + '.correctedMosaic.cub'
         outputPathStereo = os.path.join(outputFolder, os.path.basename(filename))
 
-        # Set up output paths for the stereo calibration call
-        leftCorrectedPath        = os.path.join(tempFolder, 'leftFinalCorrected.cub')
-        rightCorrectedPath       = os.path.join(tempFolder, 'rightFinalCorrected.cub')
-        leftStereoCorrectedPath  = os.path.join(tempFolder, 'leftStereoFinalCorrected.cub')
-        rightStereoCorrectedPath = os.path.join(tempFolder, 'rightStereoFinalCorrected.cub')
-
         # Generate a kml plot of the input LOLA data
         lolaKmlPath = os.path.join(tempFolder, 'lolaRdrPoints.kml')
         if not os.path.exists(lolaKmlPath):
@@ -311,10 +307,12 @@ def main():
                                                       ' --right '         + options.rightPath + 
                                                       ' --stereo-left '   + options.stereoLeft + 
                                                       ' --stereo-right '  + options.stereoRight + 
-                                                      ' --keep --lola '   + options.lolaPath + 
+                                                      ' --lola '          + options.lolaPath + 
                                                       ' --output-folder ' + outputFolder + 
                                                       ' --workDir '       + doubleCalWorkFolder + 
                                                       ' --log-path '      + options.logPath)
+              if options.keep:
+                  cmd = cmd + ' --keep'
               print cmd
               os.system(cmd)
               print '\n============================================================================\n'
@@ -325,9 +323,9 @@ def main():
 
         # Convert GDC output files into KML plots 
         # - This is just to help with debugging
-        generateKmlFromGdcPoints(os.path.join(doubleCalWorkFolder, 'initialGdcCheck'),            tempFolder, 'pairGdcCheckInitial.csv',           1,    'blue', 'normal', carry)
-        generateKmlFromGdcPoints(os.path.join(doubleCalWorkFolder, 'posCorrectGdcCheck'),         tempFolder, 'pairGdcCheckPos.csv',               1,    'green', 'normal',  carry)
-        generateKmlFromGdcPoints(os.path.join(doubleCalWorkFolder, 'posCorrectStereoGdcCheck'),   tempFolder, 'pairGdcStereoCheckPos.csv',         1,    'green', 'normal',  carry)
+        #generateKmlFromGdcPoints(os.path.join(doubleCalWorkFolder, 'initialGdcCheck'),            tempFolder, 'pairGdcCheckInitial.csv',           1,    'blue', 'normal', carry)
+        #generateKmlFromGdcPoints(os.path.join(doubleCalWorkFolder, 'posCorrectGdcCheck'),         tempFolder, 'pairGdcCheckPos.csv',               1,    'green', 'normal',  carry)
+        #generateKmlFromGdcPoints(os.path.join(doubleCalWorkFolder, 'posCorrectStereoGdcCheck'),   tempFolder, 'pairGdcStereoCheckPos.csv',         1,    'green', 'normal',  carry)
         generateKmlFromGdcPoints(os.path.join(doubleCalWorkFolder, 'stereoGlobalAdjustGdcCheck'), tempFolder, 'pairGdcCheckGlobalAdjustStero.csv', 1,    'blue', 'normal', carry)
         generateKmlFromGdcPoints(os.path.join(doubleCalWorkFolder, 'pcAlignStereoGdcCheck'),      tempFolder, 'pairGdcCheckPcAlign.csv',           1,    'red', 'normal',  carry)
         generateKmlFromGdcPoints(os.path.join(doubleCalWorkFolder, 'finalGdcCheck'),              tempFolder, 'pairGdcCheckFinal.csv',             1,    'white', 'normal', carry)
@@ -421,9 +419,24 @@ def main():
         logging.info('Mosaics finished in %f seconds', mosaicTime - noprojTime)
 
         # Clean up temporary files
-    #        if not options.keep:
-    #            os.remove(tempTextPath)
+        if not options.keep:
+            print 'Deleting temporary files'
+            IsisTools.removeIfExists(leftCorrectedPath)
+            IsisTools.removeIfExists(rightCorrectedPath)
+            IsisTools.removeIfExists(leftStereoCorrectedPath)
+            IsisTools.removeIfExists(rightStereoCorrectedPath)
+            IsisTools.removeIfExists(pvlPath)
+            IsisTools.removeIfExists(leftNoprojPath)
+            IsisTools.removeIfExists(rightNoprojPath)
+            IsisTools.removeIfExists(leftStereoNoprojPath)
+            IsisTools.removeIfExists(rightStereoNoprojPath)
+            IsisTools.removeFolderIfExists(mainMosaicWorkDir)
+            IsisTools.removeFolderIfExists(stereoMosaicWorkDir)
 
+            # Remove all the .kml files
+            fileList = [ f for f in os.listdir(tempFolder) if f.endswith(".kml") ]
+            for f in fileList:
+                IsisTools.removeIfExists(os.path.join(tempFolder, f))
 
         endTime = time.time()
 

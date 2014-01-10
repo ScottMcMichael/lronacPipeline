@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 # __BEGIN_LICENSE__
 #  Copyright (c) 2009-2013, United States Government as represented by the
 #  Administrator of the National Aeronautics and Space Administration. All
@@ -18,7 +19,7 @@
 
 import sys
 
-import os, glob, optparse, re, shutil, subprocess, string, time
+import os, glob, optparse, re, shutil, subprocess, string, time, errno
 
 
 #TODO: Move some of these to a non-ISIS python file!
@@ -30,6 +31,47 @@ Contains utilities for working with ISIS data files.
 '''
     sys.exit()
 
+
+def removeIfExists(path):
+    """Removes a file if it exists"""
+    try:
+        os.remove(path)
+    except OSError as e: 
+        if e.errno != errno.ENOENT: # Continue if the error is "no such file or directory"
+            raise # Re-raise the exception if a different error occured
+
+def removeFolderIfExists(directory):
+    """Removes a directory and everything in it"""
+    try:
+        shutil.rmtree(directory)
+    except OSError as e: 
+        if e.errno != errno.ENOENT: # Continue if the error is "no such file or directory"
+            raise # Re-raise the exception if a different error occured
+
+def removeIntermediateStereoFiles(stereoPrefix):
+    """Deletes intermediate files from a stereo output directory"""
+
+    # List of all non-final-output files
+    fileList = ['-align-L.exr', \
+                '-align-R.exr', \
+                '-DEM.tif.aux.xml', \
+                '-D_sub.tif', \
+                '-D.tif', \
+                '-F.tif', \
+                '-GoodPixelMap.tif', \
+                '-lMask_sub.tif', \
+                '-lMask.tif', \
+                '-L_sub.tif', \
+                '-L.tif', \
+                '-RD.tif' ,\
+                '-rMask_sub.tif', \
+                '-rMask.tif', \
+                '-R_sub.tif' ,\
+                '-R.tif']
+    # Remove each of those files
+    for f in fileList:
+        path = stereoPrefix + f
+        removeIfExists(path)
 
 def checkIfToolExists(toolName):
     """Returns true if the system knows about the utility with this name (it is on the PATH)"""

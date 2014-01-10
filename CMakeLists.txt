@@ -14,9 +14,9 @@ set(PACKAGE_BUGREPORT "scott.t.mcmichael@nasa.gov")
 
 
 #TODO: Remove this, the find functions should handle it!
-set(BASESYSTEM_INSTALL_DIR  "/home/smcmich1/repot/BaseSystem")
-set(VISIONWORKBENCH_ROOT    "/home/smcmich1/repot/visionworkbench/build")
-set(StereoPipeline_ROOT     "/home/smcmich1/repot/StereoPipeline/build")
+set(BASESYSTEM_INSTALL_DIR  "/home/smcmich1/repo/BaseSystem")
+set(VISIONWORKBENCH_ROOT    "/home/smcmich1/repo/visionworkbench/build")
+set(StereoPipeline_ROOT     "/home/smcmich1/repo/StereoPipeline/build")
 set(CERES_INSTALL_DIR       ${BASESYSTEM_INSTALL_DIR})
 set(SUITESPARSE_INSTALL_DIR ${BASESYSTEM_INSTALL_DIR})
 

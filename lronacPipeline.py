@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 # __BEGIN_LICENSE__
 #  Copyright (c) 2009-2013, United States Government as represented by the
 #  Administrator of the National Aeronautics and Space Administration. All
@@ -146,10 +147,10 @@ def makeDem(demFolder):
 #    keepstring = ' --keep' # Keeping temp files
     keepstring = '' # Not keeping temp files
     if not os.path.exists(mosaicNameA):
-        cmd = '~/repo/lronacPipeline/lronac2mosaic_v2.py ' + leftImgA + ' ' + rightImgA + keepstring
+        cmd = 'lronac2mosaic.py ' + leftImgA + ' ' + rightImgA + keepstring
         add_job(cmd, numThreads)
     if not os.path.exists(mosaicNameB):
-        cmd = '~/repo/lronacPipeline/lronac2mosaic_v2.py ' + leftImgB + ' ' + rightImgB + keepstring
+        cmd = 'lronac2mosaic.py ' + leftImgB + ' ' + rightImgB + keepstring
         add_job(cmd, numThreads)
     
     wait_on_all_jobs()

@@ -54,7 +54,9 @@ def main():
         try:
             usage = "usage: lronac2dem.py [--output <path>][--manual]\n  "
             parser = optparse.OptionParser(usage=usage)
-            
+
+            parser.set_defaults(keep=False)
+
             inputGroup = optparse.OptionGroup(parser, 'Input Paths')
             inputGroup.add_option("--left",  dest="leftPath",  help="Path to LE .IMG file")
             inputGroup.add_option("--right", dest="rightPath", help="Path to RE .IMG file")            
@@ -78,8 +80,8 @@ def main():
 
             parser.add_option("--manual", action="callback", callback=man,
                               help="Read the manual.")
-            #parser.add_option("--keep", action="store_true", dest="keep",
-            #                  help="Do not delete the temporary files.")
+            parser.add_option("--keep", action="store_true", dest="keep",
+                              help="Do not delete the temporary files.")
             (options, args) = parser.parse_args()
 
             if not options.leftPath: 
@@ -116,6 +118,10 @@ def main():
         logPath = options.prefix + '-Log.txt'
         logging.basicConfig(filename=logPath,level=logging.INFO)
 
+        keepString = ''
+        if options.keep:
+            keepString = ' --keep'
+  
 
         # Call lronac2refinedMosaics.py
         refineTemp = os.path.join(tempFolder, 'refinement')
@@ -126,9 +132,11 @@ def main():
                                        ' --lola '          + options.lolaPath + 
                                        ' --workDir '       + refineTemp + 
                                        ' --output-folder ' + tempFolder + 
-                                       ' --log-path '      + logPath)
+                                       ' --log-path '      + logPath + 
+                                       keepString)
         print cmd
         os.system(cmd)
+
 
         # These are the output mosaic paths
         filename         = os.path.splitext(options.leftPath)[0] + '.correctedMosaic.cub'
@@ -146,12 +154,18 @@ def main():
                                    ' --asu '      + options.asuPath + 
                                    ' --workDir '  + tempFolder + 
                                    ' --prefix '   + options.prefix + 
-                                   ' --log-path ' + logPath)
+                                   ' --log-path ' + logPath + 
+                                   keepString)
         if options.cropAmount:
             cmd = cmd + ' --crop ' + str(options.cropAmount)
         print cmd
         os.system(cmd)
 
+
+        if not options.keep:
+            print 'Deleting temporary files'
+            IsisTools.removeIfExists(mainMosaicPath)
+            IsisTools.removeIfExists(stereoMosaicPath)
 
 
         endTime = time.time()

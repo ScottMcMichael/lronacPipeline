@@ -48,7 +48,7 @@ def getFileLineCount(filePath):
 
 # TODO: Make this a standalone function!
 # Get a single file ready to process
-def prepareImgFile(inputPath, outputFolder):
+def prepareImgFile(inputPath, outputFolder, keep):
 
     # Generate the appropriate paths in the output folder
     filename       = os.path.splitext(inputPath)[0] + '.cub'
@@ -79,9 +79,12 @@ def prepareImgFile(inputPath, outputFolder):
         os.system(cmd)
 
     cmd = 'spiceinit from= ' + echoCubFile
-
     print cmd
     os.system(cmd)
+
+    if not keep:
+        IsisTools.removeIfExists(initialCubFile)
+        IsisTools.removeIfExists(calCubFile)
 
     return echoCubFile
 
@@ -210,7 +213,7 @@ def checkAdjacentPairAlignment(leftInputPath, rightInputPath, outputDirectory,  
 
 # Generate a modified IK kernel to adjust the rotation between an LE/RE camera pair.
 def applyInterCameraPairRotation(leftInputPath, rightInputPath, newRotationPath, outputCubePath, 
-                                 ckPath, spkPath, forceOperation):
+                                 ckPath, spkPath, workDir, forceOperation):
 
     # Quit immediately if the output file already exists
     if (not forceOperation) and (os.path.exists(outputCubePath)):
@@ -220,7 +223,8 @@ def applyInterCameraPairRotation(leftInputPath, rightInputPath, newRotationPath,
     # Generate the new file
     cmd = ('lronacCameraRotationCorrector.py --keep --output ' + outputCubePath + 
           ' --rotation ' + newRotationPath + ' --left ' + leftInputPath + 
-          ' --right ' + rightInputPath + ' --ck ' + ckPath + ' --spk ' + spkPath)
+          ' --right ' + rightInputPath + ' --ck ' + ckPath + ' --spk ' + spkPath +
+          ' --workDir ' + workDir)
     print cmd
     os.system(cmd)
 
@@ -312,6 +316,9 @@ def getInterestPointPairs(leftInputPath, rightInputPath, outputPath, forceOperat
         if not os.path.exists(outputPath):
             raise Exception('matchBinaryToCsv call failed on file ' + outputPath)
 
+        # Clean up temporary file
+        IsisTools.removeIfExists(binaryPath)
+
     # Count the number of point pairs we found
     numPairs = getFileLineCount(outputPath)
     print 'For cubes %s and %s found %d point pairs', leftInputPath, rightInputPath, numPairs
@@ -396,6 +403,8 @@ def main():
             usage = "usage: stereoDoubleCalibrationProcess.py TODO [--manual]\n  "
             parser = optparse.OptionParser(usage=usage)
             
+            parser.set_defaults(keep=False)
+
             inputGroup = optparse.OptionGroup(parser, 'Input Paths')
             inputGroup.add_option("--left",  dest="leftPath",  help="Path to LE .IMG file")
             inputGroup.add_option("--right", dest="rightPath", help="Path to RE .IMG file")
@@ -480,13 +489,13 @@ def main():
 
         # Convert the input files from IMG files to spiceinit'ed cubes in the output folder
         leftThread        = threading.Thread(target=prepareImgFile, 
-                                               args=(options.leftPath,   tempFolder))
+                                               args=(options.leftPath,    tempFolder, options.keep))
         rightThread       = threading.Thread(target=prepareImgFile, 
-                                               args=(options.rightPath,  tempFolder))
+                                               args=(options.rightPath,   tempFolder, options.keep))
         leftStereoThread  = threading.Thread(target=prepareImgFile, 
-                                               args=(options.stereoLeft, tempFolder))
+                                               args=(options.stereoLeft,  tempFolder, options.keep))
         rightStereoThread = threading.Thread(target=prepareImgFile, 
-                                               args=(options.stereoRight, tempFolder))
+                                               args=(options.stereoRight, tempFolder, options.keep))
 
         print 'Starting data init threads'
         leftThread.start()
@@ -527,22 +536,22 @@ def main():
 
         # Apply LE/RE LRONAC position offsets to each of the input files
         posOffsetCorrectedLeftPath = os.path.join(tempFolder, 'left.posOffsetCorrected.cub')
-        thisWorkDir                = os.path.join(tempFolder, 'leftPosCorrectDir')
-        applyInterCameraPositionOffset(spiceInitLeftPath, posOffsetCorrectedLeftPath, thisWorkDir, carry)
+        leftPosCorrectWorkDir      = os.path.join(tempFolder, 'leftPosCorrectDir')
+        applyInterCameraPositionOffset(spiceInitLeftPath, posOffsetCorrectedLeftPath, leftPosCorrectWorkDir, carry)
 
         posOffsetCorrectedRightPath = os.path.join(tempFolder, 'right.posOffsetCorrected.cub')
-        thisWorkDir                 = os.path.join(tempFolder, 'rightPosCorrectDir')
-        applyInterCameraPositionOffset(spiceInitRightPath, posOffsetCorrectedRightPath, thisWorkDir, carry)
+        rightPosCorrectWorkDir      = os.path.join(tempFolder, 'rightPosCorrectDir')
+        applyInterCameraPositionOffset(spiceInitRightPath, posOffsetCorrectedRightPath, rightPosCorrectWorkDir, carry)
 
         posOffsetCorrectedStereoLeftPath = os.path.join(tempFolder, 'stereoLeft.posOffsetCorrected.cub')
-        thisWorkDir                      = os.path.join(tempFolder, 'stereoLeftPosCorrectDir')
+        stereoLeftPosCorrectWorkDir      = os.path.join(tempFolder, 'stereoLeftPosCorrectDir')
         applyInterCameraPositionOffset(spiceInitStereoLeftPath, posOffsetCorrectedStereoLeftPath, 
-                                       thisWorkDir, carry)
+                                       stereoLeftPosCorrectWorkDir, carry)
 
         posOffsetCorrectedStereoRightPath = os.path.join(tempFolder, 'stereoRight.posOffsetCorrected.cub')
-        thisWorkDir                       = os.path.join(tempFolder, 'stereoRightPosCorrectDir')
+        stereoRightPosCorrectWorkDir      = os.path.join(tempFolder, 'stereoRightPosCorrectDir')
         applyInterCameraPositionOffset(spiceInitStereoRightPath, posOffsetCorrectedStereoRightPath,  
-                                       thisWorkDir, carry)
+                                       stereoRightPosCorrectWorkDir, carry)
 
         # DEBUG: Check angle solver on input LE/RE images!
 #        checkAdjacentPairAlignment(posOffsetCorrectedLeftPath, posOffsetCorrectedRightPath, 
@@ -717,16 +726,16 @@ def main():
         # Apply the planet-centered rotation/translation to both cameras in the stereo pair.
         # - This corrects the stereo pair relative to the main pair.
         # - The RE relative to LE corrections are performed later for convenience.
-        leftStereoAdjustedPath = os.path.join(tempFolder, 'leftStereoAdjusted.cub')
-        thisWorkDir            = os.path.join(tempFolder, 'stereoLeftStereoCorrection/')
+        leftStereoAdjustedPath  = os.path.join(tempFolder, 'leftStereoAdjusted.cub')
+        leftSteroCorrectWorkDir = os.path.join(tempFolder, 'stereoLeftStereoCorrection/')
         applyNavTransform(posOffsetCorrectedStereoLeftPath, leftStereoAdjustedPath, 
-                          globalTransformPath, thisWorkDir, '', '', carry)
+                          globalTransformPath, leftSteroCorrectWorkDir, '', '', carry)
 
 
-        rightStereoAdjustedPath = os.path.join(tempFolder, 'rightStereoAdjusted.cub')
-        thisWorkDir             = os.path.join(tempFolder, 'stereoRightStereoCorrection/')
+        rightStereoAdjustedPath  = os.path.join(tempFolder, 'rightStereoAdjusted.cub')
+        rightSteroCorrectWorkDir = os.path.join(tempFolder, 'stereoRightStereoCorrection/')
         applyNavTransform(posOffsetCorrectedStereoRightPath, rightStereoAdjustedPath, 
-                          globalTransformPath, thisWorkDir, '', '', carry)
+                          globalTransformPath, rightSteroCorrectWorkDir, '', '', carry)
 
         # DEBUG: Check angle solver on stereo adjusted LE/RE images!
         checkAdjacentPairAlignment(leftStereoAdjustedPath, rightStereoAdjustedPath, 
@@ -748,30 +757,6 @@ def main():
 #        print '=====> Mean left   pair error = %.4f meters' % meanLeftError
 #        print '=====> Mean right  pair error = %.4f meters' % meanRightError
 
-
-#        # DEBUG: Re-run the SBA solver with the global adjustment applied to the stereo images.
-#        # - Since we just applied the solved for transform, we expect global transform parameters to be near zero.
-#        sbaGlobalCheckFolder = os.path.join(tempFolder, 'globalSbaCheck/')
-#        sbaGlobalCheckOutputPrefix   = os.path.join(tempFolder, 'globalSbaCheck/SBA_solution')
-#        globalSbaCheckTransformPath = sbaGlobalCheckOutputPrefix + "-globalTransformMatrix.csv"
-#        if (not os.path.exists(globalSbaCheckTransformPath)) or carry:
-#            if not os.path.exists(sbaGlobalCheckFolder):
-#                os.mkdir(sbaGlobalCheckFolder)
-#            # TODO: Extract selected text for easier debugging?
-#            cmd = ['lronacAngleDoubleSolver',  '--outputPrefix',            sbaGlobalCheckOutputPrefix, 
-#                                               '--matchingPixelsLeftPath',  pixelPairsLeftSmall, 
-#                                               '--matchingPixelsRightPath', pixelPairsRightSmall, 
-#                                               '--leftCubePath',            posOffsetCorrectedLeftPath, 
-#                                               '--rightCubePath',           posOffsetCorrectedRightPath, 
-#                                               '--leftStereoCubePath',      leftStereoAdjustedPath, 
-#                                               '--rightStereoCubePath',     rightStereoAdjustedPath, 
-#                                               '--elevation',               str(expectedSurfaceElevation)]
-#            cmd = cmd + leftCrossElems + rightCrossElems
-#            print cmd
-#            print '-------'
-#            p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
-#            outputText, err = p.communicate()
-#            print outputText
         print '\n-------------------------------------------------------------------------\n'
 
         # Extract a large number of matching pixel locations (many thousands) from the LE/LE and RE/RE.
@@ -832,33 +817,33 @@ def main():
 
         # Now go back and apply the pc_align computed transform to all four cameras.
         # - This step corrects the four camera positions relative to the LOLA data.
-        leftCkPath  = os.path.join(tempFolder, 'leftFinalCk.bc')
-        leftSpkPath = os.path.join(tempFolder, 'leftFinalSpk.bsp')
-        thisWorkDir = os.path.join(tempFolder, 'leftFullCorrection')
+        leftCkPath       = os.path.join(tempFolder, 'leftFinalCk.bc')
+        leftSpkPath      = os.path.join(tempFolder, 'leftFinalSpk.bsp')
+        leftFinalWorkDir = os.path.join(tempFolder, 'leftFullCorrection')
         applyNavTransform(posOffsetCorrectedLeftPath, outputPathLeft, 
-                          pcAlignTransformPath, thisWorkDir, leftCkPath, leftSpkPath, carry)
+                          pcAlignTransformPath, leftFinalWorkDir, leftCkPath, leftSpkPath, carry)
 
         partialCorrectedRightPath = os.path.join(tempFolder, 'partial_corrected_RE.cub')
         rightCkPath               = os.path.join(tempFolder, 'rightFinalCk.bc') 
         rightSpkPath              = os.path.join(tempFolder, 'rightFinalSpk.bsp')
-        thisWorkDir               = os.path.join(tempFolder, 'rightFullCorrection/')
+        rightFinalWorkDir          = os.path.join(tempFolder, 'rightFullCorrection/')
         applyNavTransform(posOffsetCorrectedRightPath, partialCorrectedRightPath, 
-                          pcAlignTransformPath, thisWorkDir, rightCkPath, rightSpkPath, carry)
+                          pcAlignTransformPath, rightFinalWorkDir, rightCkPath, rightSpkPath, carry)
 
 
-        leftStereoCkPath  = os.path.join(tempFolder, 'leftStereoFinalCk.bc') 
-        leftStereoSpkPath = os.path.join(tempFolder, 'leftStereoFinalSpk.bsp')
-        thisWorkDir       = os.path.join(tempFolder, 'leftStereoFullCorrection')
+        leftStereoCkPath       = os.path.join(tempFolder, 'leftStereoFinalCk.bc') 
+        leftStereoSpkPath      = os.path.join(tempFolder, 'leftStereoFinalSpk.bsp')
+        leftStereoFinalWorkDir = os.path.join(tempFolder, 'leftStereoFullCorrection')
         applyNavTransform(leftStereoAdjustedPath, outputPathStereoLeft, 
-                          pcAlignTransformPath, thisWorkDir, leftStereoCkPath, leftStereoSpkPath, carry)
+                          pcAlignTransformPath, leftStereoFinalWorkDir, leftStereoCkPath, leftStereoSpkPath, carry)
 
 
         partialCorrectedStereoRightPath = os.path.join(tempFolder, 'partial_corrected_stereo_RE.cub')
         rightStereoCkPath               = os.path.join(tempFolder, 'rightStereoFinalCk.bc')
         rightStereoSpkPath              = os.path.join(tempFolder, 'rightStereoFinalSpk.bsp')
-        thisWorkDir                     = os.path.join(tempFolder, 'rightStereoFullCorrection/')
+        rightStereoFinalWorkDir         = os.path.join(tempFolder, 'rightStereoFullCorrection/')
         applyNavTransform(rightStereoAdjustedPath, partialCorrectedStereoRightPath, 
-                          pcAlignTransformPath, thisWorkDir, rightStereoCkPath, rightStereoSpkPath, carry)
+                          pcAlignTransformPath, rightStereoFinalWorkDir, rightStereoCkPath, rightStereoSpkPath, carry)
 
         # At this point the left images are hopefully in the correct position and we can apply the offset of the RE cameras
 
@@ -894,14 +879,16 @@ def main():
         # Apply local transforms to both pairs of images!
 
         # Apply the local rotation to the adjusted RE cube
+        mainLocalWorkDir = os.path.join(tempFolder, 'mainLocalCorrection')
         applyInterCameraPairRotation(outputPathLeft, partialCorrectedRightPath, 
                                     localRotationPath, outputPathRight, 
-                                    rightCkPath, rightSpkPath, carry)
+                                    rightCkPath, rightSpkPath, mainLocalWorkDir, carry)
 
         # Apply the local rotation to the adjusted stereo RE cube
+        stereoLocalWorkDir = os.path.join(tempFolder, 'stereoLocalCorrection')
         applyInterCameraPairRotation(outputPathStereoLeft, partialCorrectedStereoRightPath, 
                                      stereoRotationPath, outputPathStereoRight, 
-                                     rightStereoCkPath, rightStereoSpkPath, carry)
+                                     rightStereoCkPath, rightStereoSpkPath, stereoLocalWorkDir, carry)
 
 
         # DEBUG: Check angle solver on adjusted LE/RE images!
@@ -944,8 +931,75 @@ def main():
         # All finished!  We should have a fully calibrated version of each of the four input files.
 
         # Clean up temporary files
-#        if not options.keep:
-#            os.remove(tempTextPath)
+        if not options.keep:
+            print 'Deleting temporary files'
+            # Init files
+            IsisTools.removeIfExists(spiceInitLeftPath)
+            IsisTools.removeIfExists(spiceInitRightPath)
+            IsisTools.removeIfExists(spiceInitStereoRightPath)
+            IsisTools.removeIfExists(spiceInitStereoLeftPath)
+
+            # Position correction files
+            IsisTools.removeIfExists(posOffsetCorrectedLeftPath)
+            IsisTools.removeIfExists(posOffsetCorrectedRightPath)
+            IsisTools.removeIfExists(posOffsetCorrectedStereoLeftPath)
+            IsisTools.removeIfExists(posOffsetCorrectedStereoRightPath)
+            IsisTools.removeFolderIfExists(leftPosCorrectWorkDir)
+            IsisTools.removeFolderIfExists(rightPosCorrectWorkDir)
+            IsisTools.removeFolderIfExists(stereoLeftPosCorrectWorkDir)
+            IsisTools.removeFolderIfExists(stereoRightPosCorrectWorkDir)
+            # Stereo output
+            stereoOutputLeftFolder = os.path.dirname(stereoPrefixLeft)
+            IsisTools.removeFolderIfExists(stereoOutputLeftFolder) #TURN THIS ON AFTER TESTING COMPLETE!
+            IsisTools.removeIfExists(pixelPairsLeftSmall)
+            IsisTools.removeIfExists(pixelPairsRightSmall)
+            IsisTools.removeIfExists(pixelPairsLeftCrossSmall)
+            IsisTools.removeIfExists(pixelPairsRightCrossSmall)
+            IsisTools.removeIfExists(leftPosCorrectedCropped)
+            IsisTools.removeIfExists(rightPosCorrectedCropped)
+            IsisTools.removeIfExists(leftStereoPosCorrectedCropped)
+            IsisTools.removeIfExists(rightStereoPosCorrectedCropped)
+
+            # Remove all the SBA files
+            fileList = [ f for f in os.listdir(tempFolder) if f.startswith("SBA_solution") ]
+            for f in fileList:
+                IsisTools.removeIfExists(os.path.join(tempFolder, f))
+
+            # Remove stereo corrected files
+            IsisTools.removeIfExists(leftStereoAdjustedPath)
+            IsisTools.removeFolderIfExists(leftSteroCorrectWorkDir)
+            IsisTools.removeIfExists(rightStereoAdjustedPath)
+            IsisTools.removeFolderIfExists(rightSteroCorrectWorkDir)
+            # Clean pc_align steps
+            IsisTools.removeIfExists(pixelPairsLeftLarge)
+            IsisTools.removeFolderIfExists(largeGdcFolder)
+            pcAlignFolder = os.path.dirname(pcAlignOutputPrefix)
+            IsisTools.removeFolderIfExists(pcAlignFolder)
+            # Clean out final file correction
+            IsisTools.removeIfExists(leftCkPath)
+            IsisTools.removeIfExists(leftSpkPath)
+            IsisTools.removeFolderIfExists(leftFinalWorkDir)
+            IsisTools.removeIfExists(partialCorrectedRightPath)
+            IsisTools.removeIfExists(rightCkPath)
+            IsisTools.removeIfExists(rightSpkPath)
+            IsisTools.removeFolderIfExists(rightFinalWorkDir)
+            IsisTools.removeIfExists(leftStereoCkPath)
+            IsisTools.removeIfExists(leftStereoSpkPath)
+            IsisTools.removeFolderIfExists(leftStereoFinalWorkDir)
+            IsisTools.removeIfExists(partialCorrectedStereoRightPath)
+            IsisTools.removeIfExists(rightStereoCkPath)
+            IsisTools.removeIfExists(rightStereoSpkPath)
+            IsisTools.removeFolderIfExists(rightStereoFinalWorkDir)
+            # Remove local transform folders
+            IsisTools.removeFolderIfExists(mainLocalWorkDir)
+            IsisTools.removeFolderIfExists(stereoLocalWorkDir)
+
+            # Remove check folders
+            IsisTools.removeFolderIfExists(os.path.join(tempFolder, 'pcAlignStereoGdcCheck'))
+            IsisTools.removeFolderIfExists(os.path.join(tempFolder, 'stereoGlobalAdjustGdcCheck'))
+            IsisTools.removeFolderIfExists(os.path.join(tempFolder, 'finalGdcCheck'))
+            IsisTools.removeFolderIfExists(os.path.join(tempFolder, 'finalStereoGdcCheck'))
+
 
         endTime = time.time()
 

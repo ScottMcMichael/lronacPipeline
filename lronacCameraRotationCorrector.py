@@ -112,6 +112,7 @@ def main():
             parser.add_option("-c", "--ck", dest="ckPath",
                               help="Path to optional specified CK (orientation) file to use.")
 
+            parser.add_option("--workDir", dest="workDir",  help="Folder to store temporary files in")
 
             parser.add_option("-o", "--output", dest="outputPath",
                               help="Where to write the output (RE) file.")
@@ -138,6 +139,8 @@ def main():
         outputFolder = os.path.dirname(options.outputPath)
         inputBaseName = os.path.basename(options.leftPath)
         tempFolder    = outputFolder + '/' + inputBaseName + '_rotCorrectTemp/'
+        if options.workDir:
+            tempFolder = options.workDir
         if not os.path.exists(tempFolder):
             os.mkdir(tempFolder) 
 
