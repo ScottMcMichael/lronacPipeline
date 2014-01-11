@@ -260,6 +260,7 @@ def main():
             tempFolder = options.workDir
         if not os.path.exists(outputFolder):
             os.mkdir(outputFolder) 
+        hadToCreateTempFolder = not os.path.exists(tempFolder)
         if not os.path.exists(tempFolder):
             os.mkdir(tempFolder) 
 
@@ -432,6 +433,8 @@ def main():
             IsisTools.removeIfExists(rightStereoNoprojPath)
             IsisTools.removeFolderIfExists(mainMosaicWorkDir)
             IsisTools.removeFolderIfExists(stereoMosaicWorkDir)
+            if (hadToCreateTempFolder):
+                IsisTools.removeFolderIfExists(tempFolder)
 
             # Remove all the .kml files
             fileList = [ f for f in os.listdir(tempFolder) if f.endswith(".kml") ]

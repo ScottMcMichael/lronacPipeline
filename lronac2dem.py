@@ -110,9 +110,10 @@ def main():
             tempFolder = options.workDir
         if not os.path.exists(outputFolder):
             os.mkdir(outputFolder) 
+        hadToCreateTempFolder = not os.path.exists(tempFolder)
         if not os.path.exists(tempFolder):
             os.mkdir(tempFolder) 
-        
+
 
         # Set up logging
         logPath = options.prefix + '-Log.txt'

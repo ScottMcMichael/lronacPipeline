@@ -231,6 +231,8 @@ def main():
             IsisTools.removeIfExists(mainMosaicCroppedPath)
             IsisTools.removeIfExists(stereoMosaicCroppedPath)
             IsisTools.removeIntermediateStereoFiles(stereoOutputPrefix)
+            #if (hadToCreateTempFolder): Not done since stereo output needs to be retained
+            #    IsisTools.removeFolderIfExists(tempFolder)
 
 
         endTime = time.time()

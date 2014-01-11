@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 # __BEGIN_LICENSE__
 #  Copyright (c) 2009-2013, United States Government as represented by the
 #  Administrator of the National Aeronautics and Space Administration. All
@@ -37,19 +38,22 @@ class Usage(Exception):
 #--------------------------------------------------------------------------------
 
 # Creates the required msopck setup file if it does not already exist
-def makeCkSetupFile(leapSecondFilePath, clockFilePath, frameFilePath, outputPath, tempFolder):
+def makeCkSetupFile(leapSecondFilePath, clockFilePath, frameFilePath, outputPath, uniqueName):
 
     # If the file already exists, delete it and rewrite it.
     if os.path.exists(outputPath):
         os.remove(outputPath)
 
     # The program can't handle long paths so we need to replace them with short symlinks
+    tempFolder    = os.path.join('/tmp', uniqueName+'/')
+    if not os.path.exists(tempFolder):
+            os.mkdir(tempFolder)
     leapFileName  = os.path.basename(leapSecondFilePath)
     clockFileName = os.path.basename(clockFilePath)
     frameFileName = os.path.basename(frameFilePath)
-    leapSymPath   = os.path.join('/tmp', leapFileName)
-    clockSymPath  = os.path.join('/tmp', clockFileName)
-    frameSymPath  = os.path.join('/tmp', frameFileName)
+    leapSymPath   = os.path.join(tempFolder, leapFileName)
+    clockSymPath  = os.path.join(tempFolder, clockFileName)
+    frameSymPath  = os.path.join(tempFolder, frameFileName)
     os.system('ln -f -s ' + leapSecondFilePath + ' ' + leapSymPath)
     os.system('ln -f -s ' + clockFilePath      + ' ' + clockSymPath)
     os.system('ln -f -s ' + frameFilePath      + ' ' + frameSymPath)
@@ -78,15 +82,20 @@ def run_msopck(inputBaseName, msopckConfigPath, ckDataPath, outputCkPath):
     #  temporary files.
     
     # We work around this by writing to a 'safe' path and copying the output to the desired location.
-    shortOutputCkPath = os.path.join('/tmp/', inputBaseName + '_modifiedLrocCk.bc')  
+
+    tempFolder    = os.path.join('/tmp', inputBaseName+'/')
+    if not os.path.exists(tempFolder):
+            os.mkdir(tempFolder)
+
+    shortOutputCkPath = os.path.join(tempFolder, 'modifiedLrocCk.bc')  
     if os.path.exists(shortOutputCkPath):
         os.remove(shortOutputCkPath)
 
     # The program can't handle long paths so we need to replace them with short symlinks
     configName    = os.path.basename(msopckConfigPath)
     dataName      = os.path.basename(ckDataPath)
-    configSymPath = os.path.join('/tmp', configName) # TODO: Need to improve names for multi-threading!
-    dataSymPath   = os.path.join('/tmp', dataName)
+    configSymPath = os.path.join(tempFolder, configName)
+    dataSymPath   = os.path.join(tempFolder, dataName)
     os.system('ln -f -s ' + msopckConfigPath + ' ' + configSymPath)
     os.system('ln -f -s ' + ckDataPath       + ' ' + dataSymPath)
 
@@ -132,6 +141,9 @@ def main():
         try:
             usage = "usage: rotationCorrector.py [--output <path>][--manual]\n  "
             parser = optparse.OptionParser(usage=usage)
+            parser.set_defaults(keep=False)
+            parser.set_defaults(pcAlignTrans=False)
+
             parser.add_option("--input",  dest="inputPath",  help="Path to input .cub file to modify")
 
             parser.add_option("-s", "--spk", dest="spkPath", help="Path to write new SPK file to.")
@@ -140,6 +152,10 @@ def main():
                               help="Where to write the output file.")
             parser.add_option("--transformPath",  dest="transformPath",  
                               help="Path to input file containing transform to apply")
+
+            # This flag means that the rotation also affects the position!
+            parser.add_option("--pcAlignTrans", action="store_true", dest="pcAlignTrans",
+                              help="The transform is from pc_align.")
 
             # The default working directory path is kind of ugly...
             parser.add_option("--workDir", dest="workDir",  help="Folder to store temporary files in")
@@ -216,11 +232,16 @@ def main():
         if os.path.exists(ckDataPath):
             os.remove(ckDataPath)
 
+        transformType = 0 # GLOBAL, rotation does not affect position, from lronacAngleSolver
+        if options.pcAlignTrans:
+            transformType = 2 #PC_ALIGN, rotation affects position
+
         # Call lronac spice editor tool to generate modified text file
-        cmd = ('spiceEditor --transformType 0 --transformFile ' + options.transformPath + 
-                          ' --outputPrefix ' + tempDataPrefix + 
-                          ' --kernels '      + kernelStringList + 
-                          ' --sourceCube '   + options.inputPath)
+        cmd = ('spiceEditor --transformType ' + str(transformType) + 
+                          ' --transformFile ' + options.transformPath + 
+                          ' --outputPrefix '  + tempDataPrefix + 
+                          ' --kernels '       + kernelStringList + 
+                          ' --sourceCube '    + options.inputPath)
         print cmd
         os.system(cmd)
         if not os.path.exists(spkDataPath):
@@ -255,7 +276,7 @@ def main():
         # Write the config file needed for the msopck function
         print 'Writing msopck config file...'
         msopckConfigPath = os.path.join(tempFolder, "ckConfig.txt")
-        makeCkSetupFile(leapSecondFilePath, clockFilePath, frameFilePath, msopckConfigPath, tempFolder)
+        makeCkSetupFile(leapSecondFilePath, clockFilePath, frameFilePath, msopckConfigPath, inputBaseName)
 
         # If the file already exists, delete it and rewrite it.
         if options.ckPath:

@@ -46,6 +46,30 @@ Currently the server for automated LOLA data downloads is not working so they ne
 The minimum bounds for each data set are listed in the data grabber source location file and in the command line output when retrieving data.  A 0.25 to 0.5 degree buffer in each direction is reccomended.  
 
 
+======= Output file description ====================================================
+
+ASU_LOLA_diff_stats.txt  = Contains statistics comparing elevation differences between the LOLA DEM and the ASU DEM.
+ASU_LOLA_diff_points.txt = List of each point compared to generate the statistics in the previous file (lat, lon, elevation, error).
+LOLA_diff_stats.txt      = Contains statistics comparing elevation differences between the LOLA DEM and the newly generated DEM.
+LOLA_diff_points.txt     = List of each point compared to generate the statistics in the previous file (lat, lon, elevation, error).
+outputHillshade.tif      = Convenient 8-bit visualization of the output DEM.
+p2d-DEM.tif              = The output 32 bit floating point DEM.
+p2d-IntersectionErr.tif  = Image containing the stereo triangulation error of each pixel in the output DEM.
+
+output-Log.txt = Log of intermediate processing outputs.  There are a number of things to look for in this file:
+- For the two left cubes: "INFO:root:- Stereo completed with good pixel percentage: 0.843245660555".
+    A low good pixel percentage means that the stereo algorithm may be having trouble with the input images.
+- For the the other cube pairs: "INFO:root:- Found 653 point pairs"
+    A low number means the interest point finding algorithm may be having trouble with the input images.
+    For the cropped images 50 to 100 points is ok.  For full size images > 300 is best.
+- The median point error before and after SBA computation (look for ">>>>").
+    The final output error should be < 1.0 pixels.  A higher value means the SBA solver had trouble finding a solution.
+- The mean pair errors (look for "=====>").
+    These errors are computed using "campt" on pixel pairs of the fully corrected cube files at the end of the calibration process.
+    The main and stereo pairs should have a small error (< 1.0 meters) but the other two errors could be higher (< 60 meters).
+- The jitreg offsets ("INFO:root:- jitreg offsets = [0.086819999999999994, 0.97209999999999996]")
+    These values should be < 2.0 pixels.
+- There are timing results scattered throughout the file.  Some time values include several of the previous times.
 
 ======= Processing description =====================================================
 
