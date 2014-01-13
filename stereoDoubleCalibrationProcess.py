@@ -395,7 +395,14 @@ def functionStartupCheck():
 
     return True
 
+# Looks in the pc_align output folder for the variably-named log file
+def findOutputLog(folder):
 
+    for root, dirs, files in os.walk(folder):
+        for f in files:
+            if 'log' in f:
+                return os.path.join(folder, f)
+    return False
 
 #==========================================================================================
 
@@ -798,13 +805,13 @@ def main():
         #largeGdcTransformedFile = os.path.joint(tempFolder, 'gdcPointsTransformedLarge.csv')
         #transformedPointsFile = os.path.join(tempFolder, 'pcAlignOutput-trans_source.csv')
         pcAlignTransformPath  = pcAlignOutputPrefix + '-inverse-transform.txt'
+        pcAlignFolder         = os.path.dirname(pcAlignOutputPrefix)
         if (not os.path.exists(pcAlignTransformPath)) or carry:
             # TODO: Confirm which input order works best
             #cmd = 'pc_align --highest-accuracy --max-displacement 1500 --datum D_MOON --max-num-reference-points 25000000 --save-transformed-source-points ' + options.lolaPath + ' ' + largeGdcFile + ' -o ' + pcAlignOutputPrefix + ' --compute-translation-only'
             cmd = ('pc_align --highest-accuracy --max-displacement 100 --datum D_MOON ' + 
                    '--save-inv-transformed-reference-points ' + largeGdcFile + 
-                   ' ' + options.lolaPath + ' -o ' + pcAlignOutputPrefix + 
-                   ' --compute-translation-only')
+                   ' ' + options.lolaPath + ' -o ' + pcAlignOutputPrefix)# + ' --compute-translation-only')
             print cmd
             os.system(cmd)
         else:
@@ -813,8 +820,14 @@ def main():
         if not os.path.exists(pcAlignTransformPath):
             raise Exception('pc_align call failed!')
 
+        # Copy the pc_align log to the output folder
+        pcAlignLogPath = findOutputLog(pcAlignFolder)
+        shutil.copyfile(pcAlignLogPath, os.path.join(outputFolder, 'pcAlignLog.txt')
+        
+
         alignTime = time.time()
         logging.info('pc_align finished in %f seconds', alignTime - prepTime)
+
 
         print '\n-------------------------------------------------------------------------\n'
 
@@ -978,7 +991,6 @@ def main():
             # Clean pc_align steps
             IsisTools.removeIfExists(pixelPairsLeftLarge)
             IsisTools.removeFolderIfExists(largeGdcFolder)
-            pcAlignFolder = os.path.dirname(pcAlignOutputPrefix)
             IsisTools.removeFolderIfExists(pcAlignFolder)
             # Clean out final file correction
             IsisTools.removeIfExists(leftCkPath)
