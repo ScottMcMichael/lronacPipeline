@@ -822,7 +822,7 @@ def main():
 
         # Copy the pc_align log to the output folder
         pcAlignLogPath = findOutputLog(pcAlignFolder)
-        shutil.copyfile(pcAlignLogPath, os.path.join(outputFolder, 'pcAlignLog.txt')
+        shutil.copyfile(pcAlignLogPath, os.path.join(outputFolder, 'pcAlignLog.txt'))
         
 
         alignTime = time.time()

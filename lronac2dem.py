@@ -139,8 +139,8 @@ def main():
         os.system(cmd)
         
         # Copy the pc_align log file to the output folder
-        pcAlignLog = os.path.join(tempFolder, 'pcAlignLog.txt')
-        shutil.copyfile(pcAlignLogPath, os.path.join(outputFolder, 'pcAlignLog.txt')
+        pcAlignLogPath = os.path.join(tempFolder, 'pcAlignLog.txt')
+        shutil.copyfile(pcAlignLogPath, os.path.join(outputFolder, 'pcAlignLog.txt'))
 
 
         # These are the output mosaic paths
