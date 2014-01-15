@@ -1,0 +1,36 @@
+
+## Specifies  the interpreter or shell path for the job script.
+#PBS -S /bin/bash
+
+## Sets the job name.
+#PBS -N lrop
+
+## Westmere seems to have the most open slots.  Each node has 12 cores and 22.5GB RAM.
+#PBS -l select=1:ncpus=4
+
+## Walltime is the max before process is cut off.  Greater value makes scheduling harder.
+#PBS -l walltime=0:01:00
+
+## Standard output and error streams are merged in the standard output file
+#PBS -j oe
+
+## specifies the group the job runs under
+#PBS -W group_list=s1219 
+
+## Flag controls when emails are sent.  e = termination, b = start
+#PBS -m eb
+
+## Identifier
+n=singleNodeTrial
+echo Job is $n >2 # let it go to stderr so that we can see it in the job report file
+echo Job is $n    
+
+## Change to the correct working directory (from root)
+if [ "$PBS_O_WORKDIR" != "" ]; then cd $PBS_O_WORKDIR; fi
+
+inputFolder=/nobackupp1/smcmich1/data/lronacPipeline/VITELLO
+
+## Call the script!  Make sure output is sent to a text file.
+##./reconstruct.sh photometry_settings_160mpp.txt $n > output$n.txt
+##./lronacPipeline.py ---input-folder $inputFolder > output$n.txt
+pwd
