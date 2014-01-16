@@ -73,7 +73,7 @@ def main():
             # The default working directory path is kind of ugly...
             parser.add_option("--workDir", dest="workDir",  help="Folder to store temporary files in")
 
-            parser.add_option("--prefix",  dest="prefix",   help="Output prefix.")
+            parser.add_option("--output-folder",  dest="outputFolder",   help="Output folder.")
 
             parser.add_option("--crop",  dest="cropAmount", 
                               help="Crops the output image to reduce processing time.")
@@ -94,8 +94,8 @@ def main():
                 parser.error("Need stereo right input path")
             if not options.lolaPath: 
                 parser.error("Need LOLA data path")
-            if not options.prefix: 
-                parser.error("Need output prefix")
+            if not options.outputFolder: 
+                parser.error("Need output folder")
 
         except optparse.OptionError, msg:
             raise Usage(msg)
@@ -103,7 +103,8 @@ def main():
         startTime = time.time()
 
         # Set up the output folders
-        outputFolder  = os.path.dirname(options.prefix)
+        outputPrefix  = options.outputFolder + '/output'
+        outputFolder  = options.outputFolder
         inputBaseName = os.path.basename(options.leftPath)
         tempFolder    = outputFolder + '/' + inputBaseName + '_stereoCalibrationTemp/'
         if (options.workDir):
@@ -116,7 +117,7 @@ def main():
 
 
         # Set up logging
-        logPath = options.prefix + '-Log.txt'
+        logPath = outputPrefix + '-Log.txt'
         logging.basicConfig(filename=logPath,level=logging.INFO)
 
         keepString = ''
@@ -158,7 +159,7 @@ def main():
                                    ' --lola '     + options.lolaPath + 
                                    ' --asu '      + options.asuPath + 
                                    ' --workDir '  + tempFolder + 
-                                   ' --prefix '   + options.prefix + 
+                                   ' --prefix '   + outputPrefix + 
                                    ' --log-path ' + logPath + 
                                    keepString)
         if options.cropAmount:

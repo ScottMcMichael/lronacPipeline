@@ -30,9 +30,9 @@ do
     if [ $NUM_STATS_FILES -lt 3 ]; then
         echo $PRETTY_NAME = $NUM_STATS_FILES
         
-         subjob=$(qsub -q normal -N ${PRETTY_NAME}_1 -l walltime="8:00:00" -W group_list=s1219 -j oe -S /bin/bash -C $PWD -l select=1:ncpus=12:model=wes -m eb -- /nobackupp1/smcmich1/projects/lronacPipeline/jobWrapper.sh /nobackupp1/smcmich1/data/lronacPipeline/$PRETTY_NAME --low-mem)
+         subjob=$(qsub -q normal -N ${PRETTY_NAME}_1 -l walltime="8:00:00" -W group_list=s1219 -j oe -S /bin/bash -C $PWD -l select=1:ncpus=12:model=wes -m eb -- /nobackupp1/smcmich1/projects/lronacPipeline/jobWrapperV1.sh /nobackupp1/smcmich1/data/lronacPipeline/$PRETTY_NAME --low-mem)
 
-         qsub -q normal -N ${PRETTY_NAME}_2 -l walltime="8:00:00" -W group_list=s1219 -j oe -S /bin/bash -C $PWD -l select=1:ncpus=12:bigmem=true:model=wes -m eb -W depend=afterok:$subjob -- /nobackupp1/smcmich1/projects/lronacPipeline/jobWrapper.sh /nobackupp1/smcmich1/data/lronacPipeline/$PRETTY_NAME
+         qsub -q normal -N ${PRETTY_NAME}_2 -l walltime="8:00:00" -W group_list=s1219 -j oe -S /bin/bash -C $PWD -l select=1:ncpus=12:bigmem=true:model=wes -m eb -W depend=afterok:$subjob -- /nobackupp1/smcmich1/projects/lronacPipeline/jobWrapperV1.sh /nobackupp1/smcmich1/data/lronacPipeline/$PRETTY_NAME
 
     else
         echo $PRETTY_NAME = Already finished!
