@@ -171,12 +171,14 @@ int main( int argc, char *argv[] ) {
 
   std::string inputImagePath, outputPath="";
   int removeHistogramOutliers=0;
+  bool absolute;
 
   po::options_description general_options("Options");
   general_options.add_options()
     ("help,h",        "Display this help message")  
     ("output-file,o", po::value<std::string>(&outputPath)->default_value(""), "Specify an output text file to store the program output")
     ("limit-hist",    po::value<int        >(&removeHistogramOutliers)->default_value(0), "Limits the histogram to +/- N standard deviations from the mean");
+    ("absolute",      po::value<bool       >(&absolute)->default_value(false), "Work in absolute values");
 
   po::options_description positional("");
   positional.add_options()
@@ -222,13 +224,11 @@ int main( int argc, char *argv[] ) {
         {
           float diff = inputImage(col,row)[0];
           if (diff > -32767) // Avoid flag value
+          {
+            if (absolute)
+              diff = fabs(diff);
             statCalc.Push(diff);
-
-//          if (diff > 500)
-//          {
-//            printf("Diff = %lf at row %d, col %d\n", diff, row, col);
-//          }
-
+          }
         }
       } // End loop through cols
 
@@ -268,7 +268,7 @@ int main( int argc, char *argv[] ) {
     vw::math::CDFAccumulator<float> cdfCalc(1000, 251); //TODO: What values to pass in?
 
     // Next pass fill in histogram
-    std::vector<size_t> hist;
+    std::vector<vw::uint64> hist;
     hist.assign(numBins, 0);
     for (int row = 0; row < inputImage.rows(); row++)
     {
@@ -279,11 +279,21 @@ int main( int argc, char *argv[] ) {
         float diff = inputImage(col,row)[0];
         if (diff <= -32767) // Avoid flag value
           continue;
-        diff = fabs(diff);
+        if (absolute)
+          diff = fabs(diff);
 
         int bin = (int)floor( factor * (diff - minVal)  );
         if ((bin >= 0) && (bin < numBins)) // If removeHistogramOutliers is set some values will not fit in a bin
+        {
           ++(hist[bin]);
+          //std::cout << "bin " << bin << " = " << hist[bin] << std::endl;
+        }
+        else // Invalid bin
+        {
+          //printf("range = %lf, binSize = %lf, factor = %lf, minVal = %lf, diff = %lf\n", range, binSize, factor, minVal, diff);
+          //std::cout << "bin " << bin << std::endl; 
+        }
+
         cdfCalc(diff);
 
       } // End column loop
