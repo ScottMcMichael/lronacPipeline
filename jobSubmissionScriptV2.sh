@@ -15,6 +15,10 @@ FILES=$(find . -name '*.csv')
 # Move back to execution folder
 cd /u/smcmich1/projects/lronacPipeline
 
+# Limit number of batch jobs to submit
+declare -i LIMIT=4
+declare -i ONE=1
+
 for f in $FILES
 do
 
@@ -30,27 +34,33 @@ do
 
     # Only run if the last output file is not present
     ASU_STATS_FILE=$FULL_DIRECTORY/results/ASU_LOLA_diff_stats.txt
-    if [ -f $ASU_STATS_FILE ]; then
+    echo $ASU_STATS_FILE
+    if [ ! -e "$ASU_STATS_FILE" ]; then
         echo "Running script for $PRETTY_NAME"
         
         # Submit the job using a westmere (cheap) CPU
-        qsub -q normal -N ${PRETTY_NAME} -l walltime="8:00:00" -W group_list=s1219 -j oe -e $ERR_OUT_PATH -o $STD_OUT_PATH-S /bin/bash -V -C $PWD -l select=1:ncpus=12:model=wes -m eb -- /nobackupp1/smcmich1/projects/lronacPipeline/jobWrapperV2.sh $FULL_DIRECTORY
+        qsub -q normal -N ${PRETTY_NAME} -l walltime="8:00:00" -W group_list=s1219 -j oe -e $ERR_OUT_PATH -o $STD_OUT_PATH -S /bin/bash -V -C $PWD -l select=1:ncpus=12:model=wes -m eb -- /u/smcmich1/projects/lronacPipeline/jobWrapperV2.sh $FULL_DIRECTORY
 
     else
         echo $PRETTY_NAME = Already finished!
     fi
 
+    LIMIT=$(($LIMIT-$ONE))
 
-#done
+    if [ $LIMIT -eq  0 ]; then
+        exit 0
+    fi
+
+done
 
 
 # Sample individual submissions
 
 # Submit the job using a westmere (cheap) CPU
-qsub -q normal -N marius3 -e /u/smcmich1/data/lronacPipeline/MARIUS3/errorOut.txt -o /u/smcmich1/data/lronacPipeline/MARIUS3/outOut.txt -l walltime="8:00:00" -W group_list=s1219 -j oe -S /bin/bash -C $PWD -V -l select=1:ncpus=12:model=wes -m eb -- /u/smcmich1/projects/lronacPipeline/jobWrapperV2.sh /u/smcmich1/data/lronacPipeline/MARIUS3
+#qsub -q normal -N marius3 -e /u/smcmich1/data/lronacPipeline/MARIUS3/errorOut.txt -o /u/smcmich1/data/lronacPipeline/MARIUS3/outOut.txt -l walltime="8:00:00" -W group_list=s1219 -j oe -S /bin/bash -C $PWD -V -l select=1:ncpus=12:model=wes -m eb -- /u/smcmich1/projects/lronacPipeline/jobWrapperV2.sh /u/smcmich1/data/lronacPipeline/MARIUS3
 
 
-
+#exit
 
 
 
