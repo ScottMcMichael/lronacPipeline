@@ -604,24 +604,36 @@ def main():
         leftStereoPosCorrectedCropped  = os.path.join(tempFolder, leftStereoBaseName  + '.cropped.cub')
         rightStereoPosCorrectedCropped = os.path.join(tempFolder, rightStereoBaseName + '.cropped.cub')
 
+        # Check the image size and determine if it is full resolution
+        imageSize     = IsisTools.getCubeSize(posOffsetCorrectedLeftPath)
+        print 'Input image size = ' + str(imageSize)
+        logging.info('Image size = %s', str(imageSize))
+        if (imageSize[0] < 5000):
+            logging.info('Stopping processing on half-width image until they are tested!')
+            raise Exception('Stopping processing on half-width image until they are tested!')
+        
+        
+        cropWidth     = imageSize[0] / 2
+        isisCropStart = cropWidth + 1 # One-based starting pixel for ISIS LE crop
+
         if not os.path.exists(leftPosCorrectedCropped):
-            cmd = ('crop sample=2531 from= ' + posOffsetCorrectedLeftPath + 
-                                     ' to= ' + leftPosCorrectedCropped)
+            cmd = ('crop sample=' + str(isisCropStart) + ' from= ' + posOffsetCorrectedLeftPath + 
+                       ' to= ' + leftPosCorrectedCropped)
             print cmd
             os.system(cmd)
         if not os.path.exists(rightPosCorrectedCropped):
-            cmd = ('crop nsamples=2532 from= ' + posOffsetCorrectedRightPath + 
-                                       ' to= ' + rightPosCorrectedCropped)
+            cmd = ('crop nsamples=' + str(cropWidth) + ' from= ' + posOffsetCorrectedRightPath + 
+                       ' to= ' + rightPosCorrectedCropped)
             print cmd
             os.system(cmd)
         if not os.path.exists(leftStereoPosCorrectedCropped):
-            cmd = ('crop sample=2531 from= ' + posOffsetCorrectedStereoLeftPath + 
-                                     ' to= ' + leftStereoPosCorrectedCropped)
+            cmd = ('crop sample=' + str(isisCropStart) + ' from= ' + posOffsetCorrectedStereoLeftPath + 
+                       ' to= ' + leftStereoPosCorrectedCropped)
             print cmd
             os.system(cmd)
         if not os.path.exists(rightStereoPosCorrectedCropped):
-            cmd = ('crop nsamples=2532 from= ' + posOffsetCorrectedStereoRightPath + 
-                                      ' to= ' + rightStereoPosCorrectedCropped)
+            cmd = ('crop nsamples=' + str(cropWidth) + ' from= ' + posOffsetCorrectedStereoRightPath + 
+                       ' to= ' + rightStereoPosCorrectedCropped)
             print cmd
             os.system(cmd)
 
@@ -633,21 +645,26 @@ def main():
         # First is left in main pair to right in the stereo pair
         numLeftCrossPairs = 0
         pixelPairsLeftCrossSmall = os.path.join(tempFolder, 'stereoPixelPairsLeftCrossSmall.csv')
+        tempLeftCrossPixelPairs  = os.path.join(tempFolder, 'tempLeftCrossPixelPairs.csv')
         try:
             numLeftCrossPairs  = getInterestPointPairs(leftPosCorrectedCropped, rightStereoPosCorrectedCropped, 
-                                                       pixelPairsLeftCrossSmall, carry)
+                                                       tempLeftCrossPixelPairs, carry)
+            # Add in offset to the LE image so that the pixel coordinates are in the full, not cropped, frame
+            IsisTools.modifyPixelPairs(tempLeftCrossPixelPairs, pixelPairsLeftCrossSmall, cropWidth, 0, 0, 0)
             usingLeftCross = True
         except:
             print 'Failed to find left-cross match, ignoring this data source.'
             usingLeftCross = False
 
         # Next is left in the stereo pair to right in the main pair
-#        stereoPrefixRightCross   = os.path.join(tempFolder, 'stereoOutputRightCross/out')
         numRightCrossPairs = 0
         pixelPairsRightCrossSmall = os.path.join(tempFolder, 'stereoPixelPairsRightCrossSmall.csv')
+        tempRightCrossPixelPairs  = os.path.join(tempFolder, 'tempRightCrossPixelPairs.csv')
         try:
             numRightCrossPairs = getInterestPointPairs(leftStereoPosCorrectedCropped, rightPosCorrectedCropped, 
-                                                       pixelPairsRightCrossSmall, carry)
+                                                       tempRightCrossPixelPairs, carry)
+            # Add in offset to the LE image so that the pixel coordinates are in the full, not cropped, frame
+            IsisTools.modifyPixelPairs(tempRightCrossPixelPairs, pixelPairsRightCrossSmall, cropWidth, 0, 0, 0)
             usingRightCross = True
         except:
             print 'Failed to find right-cross match, ignoring this data source.'
@@ -1017,8 +1034,8 @@ def main():
             IsisTools.removeFolderIfExists(os.path.join(tempFolder, 'finalGdcCheck'))
             IsisTools.removeFolderIfExists(os.path.join(tempFolder, 'finalStereoGdcCheck'))
 
-            if (hadToCreateTempFolder):
-                IsisTools.removeFolderIfExists(tempFolder)
+            #if (hadToCreateTempFolder):
+            #    IsisTools.removeFolderIfExists(tempFolder)
 
         endTime = time.time()
 

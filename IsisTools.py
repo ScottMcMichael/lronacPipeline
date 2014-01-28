@@ -587,8 +587,79 @@ def getCubeSize(cubePath):
     return size
 
 
+def modifyPixelPairs(inputPath, outputPath, leftOffsetX, leftOffsetY, rightOffsetX, rightOffsetY):
+    """Adds offsets to the pixel pairs in a file on disk"""
+    
+    # Make sure the input file exists
+    if not os.path.exists(inputPath):
+        raise Exception('Pixel pair file ' + inputPath + ' not found!')
+    
+    
+    # Open files
+    fI = open(inputPath,  'r')
+    fO = open(outputPath, 'w')
+    
+    
+    for line in fI:
+        # Get and modify input values
+        values = line.split(',')
+        leftX  = float(values[0]) + leftOffsetX
+        leftY  = float(values[1]) + leftOffsetY
+        rightX = float(values[2]) + rightOffsetX
+        rightY = float(values[3]) + rightOffsetY
+        
+        # Write output values
+        fO.write("%f,%f,%f,%f\n" % (leftX, leftY, rightX, rightY))
+        
+    # Close files
+    fI.close()
+    fO.close()
+    
+    return True
 
 
+# Reads the results from a single diff_stats.txt file
+def readLolaCompareFile(filePath):
+
+    # Read in the output file to extract the CenterLatitude value
+    meanValue  = -32768
+    stdDev     = -32768
+    percentile = []
+    histogram  = []
+
+    statsFile = open(filePath, 'r')
+    for line in statsFile:
+        if (line.find('Mean') >= 0):         # Parse out the mean
+            eqPt   = line.find('=')
+            numStr = line[eqPt+2:]
+            meanValue = float(numStr)
+        elif (line.find('deviation') >= 0):  # Parse out the standard deviation
+            eqPt   = line.find('=')
+            numStr = line[eqPt+2:]
+            stdDev = float(numStr)
+        elif (line.find('Percentile') >= 0): # Add a line to the percentile distribtion
+            eqPt   = line.find('=')
+            numStr = line[eqPt+2:]
+            percentile.append(float(numStr))
+        elif (line.find('<-->') >= 0): # Add a line to the histogram
+            eqPt   = line.rfind('=') # Get the second equal sign
+            perPt  = line.find('%')
+            numStr = line[eqPt+1:perPt-1]
+            histogram.append(float(numStr))
+
+    # Make sure we found the desired values
+    if (meanValue == -32768) or (stdDev == -32768):
+        raise Exception("Unable to find statistics in file " + filePath)
+    
+    return (meanValue, stdDev, percentile, histogram)
+
+
+#TODO: Make this one general?
+# Copies one file from the supercomputer - Caller needs to wait for the job to finish!
+def grabSupercomputerFile(supercomputerPath, localPath):
+
+    cmd = 'sup scp smcmich1@bridge3.nas.nasa.gov:' + supercomputerPath  + ' ' + localPath
+    os.system(cmd)
 
 
 

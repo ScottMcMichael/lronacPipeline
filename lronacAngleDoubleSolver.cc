@@ -397,18 +397,18 @@ size_t loadInputPointPairs(const Parameters &params, PointObsList &leftPixelPair
     printf("Loading list of matched pixels from file %s\n", params.matchingLeftCrossPointsPath.c_str());
     if (!loadMatchingPixels(params.matchingLeftCrossPointsPath, leftCrossPixelPairs))
       return false;
-    // Add in the offsets to the X (sample/column) location to account for the image crop
-    for (size_t i=0; i<leftCrossPixelPairs.leftObsList.size(); ++i)
-      leftCrossPixelPairs.leftObsList[i][0] += 2531; //TODO: READ IN THESE OFFSETS!
+//    // Add in the offsets to the X (sample/column) location to account for the image crop
+//    for (size_t i=0; i<leftCrossPixelPairs.leftObsList.size(); ++i)
+//      leftCrossPixelPairs.leftObsList[i][0] += 2531; //TODO: READ IN THESE OFFSETS!
   }
   if (params.matchingRightCrossPointsPath.size() > 0)
   {
     printf("Loading list of matched pixels from file %s\n", params.matchingRightCrossPointsPath.c_str());
     if (!loadMatchingPixels(params.matchingRightCrossPointsPath, rightCrossPixelPairs))
       return false;
-    // Add in the offsets to the X (sample/column) location to account for the image crop
-    for (size_t i=0; i<rightCrossPixelPairs.leftObsList.size(); ++i)
-      rightCrossPixelPairs.leftObsList[i][0] += 2531;
+//    // Add in the offsets to the X (sample/column) location to account for the image crop
+//    for (size_t i=0; i<rightCrossPixelPairs.leftObsList.size(); ++i)
+//      rightCrossPixelPairs.leftObsList[i][0] += 2531;
   }
 
   // Total up all the loaded points

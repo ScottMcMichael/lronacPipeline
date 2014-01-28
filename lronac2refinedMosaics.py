@@ -345,8 +345,9 @@ def main():
         print '\n-------------------------------------------------------------------------\n'
 
         # Generate a PVL file that we need for noproj
-        pvlPath   = os.path.join(tempFolder, 'noprojInstruments_fullRes.pvl')
-        isHalfRes = False # TODO: Check to see if this is true!
+        pvlPath   = os.path.join(tempFolder, 'noprojInstruments.pvl')
+        imageSize = IsisTools.getCubeSize(leftCorrectedPath)
+        isHalfRes = imageSize[0] < 5000
         if not os.path.exists(pvlPath):
             print 'Writing PVL'
             IsisTools.writeLronacPvlFile(pvlPath, isHalfRes)
@@ -433,13 +434,13 @@ def main():
             IsisTools.removeIfExists(rightStereoNoprojPath)
             IsisTools.removeFolderIfExists(mainMosaicWorkDir)
             IsisTools.removeFolderIfExists(stereoMosaicWorkDir)
-            if (hadToCreateTempFolder):
-                IsisTools.removeFolderIfExists(tempFolder)
+            #if (hadToCreateTempFolder):
+            #    IsisTools.removeFolderIfExists(tempFolder)
 
-            # Remove all the .kml files
-            fileList = [ f for f in os.listdir(tempFolder) if f.endswith(".kml") ]
-            for f in fileList:
-                IsisTools.removeIfExists(os.path.join(tempFolder, f))
+            ## Remove all the .kml files
+            #fileList = [ f for f in os.listdir(tempFolder) if f.endswith(".kml") ]
+            #for f in fileList:
+            #    IsisTools.removeIfExists(os.path.join(tempFolder, f))
 
         endTime = time.time()
 

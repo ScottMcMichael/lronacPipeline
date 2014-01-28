@@ -237,7 +237,7 @@ def main():
 
         endTime = time.time()
 
-        logging.info('lronac2dem finished in %f seconds', endTime - startTime)
+        logging.info('makeDemAndCompare.py finished in %f seconds', endTime - startTime)
         print "Finished in " + str(endTime - startTime) + " seconds."
         print '#################################################################################'
         return 0
