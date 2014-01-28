@@ -18,6 +18,7 @@
 
 import os, glob, optparse, re, shutil, subprocess, sys, string, time, urllib, urllib2, simplekml
 
+import IsisTools
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -26,10 +27,8 @@ job_pool = [];
 def man(option, opt, value, parser):
     print >>sys.stderr, parser.usage
     print >>sys.stderr, '''\
-This program operates on LRO (.IMG) files, and performs the
-
+Tools for compiling statistics for lronacPipeline
 '''
-
     sys.exit()
 
 class Usage(Exception):
@@ -82,19 +81,10 @@ def readPcAlignResults(outputFolder, prefix):
     return transformMatrix
 
 
-# Copies one file from the supercomputer - Caller needs to wait for the job to finish!
-def grabFile(supercomputerPath, localPath):
-
-    numThreads = 1 #TODO
-
-    cmd = 'sup scp smcmich1@bridge3.nas.nasa.gov:' + supercomputerPath  + ' ' + localPath
-#    print cmd #TESTING
-    add_job(cmd, numThreads)
-
 #def backupData(localFolder):
 
 #    #TODO: Don't duplicate these!
-#    supercomputerSourceFolder = '/nobackupp1/smcmich1/data/lronacPipeline'
+#    supercomputerSourceFolder = '/u/smcmich1/data/lronacPipeline'
 
 #    demFolderList = [ \
 #                      'ARISTARCHU2',  'FEOKTISTOV',   'HORTENSIUS1',  'KINGCRATER2',   'LICHTENBER7',  'MRECRISIUM2',  'ORIENTALE2',    'SEISMCLAND',\
@@ -134,7 +124,7 @@ def grabFile(supercomputerPath, localPath):
 #            # Check if we have both input files
 #            cubCounter = len(glob.glob1(folderPath,"*.cub"))
 #            if cubCounter < 2: # If we don't, request file copy
-#                grabFile(supercomputerFilePath, folderPath)            
+#                IsisTools.grabSupercomputerFile(supercomputerFilePath, folderPath)            
     
 #        wait_on_all_jobs() # Wait on all file grab requests
         
@@ -145,7 +135,7 @@ def grabFile(supercomputerPath, localPath):
 # Grabs the output files from the supercomputer
 def grabResultFiles(localFolder):
 
-    supercomputerSourceFolder = '/nobackupp1/smcmich1/data/lronacPipeline'
+    supercomputerSourceFolder = '/u/smcmich1/data/lronacPipeline'
 
     demFolderList = [ \
                       'ARISTARCHU2',  'FEOKTISTOV',   'HORTENSIUS1',  'KINGCRATER2',   'LICHTENBER7',  'MRECRISIUM2',  'ORIENTALE2',    'SEISMCLAND',\
@@ -201,7 +191,7 @@ def grabResultFiles(localFolder):
                 supercomputerFilePath = os.path.join(supercomputerFolderPath, c)
 
                 if not os.path.exists(outputFilePath): # Request file copy
-                    grabFile(supercomputerFilePath, outputFilePath)
+                    IsisTools.grabSupercomputerFile(supercomputerFilePath, outputFilePath)
 
             fileList.pop() # Remove the last ASU input DEM from the list
 		            
@@ -212,46 +202,10 @@ def grabResultFiles(localFolder):
         print "Caught: ", e
 
 
-# Reads the results from a single diff_stats.txt file
-def readStatsFile(filePath):
-
-    # Read in the output file to extract the CenterLatitude value
-    meanValue  = -32768
-    stdDev     = -32768
-    percentile = []
-    histogram  = []
-
-    statsFile = open(filePath, 'r')
-    for line in statsFile:
-        if (line.find('Mean') >= 0):         # Parse out the mean
-            eqPt   = line.find('=')
-            numStr = line[eqPt+2:]
-            meanValue = float(numStr)
-        elif (line.find('deviation') >= 0):  # Parse out the standard deviation
-            eqPt   = line.find('=')
-            numStr = line[eqPt+2:]
-            stdDev = float(numStr)
-        elif (line.find('Percentile') >= 0): # Add a line to the percentile distribtion
-            eqPt   = line.find('=')
-            numStr = line[eqPt+2:]
-            percentile.append(float(numStr))
-        elif (line.find('<-->') >= 0): # Add a line to the histogram
-            eqPt   = line.rfind('=') # Get the second equal sign
-            perPt  = line.find('%')
-            numStr = line[eqPt+1:perPt-1]
-            histogram.append(float(numStr))
-
-    # Make sure we found the desired values
-    if (meanValue == -32768) or (stdDev == -32768):
-        raise Exception("Unable to find statistics in file " + filePath)
-    
-    return (meanValue, stdDev, percentile, histogram)
-
-
 def accumulateStatistics(prefix, filePath, meanList, stdDevList, meanHistogram, dataStorage):
 
     try:
-        meanValue, stdDev, percentile, histogram = readStatsFile(filePath)
+        meanValue, stdDev, percentile, histogram = IsisTools.readLolaCompareFile(filePath)
 
     except Exception,e: # Catch any errors, the program will move on to the next folder
         #print "Caught: ", e

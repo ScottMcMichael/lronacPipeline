@@ -110,18 +110,20 @@ def getLinksForImgFile(productId):
 # Retrieves LOLA data from the WUSTL REST web interface
 def retrieveLolaFile(minLat, maxLat, minLon, maxLon, outputFolder):
 
+    # We add this much padding on each side of the LOLA data to give the DEM some room to shift
+    LOLA_EXTRA_SPACE = 0.25
+
     # Build a query to the WUSTL REST interface for LOLA data
     lolaUrl        = 'http://oderest.rsl.wustl.edu/test/'
     baseQuery      = '?query=lolardr&results=v&'
-    locationParams = ('maxlat='      + str(maxLat) + '&minlat='     + str(minLat) +
-                      '&westernlon=' + str(minLon) + '&easternlon=' + str(maxLon))
+    locationParams = ('maxlat='      + str(maxLat+LOLA_EXTRA_SPACE) +
+                      '&minlat='     + str(minLat-LOLA_EXTRA_SPACE) +
+                      '&westernlon=' + str(minLon-LOLA_EXTRA_SPACE) +
+                      '&easternlon=' + str(maxLon+LOLA_EXTRA_SPACE))
 
     queryUrl = lolaUrl + baseQuery + locationParams
     print queryUrl
     
-    print ' --> Lola data retrieval disabled until website issues are worked out!'
-    return False
-
     # Parse the response
     parsedPage = BeautifulSoup(urllib2.urlopen((queryUrl)).read())
     print parsedPage.prettify()
