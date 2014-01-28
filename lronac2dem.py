@@ -19,7 +19,7 @@
 
 import sys, os, glob, optparse, re, shutil, subprocess, string, time, logging, threading
 
-import IsisTools
+import IsisTools, simplekml, matplotlib
 
 def man(option, opt, value, parser):
     print >>sys.stderr, parser.usage

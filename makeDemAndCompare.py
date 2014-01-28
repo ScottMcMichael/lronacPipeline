@@ -139,7 +139,7 @@ def main():
         # Set up logging
         if not options.logPath:
             options.logPath = options.prefix + '-Log.txt'
-            logging.basicConfig(filename=options.logPath,level=logging.INFO)
+        logging.basicConfig(filename=options.logPath,level=logging.INFO)
 
         # If specified, crop the inputs that will be passed into the stereo function to reduce processing time
         mainMosaicCroppedPath   = os.path.join(tempFolder, 'mainMosaicCropped.cub')

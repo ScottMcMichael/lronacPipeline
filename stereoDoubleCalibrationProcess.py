@@ -326,7 +326,7 @@ def getInterestPointPairs(leftInputPath, rightInputPath, outputPath, forceOperat
 
     # Count the number of point pairs we found
     numPairs = getFileLineCount(outputPath)
-    print 'For cubes %s and %s found %d point pairs', leftInputPath, rightInputPath, numPairs
+    print('For cubes %s and %s found %d point pairs' % (leftInputPath, rightInputPath, numPairs))
     logging.info('For cubes %s and %s', leftInputPath, rightInputPath)
     logging.info('- Found %d point pairs', numPairs)
 
@@ -811,7 +811,7 @@ def main():
             #cmd = 'pc_align --highest-accuracy --max-displacement 1500 --datum D_MOON --max-num-reference-points 25000000 --save-transformed-source-points ' + options.lolaPath + ' ' + largeGdcFile + ' -o ' + pcAlignOutputPrefix + ' --compute-translation-only'
             cmd = ('pc_align --highest-accuracy --max-displacement 100 --datum D_MOON ' + 
                    '--save-inv-transformed-reference-points ' + largeGdcFile + 
-                   ' ' + options.lolaPath + ' -o ' + pcAlignOutputPrefix)# + ' --compute-translation-only')
+                   ' ' + options.lolaPath + ' -o ' + pcAlignOutputPrefix + ' --compute-translation-only')
             print cmd
             os.system(cmd)
         else:

@@ -20,6 +20,7 @@ echo Input folder = $INPUT_FOLDER
 # Get the path to the ASU DEM
 ASU_FILE=`ls $INPUT_FOLDER/*.TIF`
 
+
 # Get the paths to the IMG files
 IMG_FILES=`ls $INPUT_FOLDER/*.IMG`
 set -- $IMG_FILES # Assigns the components to $1, $2, $3, $4
@@ -46,11 +47,11 @@ OUTPUT_FOLDER=$INPUT_FOLDER/results
 #echo $ASU_FILE
 #echo $LOLA_FILE_OUT
 
+#echo $PATH
 
 # Now call the lronac2dem.py function with the correct inputs
 lronac2dem.py --keep --left $LEFT_IMG --right $RIGHT_IMG --stereo-left $LEFT_S_IMG --stereo-right $RIGHT_S_IMG --lola $LOLA_FILE_OUT --asu $ASU_FILE --workDir $WORKDIR --output-folder $OUTPUT_FOLDER
 
-
-
+exit 0
 
 
