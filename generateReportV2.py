@@ -117,9 +117,10 @@ def grabResultFiles(localFolder):
                   'results/LOLA_diff_stats.txt' ,\
                   'results/output-Log.txt' ,\
                   'results/pcAlignLog.txt' ,\
-                  'results/outputHillshade.tif' ,\
-                  'results/p2d-DEM.tif' ,\
-                  'results/p2d-IntersectionErr.tif',\
+# TODO: Option to only grab the small output files
+#                  'results/outputHillshade.tif' ,\
+#                  'results/p2d-DEM.tif' ,\
+#                  'results/p2d-IntersectionErr.tif',\
                   'workdir/refinement/lolaRdrPoints.kml' ,\
                   'workdir/refinement/inputGdcPoints.kml' ,\
                   'workdir/refinement/dem-trans_reference.kml' ,\
@@ -584,14 +585,9 @@ def main():
         try:
             usage = "usage: lronacPipeline.py [--help][--manual]\n  "
             parser = optparse.OptionParser(usage=usage)
-            parser.set_defaults(delete =True)
-            parser.set_defaults(threads=4)
-            parser.set_defaults(fakePvl=True)
             parser.add_option("--manual", action="callback", callback=man,
                               help="Read the manual.")
             (options, args) = parser.parse_args()
-
-#            if not args: parser.error("need .IMG files")
 
         except optparse.OptionError, msg:
             raise Usage(msg)
@@ -599,8 +595,10 @@ def main():
         print "Beginning processing....."
 
         dataFolder = '/byss/moon/lronacPipelineV2'
-#        grabResultFiles(dataFolder)
-        backupData(dataFolder)
+
+
+        grabResultFiles(dataFolder)
+#        backupData(dataFolder)
 #        generatePlots(dataFolder)
 
 

@@ -215,6 +215,7 @@ def readPositions(positionFilePath):
 
     pointList = []
 
+    #TODO: Read this from the file?
     MEAN_MOON_RADIUS = 1737400
 
     isLolaFile = False
