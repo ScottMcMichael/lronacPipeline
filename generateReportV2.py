@@ -21,6 +21,8 @@ import os, glob, optparse, re, shutil, subprocess, sys, string, time, urllib, ur
 import matplotlib.pyplot as plt
 import numpy as np
 
+import IsisTools
+
 def man(option, opt, value, parser):
     print >>sys.stderr, parser.usage
     print >>sys.stderr, '''\
@@ -88,7 +90,7 @@ class Usage(Exception):
 
 
 # Grabs the output files from the supercomputer
-def grabResultFiles(localFolder):
+def grabResultFiles(localFolder, force):
 
     supercomputerSourceFolder = '/u/smcmich1/data/lronacPipeline'
 
@@ -132,6 +134,9 @@ def grabResultFiles(localFolder):
         if not os.path.exists(localFolder):
             os.makedirs(localFolder)
 
+        dirListFile = os.path.join(localFolder, 'desiredFileList.txt')
+        dirFile     = open(dirListFile, 'w')
+
         # Operate on each folder
         for f in demFolderList:
 
@@ -148,8 +153,19 @@ def grabResultFiles(localFolder):
                 outputFilePath        = os.path.join(folderPath,              c)
                 supercomputerFilePath = os.path.join(supercomputerFolderPath, c)
 
-                if not os.path.exists(outputFilePath): # Request file copy
-                    IsisTool.grabSupercomputerFile(supercomputerFilePath, outputFilePath)    
+                #if not os.path.exists(outputFilePath) or force: # Request file copy
+                #    IsisTools.grabSupercomputerFile(supercomputerFilePath, outputFilePath)    
+                
+                # Write the SC file path to the temp file
+                relativeFilePath = os.path.join(f, c)
+                dirFile.write(relativeFilePath + '\n')
+        
+        dirFile.close()
+    
+        # Use rsync to grab all the specified files at once
+        cmd = 'rsync -av --files-from=' + dirListFile + ' smcmich1@pfe23.nas.nasa.gov:/u/smcmich1/data/lronacPipeline/ ' + localFolder
+        print cmd
+        #os.system(cmd)
     
     except Exception,e: # Catch any errors, the program will move on to the next folder
         print "Caught: ", e
@@ -159,14 +175,14 @@ def grabResultFiles(localFolder):
 def accumulateStatistics(prefix, filePath, meanList, stdDevList, meanHistogram, dataStorage):
 
     try:
-        meanValue, stdDev, percentile, histogram = readLolaCompareFile(filePath)
+        meanValue, stdDev, percentile, histogram = IsisTools.readLolaCompareFile(filePath)
 
     except Exception,e: # Catch any errors, the program will move on to the next folder
         #print "Caught: ", e
         #print "Unable to process data in file " + filePath
         return False
 
-#    print 'Read data from ' + filePath
+    #print 'Read data from ' + filePath
 
     meanList.append(meanValue)
     stdDevList.append(stdDev)
@@ -279,11 +295,6 @@ def generatePlots(dataFolder):
 
     # Search through all the output files and pull out results
 
-    asuMeanList       = []
-    asuStdDevList     = []
-    asuMeanPercentile = []
-    asuMeanHistogram  = []
-
     lolaMeanList       = []
     lolaStdDevList     = []
     lolaMeanPercentile = []
@@ -300,129 +311,51 @@ def generatePlots(dataFolder):
 
     # Parse bounding boxes
     logPath = dataFolder + '/logFile.txt'
-    bbStorage = dict()
-    parseBoundingBoxes(logPath, bbStorage)
+    #bbStorage = dict()
+    #parseBoundingBoxes(logPath, bbStorage)
+    # ---> TODO: Get log file and restore this!
 
     usedFolderList = []
     for f in os.listdir(dataFolder):
 
         folderPath = os.path.join(dataFolder, f)
-	
+
         # Get the file paths for this folder
-        asuDiffPath         = folderPath + '/ASU_diff_stats.txt'
-        lolaDiffPath        = folderPath + '/LOLA_diff_stats.txt'
-        lolaAsuDiffPath     = folderPath + '/LOLA_ASU_diff_stats.txt'
-        asuTransformPath    = folderPath + '/align_ASU_PC-transform.txt'
-        lolaTransformPath   = folderPath + '/align_LOLA_PC-transform.txt'
-        stereoDemPath       = folderPath + '/stereo-DEM.tif'
+        lolaDiffPath        = folderPath + '/results/LOLA_diff_stats.txt'
+        lolaAsuDiffPath     = folderPath + '/results/ASU_LOLA_diff_stats.txt'
+        #stereoDemPath       = folderPath + '/stereo-DEM.tif'
         
-        # Create output file paths for this folder
-        asuTransformLogPath  = folderPath + '/asuLocalShift.txt'
-        lolaTransformLogPath = folderPath + '/lolaLocalShift.txt'
-               
-        # Compute the shift amount in local coordinates for ASU and LOLA
-        if (not os.path.exists(asuTransformLogPath)  and os.path.exists(asuTransformPath) ):
-            cmd = '~/repot/StereoPipeline/src/asp/Tools/transformConvert --output-log ' + asuTransformLogPath  + ' ' + asuTransformPath  + ' ' + stereoDemPath
-            add_job(cmd, 2)
-        if (not os.path.exists(lolaTransformLogPath) and os.path.exists(lolaTransformPath) ):
-            cmd = '~/repot/StereoPipeline/src/asp/Tools/transformConvert --output-log ' + lolaTransformLogPath + ' ' + lolaTransformPath + ' ' + stereoDemPath
-            add_job(cmd, 2)
-        wait_on_all_jobs()
-        
-        #readAsuTransform  = readShiftAmounts(asuTransformLogPath,  f, shiftAmountsAsu)
-        #readLolaTransform = readShiftAmounts(lolaTransformLogPath, f, shiftAmountsLola)
-         
-               
         # Accumulate the statistics
-        #readAsu     = accumulateStatistics(f+'_asu',  asuDiffPath,     asuMeanList,     asuStdDevList,     asuMeanHistogram,     dataStorage)
         readLola    = accumulateStatistics(f+'_lola', lolaDiffPath,    lolaMeanList,    lolaStdDevList,    lolaMeanHistogram,    dataStorage )
         readLolaAsu = accumulateStatistics(f+'_comp', lolaAsuDiffPath, lolaAsuMeanList, lolaAsuStdDevList, lolaAsuMeanHistogram, dataStorage )
 
         if readLola and readLolaAsu:# and readAsuTransform and readLolaTransform:
             usedFolderList.append(f) # Keep track of the folders we read data from
+            print 'Read folder ' + f
         else:
             # Remove list entries from partial successes
-            #if readAsu:
-            #    asuMeanList.pop()
             if readLola:
                 lolaMeanList.pop()
             if readLolaAsu:
                 lolaAsuMeanList.pop()
-                
-                
+                   
             if readLola or readLolaAsu:
                 print 'Partial success for folder ' + f
+            #else:
+            #    print 'Failed to read in folder ' + f
 
-    # Generate some google earth KML output
-    generateKml(dataFolder, usedFolderList, bbStorage, asuMeanList)
+    # TODO: Restore this once BB data read from the log file!
+#    # Generate some google earth KML output
+#    generateKml(dataFolder, usedFolderList, bbStorage, asuMeanList)
     
-
-    ## Scatter plot of the local coordinate x/y offsets
-    #sScaling = 1.0
-    #xAsu  = []
-    #yAsu  = []
-    #sAsu  = []
-    #xLola = []
-    #yLola = []
-    #sLola = []
-    #meanAsuX  = 0
-    #meanAsuY  = 0
-    #meanAsuS  = 0
-    #meanLolaX = 0
-    #meanLolaY = 0
-    #meanLolaS = 0
-    #for f in usedFolderList:
-    #    xAsu.append(shiftAmountsAsu[f][0])
-    #    yAsu.append(shiftAmountsAsu[f][1])       
-    #    meanAsuX = meanAsuX + shiftAmountsAsu[f][0]
-    #    meanAsuY = meanAsuY + shiftAmountsAsu[f][1]
-    #    
-    #    s = abs(shiftAmountsAsu[f][2]) * sScaling
-    #    sAsu.append(s)
-    #    meanAsuS = meanAsuS + s
-    #
-    #    xLola.append(shiftAmountsLola[f][0])
-    #    yLola.append(shiftAmountsLola[f][1])
-    #    sLola.append(abs(shiftAmountsLola[f][2]))
-    #    meanLolaX = meanLolaX + shiftAmountsLola[f][0]
-    #    meanLolaY = meanLolaY + shiftAmountsLola[f][1]        
-    #
-    #    s = abs(shiftAmountsLola[f][2]) * sScaling
-    #    sLola.append(s)
-    #    meanLolaS = meanLolaS + s
-    #
-    #meanAsuX  = meanAsuX  / len(usedFolderList)
-    #meanAsuY  = meanAsuY  / len(usedFolderList)
-    #meanAsuS  = meanAsuS  / len(usedFolderList)                
-    #meanLolaX = meanLolaX / len(usedFolderList)
-    #meanLolaY = meanLolaY / len(usedFolderList)
-    #meanLolaS = meanLolaS / len(usedFolderList)
-    #
-    #plt.scatter(xAsu,      yAsu,      sAsu,      c='r', marker='o', label='ASU offsets')
-    #plt.scatter(xLola,     yLola,     sLola,     c='b', marker='o', label='LOLA offsets')
-    #plt.scatter(meanAsuX,  meanAsuY,  meanAsuS,  c='g', marker=(5,1), label='mean ASU offset')
-    #plt.scatter(meanLolaX, meanLolaY, meanLolaS, c='y', marker=(5,1), label='mean LOLA offset')
-    #plt.grid(color='gray', linestyle='dashed')
-    #plt.xlabel('X shift in meters')
-    #plt.ylabel('Y shift in meters')
-    #plt.title('Alignment offsets in NED frame')
-    #lgd = plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-    #plt.savefig(dataFolder + '/localShift.png', bbox_extra_artists=[lgd], bbox_inches='tight')
-    #plt.clf()
-
 
     # We now have a list of means/stds and sums of percentiles and histograms
     # - Get means for all of them
-    numElements = float(len(asuMeanList))
-    #asuMeanOfMeans       = sum(asuMeanList      ) / numElements
-    #asuMeanOfStdDevs     = sum(asuStdDevList    ) / numElements
+    numElements = float(len(lolaMeanList))
     lolaMeanOfMeans      = sum(lolaMeanList     ) / numElements
     lolaMeanOfStdDevs    = sum(lolaStdDevList   ) / numElements
     lolaAsuMeanOfMeans   = sum(lolaAsuMeanList  ) / numElements
     lolaAsuMeanOfStdDevs = sum(lolaAsuStdDevList) / numElements
-
-    #for i in asuMeanHistogram:
-    #  i = i / numElements
 
     for i in lolaMeanHistogram:
       i = i / numElements
@@ -430,46 +363,30 @@ def generatePlots(dataFolder):
     for i in lolaAsuMeanHistogram:
       i = i / numElements
 
+    # Write results into a condensed file
+    condensedDataPath = os.path.join(dataFolder, 'resultsSummary.csv')
+    condensedFile     = open(condensedDataPath, 'w')
+    print 'Writing condensed result file ' + condensedDataPath
+    i = 0
+    condensedFile.write('Data_set,  Us_vs_Lola,  ASU_vs_Lola\n')
+    for f in usedFolderList:
+        condensedFile.write(f + ', ' + str(lolaMeanList[i]) + ', ' + str(lolaAsuMeanList[i]) + '\n')
+        i = i + 1
+    condensedFile.close()
+    
     # Now generate plots
-
-    # Three more plots with all data points
 
     numEls = 20 # Number of elements in percentile plots (leaving off last one containing error values)
     yMin   = 0
     yMax   = 10
     xAxis  = range(0, numEls)
     xAxis  = [x * 0.05 for x in xAxis]
-    #asuMeanPercentile     = [0] * numEls
     lolaMeanPercentile    = [0] * numEls
     lolaAsuMeanPercentile = [0] * numEls
 
-    ## us vs ASU
-    #for f in usedFolderList:
-    #    # Plot data points for this folder
-    #    dataStorage[f+'_asu'].pop() # Strip of error values in last bin
-    #    plt.plot(xAxis, dataStorage[f+'_asu'], 'o', label=f)
-    #    
-    #    # Accumulate mean value
-    #    for i in range(0,numEls):
-    #        asuMeanPercentile[i] = asuMeanPercentile[i] + dataStorage[f+'_asu'][i]
-    #        
-    ## Finish and plot mean value
-    #for i in range(0,numEls): 
-    #    asuMeanPercentile[i] = asuMeanPercentile[i] / len(usedFolderList)
-    #plt.plot(xAxis, asuMeanPercentile, '-', label='mean percentiles')
-    #
-    #plt.grid(color='gray', linestyle='dashed')
-    #plt.ylim(yMin, yMax)
-    #plt.ylabel('Difference in meters')
-    #plt.xlabel('Percent of pixels less than difference')
-    #plt.title('Us vs ASU pixel percentages for all samples')
-    #lgd = plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-    #plt.savefig(dataFolder + '/allPercentilesASU.png', bbox_extra_artists=[lgd], bbox_inches='tight')
-    #plt.clf()
-
-
 
     # us vs LOLA
+    lolaComparisonPath = os.path.join(dataFolder, 'allPercentilesLOLA.png')
     for f in usedFolderList:
         # Plot data points for this folder
         dataStorage[f+'_lola'].pop() # Strip of error values in last bin
@@ -490,12 +407,14 @@ def generatePlots(dataFolder):
     plt.xlabel('Percent of pixels less than difference')
     plt.title('Us vs LOLA pixel percentages for all samples')
     lgd = plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-    plt.savefig(dataFolder + '/allPercentilesLOLA.png', bbox_extra_artists=[lgd], bbox_inches='tight')
+    print 'Writing plot ' + lolaComparisonPath
+    plt.savefig(lolaComparisonPath, bbox_extra_artists=[lgd], bbox_inches='tight')
     plt.clf()
     
     
     
     # LOLA vs ASU
+    lolaAsuComparisonPath = os.path.join(dataFolder, 'allPercentilesLolaASU.png')
     for f in usedFolderList:
         # Plot data points for this folder
         dataStorage[f+'_comp'].pop() # Strip of error values in last bin
@@ -516,12 +435,12 @@ def generatePlots(dataFolder):
     plt.xlabel('Percent of pixels less than difference')
     plt.title('LOLA vs ASU pixel percentages for all samples')
     lgd = plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-    plt.savefig(dataFolder + '/allPercentilesLolaASU.png', bbox_extra_artists=[lgd], bbox_inches='tight')
+    print 'Writing plot ' + lolaAsuComparisonPath
+    plt.savefig(lolaAsuComparisonPath, bbox_extra_artists=[lgd], bbox_inches='tight')
     plt.clf()    
     
     
     # Plot the three mean percentiles on one chart
-    #plt.plot(xAxis, asuMeanPercentile    , label='us vs ASU')
     plt.plot(xAxis, lolaMeanPercentile   , label='us vs LOLA')
     plt.plot(xAxis, lolaAsuMeanPercentile, label='ASU vs LOLA')
     plt.grid(color='gray', linestyle='dashed')
@@ -537,9 +456,8 @@ def generatePlots(dataFolder):
     # Now plot the mean error for each folder
     yMin = 0
     yMax = 6
-    xAxis = np.arange(len(asuMeanList))
+    xAxis = np.arange(len(lolaMeanList))
     barwidth = 0.2
-    #plt.bar(xAxis,            asuMeanList,     barwidth, color='r', label='us vs ASU')
     plt.bar(xAxis+1*barwidth, lolaMeanList,    barwidth, color='g', label='us vs LOLA')
     plt.bar(xAxis+2*barwidth, lolaAsuMeanList, barwidth, color='b', label='ASU vs LOLA')
     plt.xticks(xAxis+.5, usedFolderList, size='small', rotation='vertical')
@@ -549,30 +467,6 @@ def generatePlots(dataFolder):
     plt.title('Mean difference between DEMs')
     plt.savefig(dataFolder + '/means.png', bbox_extra_artists=[lgd], bbox_inches='tight')
     plt.clf()
-
-
-
-#TODO: Multi-plot of this in addition to mean
-
-#    --> Not using this plot anymore
-#    # Mean histograms
-#    yMin = 0
-#    yMax = 20
-#    xAxis = range(0,len(asuMeanHistogram)) #TODO: Label with number of std's
-#    plt.plot(xAxis, asuMeanHistogram,     label='us vs ASU')
-#    plt.plot(xAxis, lolaMeanHistogram,    label='us vs LOLA')
-#    plt.plot(xAxis, lolaAsuMeanHistogram, label='ASU vs LOLA')
-#    plt.ylim(yMin, yMax)
-#    plt.ylabel('Percent pixels in bin')
-#    plt.title('Difference histograms averaged across DEMs')
-#    plt.savefig(dataFolder + '/meanHistograms.png')
-#    plt.clf()
-
-#    # Simple plot example
-#    x = np.arange(0, 10, 0.2)
-#    y = np.sin(x)
-#    plt.plot(x, y)
-#    plt.show()
 
 
 #--------------------------------------------------------------------------------
@@ -587,6 +481,8 @@ def main():
             parser = optparse.OptionParser(usage=usage)
             parser.add_option("--manual", action="callback", callback=man,
                               help="Read the manual.")
+            parser.add_option("--force", action="store_true", dest="force",
+                              help="Force overwrite of existing files.")
             (options, args) = parser.parse_args()
 
         except optparse.OptionError, msg:
@@ -594,12 +490,12 @@ def main():
 
         print "Beginning processing....."
 
-        dataFolder = '/byss/moon/lronacPipelineV2'
+        dataFolder = '/home/smcmich1/data/'
 
 
-        grabResultFiles(dataFolder)
+#        grabResultFiles(dataFolder, options.force)
 #        backupData(dataFolder)
-#        generatePlots(dataFolder)
+        generatePlots(dataFolder)
 
 
 
