@@ -21,6 +21,8 @@ import sys, os, glob, optparse, re, shutil, subprocess, string, time, logging, t
 
 import IsisTools
 
+import stereoDoubleCalibrationProcess, calibrationReport
+
 def man(option, opt, value, parser):
     print >>sys.stderr, parser.usage
     print >>sys.stderr, '''\
@@ -59,10 +61,11 @@ def generateKmlFromGdcPoints(inputFolder, outputFolder, filename, pointSkip, col
         return True
 
     # Generate the new file
-    cmd = ('calibrationReport.py --input ' + inputPath + ' --output ' + outputPath + 
-          ' --name ' + kmlName +  ' --skip ' + str(pointSkip) + ' --color ' + color + ' --size ' + size)
-    print cmd
-    os.system(cmd)
+    cmdArgs = ['--input', inputPath, '--output', outputPath,
+               '--name', kmlName, '--skip', str(pointSkip),
+               '--color', color, '--size', size]
+    print cmdArgs
+    calibrationReport.main(cmdArgs)
 
     # Check to make sure we actually created the file
     # - Don't throw an exception here since this is only a debug step
@@ -98,8 +101,6 @@ def noprojCubePair(inputCube, outputCube, matchCube, pvlPath, forceOperation):
            + ' cd .. && rm -rf ' + tempDirectory)
 
     ## Generate the new file
-    #cmd = ('noproj from= '  + inputCube + ' to= '    + outputCube + 
-    #             ' match= ' + matchCube + ' specs= ' + pvlPath)
     print cmd
     os.system(cmd)
 
@@ -176,7 +177,7 @@ def functionStartupCheck():
 
 #--------------------------------------------------------------------------------
 
-def main():
+def main(argsIn):
 
     print '#################################################################################'
     print "Running lronac2refinedMosaics.py"
@@ -212,7 +213,7 @@ def main():
                               help="Read the manual.")
             parser.add_option("--keep", action="store_true", dest="keep",
                               help="Do not delete the temporary files.")
-            (options, args) = parser.parse_args()
+            (options, args) = parser.parse_args(argsIn)
 
             if not options.leftPath: 
                 parser.error("Need left input path")
@@ -278,12 +279,13 @@ def main():
         # Generate a kml plot of the input LOLA data
         lolaKmlPath = os.path.join(tempFolder, 'lolaRdrPoints.kml')
         if not os.path.exists(lolaKmlPath):
-            cmd = ('calibrationReport.py --input '  + options.lolaPath + 
-                                       ' --output ' + lolaKmlPath + 
-                                       ' --name '   + 'lolaRdrPoints' + 
-                                       ' --skip '   + str(100) + ' --color ' + 'blue' + ' --size small')
-            print cmd
-            os.system(cmd)
+            cmdArgs = ['--input',  options.lolaPath, 
+                       '--output', lolaKmlPath, 
+                       '--name', ' lolaRdrPoints', 
+                       '--skip',   str(100), '--color', 'blue', '--size', 'small']
+            print cmdArgs
+            calibrationReport.main(cmdArgs)
+
 
         carry = False
 
@@ -303,19 +305,20 @@ def main():
         try:
           if (not os.path.exists(leftCorrectedPath)) or carry:
               print '\n=============================================================================\n'
-
-              cmd = ('stereoDoubleCalibrationProcess.py --left '          + options.leftPath + 
-                                                      ' --right '         + options.rightPath + 
-                                                      ' --stereo-left '   + options.stereoLeft + 
-                                                      ' --stereo-right '  + options.stereoRight + 
-                                                      ' --lola '          + options.lolaPath + 
-                                                      ' --output-folder ' + outputFolder + 
-                                                      ' --workDir '       + doubleCalWorkFolder + 
-                                                      ' --log-path '      + options.logPath)
+              cmdArgs = ['--left',          options.leftPath, 
+                         '--right',         options.rightPath, 
+                         '--stereo-left',   options.stereoLeft, 
+                         '--stereo-right',  options.stereoRight, 
+                         '--lola',          options.lolaPath, 
+                         '--output-folder', outputFolder, 
+                         '--workDir',       doubleCalWorkFolder, 
+                         '--log-path',      options.logPath]
               if options.keep:
-                  cmd = cmd + ' --keep'
-              print cmd
-              os.system(cmd)
+                  cmdArgs.append('--keep')
+              print cmdArgs
+              stereoDoubleCalibrationProcess.main(cmdArgs)
+           
+           
               print '\n============================================================================\n'
 
         except: 
@@ -454,4 +457,4 @@ def main():
         return 2
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main(sys.argv[1:]))

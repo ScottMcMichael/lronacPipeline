@@ -42,10 +42,6 @@ def plotPoints(pointList, kml, color, size, prefix, lineSkip):
     
     numPoints = len(pointList) / 3
     
-#    minError = min(asuMeanList)
-#    maxError = max(asuMeanList)
-#    errorRange = maxError - minError
-    
     style = simplekml.Style()
     if color=='blue':
         style.labelstyle.color = simplekml.Color.blue
@@ -79,18 +75,14 @@ def plotPoints(pointList, kml, color, size, prefix, lineSkip):
         point.style   = style
         point.extrude = 1
         counter = counter + 1
-        
-#        # Generate a color based on the error value:  white (low error) <--> red (high error)
-#        colorVal = 255 - 255*(asuMeanList[i] - minError)/errorRange
-#        poly.style.linestyle.color   = simplekml.Color.rgb(255,colorVal,colorVal,255)
- 
+
     print 'Added ' + str(counter) + ' KML points'
 
     return kml
 
 #--------------------------------------------------------------------------------
 
-def main():
+def main(argsIn):
 
     try:
         try:
@@ -105,7 +97,7 @@ def main():
             parser.add_option("--size",   dest="size",       help="Size shortcut: (normal / small / tiny)")
             parser.add_option("--skip",   dest="skip",       help="Only sample every N points")
             
-            (options, args) = parser.parse_args()
+            (options, args) = parser.parse_args(argsIn)
 
             if not options.inputPath: 
                 parser.error("Missing input path")
@@ -156,4 +148,4 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main(sys.argv[1:]))

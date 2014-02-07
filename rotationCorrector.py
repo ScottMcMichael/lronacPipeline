@@ -132,7 +132,7 @@ def readRotationFile(rotFilePath):
 
 #--------------------------------------------------------------------------------
 
-def main():
+def main(argsIn):
 
 # TODO: Rename this file!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     print "Started rotationCorrector.py"
@@ -164,7 +164,7 @@ def main():
                               help="Read the manual.")
             parser.add_option("--keep", action="store_true", dest="keep",
                               help="Do not delete the temporary files.")
-            (options, args) = parser.parse_args()
+            (options, args) = parser.parse_args(argsIn)
 
             if not options.inputPath: 
                 parser.error("Need input path")
@@ -320,4 +320,4 @@ def main():
         return 2
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main(sys.argv[1:]))

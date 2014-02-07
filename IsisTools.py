@@ -241,11 +241,7 @@ def readPositions(positionFilePath):
                 #print strings
                 pointList.append(float(strings[1])) # lon
                 pointList.append(float(strings[0])) # lat
-    #            if (pcAlign):
-    #                pointList.append( float(strings[2])*1000 - MEAN_MOON_RADIUS ) # alt
-    #            else:
                 pointList.append(float(strings[2])) # alt
-                #pointList.append(float(line)) # Add all numbers to the list
         i = i + 1
     f.close()
 

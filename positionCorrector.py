@@ -37,7 +37,7 @@ class Usage(Exception):
 
 #TODO: Support for file based logging of results
 
-def main():
+def main(argsIn):
 
     print "Started positionCorrector.py"
 
@@ -59,7 +59,7 @@ def main():
                               dest="keep",
                               help="Do not delete the temporary files.")
             parser.add_option("--spk", dest="spkPath", help='Output SPK path (always keep)')
-            (options, args) = parser.parse_args()
+            (options, args) = parser.parse_args(argsIn)
 
             if not options.inputPath:  parser.error("Need input path")
             if not options.outputPath: parser.error("Need output path")
@@ -185,4 +185,4 @@ def main():
         return 2
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main(sys.argv[1:]))

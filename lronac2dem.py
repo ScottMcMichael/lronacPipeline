@@ -21,6 +21,10 @@ import sys, os, glob, optparse, re, shutil, subprocess, string, time, logging, t
 
 import IsisTools, simplekml, matplotlib
 
+import lronac2refinedMosaics
+import makeDemAndCompare
+
+
 def man(option, opt, value, parser):
     print >>sys.stderr, parser.usage
     print >>sys.stderr, '''\
@@ -120,24 +124,21 @@ def main():
         logPath = outputPrefix + '-Log.txt'
         logging.basicConfig(filename=logPath,level=logging.INFO)
 
-        keepString = ''
-        if options.keep:
-            keepString = ' --keep'
-  
 
         # Call lronac2refinedMosaics.py
         refineTemp = os.path.join(tempFolder, 'refinement')
-        cmd = ('lronac2refinedMosaics.py --left '          + options.leftPath + 
-                                       ' --right '         + options.rightPath + 
-                                       ' --stereo-left '   + options.stereoLeft + 
-                                       ' --stereo-right '  + options.stereoRight + 
-                                       ' --lola '          + options.lolaPath + 
-                                       ' --workDir '       + refineTemp + 
-                                       ' --output-folder ' + tempFolder + 
-                                       ' --log-path '      + logPath + 
-                                       keepString)
-        print cmd
-        os.system(cmd)
+        cmdArgs = ['--left',          options.leftPath,
+                   '--right',         options.rightPath,
+                   '--stereo-left',   options.stereoLeft,
+                   '--stereo-right',  options.stereoRight,
+                   '--lola',          options.lolaPath,
+                   '--workDir',       refineTemp,
+                   '--output-folder', tempFolder,
+                   '--log-path',      logPath]
+        if options.keep:
+            cmdArgs.append('--keep')
+        print cmdArgs
+        lronac2refinedMosaics.main(cmdArgs)
         
         # Copy the pc_align log file to the output folder
         pcAlignLogPath = os.path.join(tempFolder, 'pcAlignLog.txt')
@@ -154,19 +155,20 @@ def main():
             raise Exception('lronac2refinedMosaics failed to produce mosaics!')
 
         # Call makeDemAndCompare.py
-        cmd = ('makeDemAndCompare.py --left '     + mainMosaicPath + 
-                                   ' --right '    + stereoMosaicPath + 
-                                   ' --lola '     + options.lolaPath + 
-                                   ' --asu '      + options.asuPath + 
-                                   ' --workDir '  + tempFolder + 
-                                   ' --prefix '   + outputPrefix + 
-                                   ' --log-path ' + logPath + 
-                                   keepString)
+        cmdArgs = ['--left',     mainMosaicPath, 
+                   '--right',    stereoMosaicPath, 
+                   '--lola',     options.lolaPath, 
+                   '--asu',      options.asuPath, 
+                   '--workDir',  tempFolder, 
+                   '--prefix',   outputPrefix, 
+                   '--log-path', logPath]
+        if options.keep:
+            cmdArgs.append('--keep')
         if options.cropAmount:
-            cmd = cmd + ' --crop ' + str(options.cropAmount)
-        print cmd
-        os.system(cmd)
-
+            cmdArgs.append('--crop')
+            cmdArgs.append(str(options.cropAmount))
+        print cmdArgs
+        makeDemAndCompare.main(cmdArgs)
 
         if not options.keep:
             print 'Deleting temporary files'
@@ -182,6 +184,7 @@ def main():
         return 0
 
     except Usage, err:
+        print err
         print >>sys.stderr, err.msg
         return 2
 

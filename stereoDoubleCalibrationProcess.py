@@ -23,6 +23,8 @@ import os, glob, optparse, re, shutil, subprocess, string, time, math, logging, 
 
 import IsisTools
 
+import positionCorrector, rotationCorrector, lronacCameraRotationCorrector
+
 def man(option, opt, value, parser):
     print >>sys.stderr, parser.usage
     print >>sys.stderr, '''\
@@ -98,11 +100,12 @@ def applyInterCameraPositionOffset(inputCubePath, outputCubePath, workingDirecto
         return True
 
     # Run the process
-    cmd = ('positionCorrector.py --keep --input '   + inputCubePath + 
-                                      ' --output '  + outputCubePath + 
-                                      ' --workDir ' + workingDirectory)
-    print cmd
-    os.system(cmd)
+    cmdArgs = ['--keep', '--input', inputCubePath, 
+               '--output',  outputCubePath, 
+               '--workDir', workingDirectory]
+    print cmdArgs
+    positionCorrector.main(cmdArgs)
+
 
     # Check to make sure we actually created the file
     if not os.path.exists(outputCubePath):
@@ -166,10 +169,11 @@ def applyNavTransform(inputCubePath, outputCubePath, transformMatrixPath, workDi
         pcAlignLine = ' --pcAlignTrans'
 
     # Execute the transformation command
-    cmd = ('rotationCorrector.py --keep --input ' + inputCubePath + ' --output ' + outputCubePath + 
-          ' --transformPath ' + transformMatrixPath + ' --workDir ' + workDir + ckLine + spkLine + pcAlignLine)
-    print cmd
-    os.system(cmd)
+    cmdArgs = ['--keep', '--input', inputCubePath, '--output', outputCubePath, 
+               '--transformPath', transformMatrixPath, '--workDir', workDir,
+               ckLine, spkLine, pcAlignLine]
+    print cmdArgs
+    rotationCorrector.main(cmdArgs)
 
     # Check to make sure we actually created the file
     if not os.path.exists(outputCubePath):
@@ -194,13 +198,6 @@ def checkAdjacentPairAlignment(leftInputPath, rightInputPath, outputDirectory,  
         return True
 
     # Run the process
-    #cmd = 'lronacAngleSolver --outputPath dummy.txt --gdcPointsOutPath ' + outputGdcPath + ' ' + leftInputPath + ' ' + rightInputPath
-#    cmd = ('lronacAngleDoubleSolver --outputPrefix '  + sbaOutputPrefix + 
-#                                  ' --leftCubePath '  + leftInputPath   + 
-#                                  ' --rightCubePath ' + rightInputPath + 
-#                                  ' --elevation '     + str(surfaceElevation))
-#    print cmd
-#    os.system(cmd)
     cmd = ['lronacAngleDoubleSolver',  '--outputPrefix',            sbaOutputPrefix, 
                                        '--leftCubePath',            leftInputPath, 
                                        '--rightCubePath',           rightInputPath, 
@@ -226,12 +223,12 @@ def applyInterCameraPairRotation(leftInputPath, rightInputPath, newRotationPath,
         return True
 
     # Generate the new file
-    cmd = ('lronacCameraRotationCorrector.py --keep --output ' + outputCubePath + 
-          ' --rotation ' + newRotationPath + ' --left ' + leftInputPath + 
-          ' --right ' + rightInputPath + ' --ck ' + ckPath + ' --spk ' + spkPath +
-          ' --workDir ' + workDir)
-    print cmd
-    os.system(cmd)
+    cmdArgs = ['--keep', '--output', outputCubePath, 
+               '--rotation', newRotationPath, '--left', leftInputPath, 
+               '--right', rightInputPath, '--ck', ckPath, '--spk', spkPath,
+               '--workDir', workDir]
+    print cmdArgs
+    lronacCameraRotationCorrector.main(cmdArgs)
 
     # Check to make sure we actually created the file
     if not os.path.exists(outputCubePath):
@@ -406,7 +403,7 @@ def findOutputLog(folder):
 
 #==========================================================================================
 
-def main():
+def main(argsIn):
 
     print "Started stereoDoubleCalibrationProcess.py"
 
@@ -444,7 +441,7 @@ def main():
                               help="Read the manual.")
             parser.add_option("--keep", action="store_true", dest="keep",
                               help="Do not delete the temporary files.")
-            (options, args) = parser.parse_args()
+            (options, args) = parser.parse_args(argsIn)
 
             if not options.leftPath: 
                 parser.error("Need left input path")
@@ -1047,4 +1044,4 @@ def main():
         return 2
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main(sys.argv[1:]))

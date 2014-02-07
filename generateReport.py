@@ -648,8 +648,8 @@ def main():
         print "Beginning processing....."
 
         dataFolder = '/byss/moon/lronacPipeline'
-#        grabResultFiles(dataFolder)
-        backupData(dataFolder)
+        grabResultFiles(dataFolder)
+#        backupData(dataFolder)
 #        generatePlots(dataFolder)
 
 

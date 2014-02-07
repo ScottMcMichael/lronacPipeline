@@ -123,11 +123,11 @@ def grabResultFiles(localFolder, force):
 #                  'results/outputHillshade.tif' ,\
 #                  'results/p2d-DEM.tif' ,\
 #                  'results/p2d-IntersectionErr.tif',\
-                  'workdir/refinement/lolaRdrPoints.kml' ,\
-                  'workdir/refinement/inputGdcPoints.kml' ,\
-                  'workdir/refinement/dem-trans_reference.kml' ,\
-                  'workdir/refinement/pairGdcCheckFinal.kml' ,\
-                  'workdir/refinement/pairGdcCheckFinalStereo.kml']
+                  'workDir/refinement/lolaRdrPoints.kml' ,\
+                  'workDir/refinement/inputGdcPoints.kml' ,\
+                  'workDir/refinement/dem-trans_reference.kml' ,\
+                  'workDir/refinement/pairGdcCheckFinal.kml' ,\
+                  'workDir/refinement/pairGdcCheckFinalStereo.kml']
 
     try:
   
@@ -165,7 +165,7 @@ def grabResultFiles(localFolder, force):
         # Use rsync to grab all the specified files at once
         cmd = 'rsync -av --files-from=' + dirListFile + ' smcmich1@pfe23.nas.nasa.gov:/u/smcmich1/data/lronacPipeline/ ' + localFolder
         print cmd
-        #os.system(cmd)
+        os.system(cmd)
     
     except Exception,e: # Catch any errors, the program will move on to the next folder
         print "Caught: ", e
@@ -471,8 +471,6 @@ def generatePlots(dataFolder):
 
 #--------------------------------------------------------------------------------
 
-#TODO: Support for file based logging of results
-
 def main():
 
     try:
@@ -481,21 +479,34 @@ def main():
             parser = optparse.OptionParser(usage=usage)
             parser.add_option("--manual", action="callback", callback=man,
                               help="Read the manual.")
+            parser.add_option("--folder", dest="folder",
+                              help="Data storage folder")
             parser.add_option("--force", action="store_true", dest="force",
                               help="Force overwrite of existing files.")
+            parser.add_option("--get-results", action="store_true", dest="getResults",
+                              help="Retrieve remote result files.")
+            parser.add_option("--make-plots", action="store_true", dest="makePlots",
+                              help="Generates plots.")
+                
             (options, args) = parser.parse_args()
+
+            if not options.folder:
+                raise Exception('Must pass in the data folder!')
 
         except optparse.OptionError, msg:
             raise Usage(msg)
 
         print "Beginning processing....."
 
-        dataFolder = '/home/smcmich1/data/'
+        # All data is stored in this directory
+        dataFolder = options.folder
 
 
-#        grabResultFiles(dataFolder, options.force)
+        if options.getResults:
+            grabResultFiles(dataFolder, options.force)
 #        backupData(dataFolder)
-        generatePlots(dataFolder)
+        if options.makePlots:
+            generatePlots(dataFolder)
 
 
 
