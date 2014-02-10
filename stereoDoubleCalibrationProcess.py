@@ -155,23 +155,24 @@ def applyNavTransform(inputCubePath, outputCubePath, transformMatrixPath, workDi
         print 'File ' + outputCubePath + ' already exists, skipping nav transform.'
         return True
 
+    
+    # Set up the transformation command
+    cmdArgs = ['--keep', '--input', inputCubePath, '--output', outputCubePath, 
+               '--transformPath', transformMatrixPath, '--workDir', workDir]
+    
     # Set up CK and SPK manual paths if they were specified
-    ckLine  = ''
-    spkLine = ''
     if (ckPath):
-        ckLine  = ' --ck '  + ckPath
+        cmdArgs.append('--ck')
+        cmdArgs.append(ckPath)
     if (spkPath):
-        spkLine = ' --spk ' + spkPath
+        cmdArgs.append('--spk')
+        cmdArgs.append(spkPath)
 
     # Set flag if the transform comes from pc_align as opposed to the lronacAngleSolver
-    pcAlignLine = ''
     if (pcAlignTrans):
-        pcAlignLine = ' --pcAlignTrans'
-
+        cmdArgs.append('--pcAlignTrans')
+    
     # Execute the transformation command
-    cmdArgs = ['--keep', '--input', inputCubePath, '--output', outputCubePath, 
-               '--transformPath', transformMatrixPath, '--workDir', workDir,
-               ckLine, spkLine, pcAlignLine]
     print cmdArgs
     rotationCorrector.main(cmdArgs)
 
