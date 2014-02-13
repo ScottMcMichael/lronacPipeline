@@ -88,7 +88,7 @@ int main( int argc, char *argv[] ) {
                   << e.what() << "\n" << usage << general_options );
   }
 
-  if ( !vm.count("input-dem") || !vm.count("lola-points") )
+  if ( !vm.count("input-file") || !vm.count("output-file") )
     vw_throw( vw::ArgumentErr() << "Requires <input path> and <output path> input in order to proceed.\n\n"
               << usage << general_options );
 
