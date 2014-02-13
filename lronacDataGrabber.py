@@ -19,7 +19,7 @@
 import sys
 
 #sys.path.append('/home/smcmich1/.local/lib/python2.7/site-packages/')
-from BeautifulSoup import BeautifulSoup
+from bs4 import BeautifulSoup
 
 import os, glob, optparse, re, shutil, subprocess, string, time, urllib, urllib2
 
@@ -121,18 +121,23 @@ def retrieveLolaFile(minLat, maxLat, minLon, maxLon, outputFolder):
                       '&westernlon=' + str(minLon-LOLA_EXTRA_SPACE) +
                       '&easternlon=' + str(maxLon+LOLA_EXTRA_SPACE))
 
+    outputPath = os.path.join(outputFolder, 'lolaRdrPoints.csv')
+    if os.path.exists(outputPath):
+        return True
+
     queryUrl = lolaUrl + baseQuery + locationParams
     print queryUrl
     
     # Parse the response
     parsedPage = BeautifulSoup(urllib2.urlopen((queryUrl)).read())
-    print parsedPage.prettify()
+    #print parsedPage.prettify()
 
     # Find the link containing '_pts_csv.csv' and download it
     found = False
+        
     for url in parsedPage.findAll('url'):
         if (url.string.find('_pts_csv.csv') >= 0):
-            os.system("wget -P " + outputFolder + "  " + url.string)
+            os.system("wget --output-document=" + outputPath + "  " + url.string)
             found = True
             
     return found
@@ -163,9 +168,9 @@ def getDataList(outputFilePath):
                     largestPage = page
     print "Found " + str(largestPage) + " pages of DEMs"
 
-	# Loop through all index pages and collect DEM pages
+    # Loop through all index pages and collect DEM pages
     dtmPageList = []
-    for currentPage in range(1,largestPage+1):
+    for currentPage in range(1, largestPage+1):
         currentPageUrl  = baseUrl + str(currentPage) + '&sort=time_reverse'
         parsedIndexPage = BeautifulSoup(urllib2.urlopen(currentPageUrl).read())
         #tableNode       = parsedIndexPage.find(id="dtm_select_selectiontable")
@@ -177,10 +182,10 @@ def getDataList(outputFilePath):
 
     outputFile = open(outputFilePath, 'w')
 
-	# Loop through all individual pages and get download links
+    # Loop through all individual pages and get download links
     for p in dtmPageList:
 
-#		print p
+        print p
         thisPage = BeautifulSoup(urllib2.urlopen(p).read())
 
         downloadSections = thisPage.findAll(attrs={"class": "download_container"})
@@ -210,7 +215,7 @@ def getDataList(outputFilePath):
 #        print firstImgFile
 #        print secondImgFile
 
-		# Find the ASU DEM	
+	# Find the ASU DEM	
         demLink = "NOT_FOUND"
         for line in downloadSection.findAll('a'):
             #if  line.get('href').find(".TIF") >= 0:
@@ -218,7 +223,15 @@ def getDataList(outputFilePath):
                 demLink = line.get('href')
                 break
 
-#        print demLink
+        #print demLink
+        if (demLink == 'NOT_FOUND'):
+            print 'Failed to find link to DEM page'
+
+        # Init to flag values
+        minLat = -999
+        maxLat = -999
+        minLon = -999
+        maxLon = -999
 
         if (demLink!= "NOT_FOUND"): # Get real DEM link and boundaries
             url     = 'http://wms.lroc.asu.edu' + demLink
@@ -245,7 +258,9 @@ def getDataList(outputFilePath):
             tableTop     = demPage.find(attrs={"class": "presentable_data"})           
             positionNode = tableTop.contents[1]   
             rows         = positionNode.findAll('tr')
-            
+         
+            #print tableTop.prettify()
+   
             for i in range(0,3): # For each of three rows of interest
                 cols = rows[i].findAll('td')
                 for j in range(0, 3, 2): # Hit indices 0 and 2
@@ -260,7 +275,6 @@ def getDataList(outputFilePath):
 
         else:
             demLink = p # Record the full URL so it is easier to check why we failed to find the DEM
-
 
         # Track down the links to the input files
         if (firstImgFile != "NOT_FOUND"):
@@ -279,11 +293,13 @@ def getDataList(outputFilePath):
 
         # Log the results
         outputFile.write('----------------------------------------------\n')
-        outputFile.write('ASU DTM = ' + demLink + '\n')
-        outputFile.write('Min lat = ' + minLat + '\n')
-        outputFile.write('Max lat = ' + maxLat + '\n')
-        outputFile.write('Min lon = ' + minLon + '\n')
-        outputFile.write('Max lon = ' + maxLon + '\n')
+        if (demLink != "NOT_FOUND"):
+           outputFile.write('ASU DTM = ' + demLink + '\n')
+        if ( (minLat != -999) and (maxLat != -999) and (minLon != -999) and (maxLon != -999) ):
+            outputFile.write('Min lat = ' + minLat + '\n')
+            outputFile.write('Max lat = ' + maxLat + '\n')
+            outputFile.write('Min lon = ' + minLon + '\n')
+            outputFile.write('Max lon = ' + maxLon + '\n')
         if (firstImgFile != "NOT_FOUND"):
             outputFile.write(firstImgDownloadPaths[0] + '\n')
             outputFile.write(firstImgDownloadPaths[1] + '\n')
@@ -332,14 +348,12 @@ def retrieveDataFiles(logPath, outputDir, name=''):
         elif nameBlock:
             pass # Do nothing until the block is cleared
         elif (line.find('.IMG') >= 0):
-            # wget image
+            # wget image if we don't already have it
             imgUrl	    = line
-            imgFileName = os.path.basename(imgUrl)
-            imgCopyPath = currentOutputFolder + '/' + imgFileName
-            #			print "wget -P " + currentOutputFolder + "  " + imgUrl
-            print imgCopyPath
+            imgFileName = os.path.basename(imgUrl).strip() # Need to clear whitespace
+            imgCopyPath = os.path.join(currentOutputFolder + imgFileName)
             if not os.path.exists(imgCopyPath):
-                os.system("wget -P " + currentOutputFolder + "  " + imgUrl)
+		os.system("wget -P " + currentOutputFolder + "  " + imgUrl)
 
         # Read bounding box
         elif (line.find('Min lat') >= 0):
