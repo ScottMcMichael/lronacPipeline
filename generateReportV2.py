@@ -120,7 +120,7 @@ def grabResultFiles(localFolder, force):
                   'results/output-Log.txt' ,\
                   'results/pcAlignLog.txt' ,\
 # TODO: Option to only grab the small output files
-#                  'results/outputHillshade.tif' ,\
+                  'results/outputHillshade.tif' ,\
 #                  'results/p2d-DEM.tif' ,\
 #                  'results/p2d-IntersectionErr.tif',\
                   'workDir/refinement/lolaRdrPoints.kml' ,\

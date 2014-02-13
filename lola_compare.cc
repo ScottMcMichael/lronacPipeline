@@ -38,7 +38,6 @@ namespace po = boost::program_options;
 #include <vw/FileIO/DiskImageResource.h>
 #include <vw/FileIO/DiskImageView.h>
 
-
 using namespace vw;
 
 /// \file lola_compare.cc Compares a DEM to a LOLA RDR file
@@ -177,42 +176,47 @@ int main( int argc, char *argv[] )
 
   std::string demPath, lolaDataPath, outputPath="", mapPath="", csvPath="";
   int removeHistogramOutliers=0;
-  bool useAbsolute;
+  bool useAbsolute, sub180;
 
   po::options_description general_options("Options");
   general_options.add_options()
     ("help,h",        "Display this help message")  
-    ("input-dem,d",   po::value<std::string>(&demPath),                           "Explicitly specify the DEM  file")
-    ("input-lola,l",  po::value<std::string>(&lolaDataPath),                      "Explicitly specify the LOLA file")
     ("output-file,o", po::value<std::string>(&outputPath)->default_value(""),     "Specify an output text file to store the program output")
     ("csv-log,c",     po::value<std::string>(&csvPath)->default_value(""),        "Specify an csv file to record individual point errors to")
     ("map,m",         po::value<std::string>(&mapPath)->default_value(""),        "Write output diagnostic image to file.")
-    ("absolute",      po::value<bool       >(&useAbsolute)->default_value(false), "Output the absolute difference as opposed to just the difference.")
+    ("absolute",      po::bool_switch       (&useAbsolute)->default_value(false), "Output the absolute difference as opposed to just the difference.")
+    ("sub180",        po::bool_switch       (&sub180)->default_value(false),      "Force all output degrees in csv file to be in -180 to 180 range.")
     ("limit-hist",    po::value<int        >(&removeHistogramOutliers)->default_value(0), "Limits the histogram to +/- N standard deviations from the mean");
-    
-  po::positional_options_description positional_desc;
-  positional_desc.add("input-image", 1);
-  positional_desc.add("input-lola",  1);
-  
-  std::ostringstream usage;
-  usage << "Usage: " << argv[0] << " [options] <input-DEM> <input-LOLA>" << std::endl << std::endl;
-  usage << general_options << std::endl;
 
+
+  po::options_description positional("");
+  positional.add_options()
+    ("input-dem",   po::value(&demPath     ), "Path to DEM file")
+    ("lola-points", po::value(&lolaDataPath), "Path to LOLA RDR point file");
+
+  po::positional_options_description positional_desc;
+  positional_desc.add("input-dem",   1);
+  positional_desc.add("lola-points", 1);
+
+  std::string usage("[options] <input DEM path> <input LOLA path>\n");
   po::variables_map vm;
   try {
-    po::store( po::command_line_parser( argc, argv ).options(general_options).positional(positional_desc).run(), vm );
+    po::options_description all_options;
+    all_options.add(general_options).add(positional);
+
+    po::store( po::command_line_parser( argc, argv ).options(all_options).positional(positional_desc).style( po::command_line_style::unix_style ).run(), vm );
+
     po::notify( vm );
-  } catch (const po::error& e) {
-    std::cout << "An error occured while parsing command line arguments.\n";
-    std::cout << "\t" << e.what() << "\n\n";
-    std::cout << usage.str();
-    return 1;
+  } catch (po::error const& e) {
+    vw::vw_throw( vw::ArgumentErr() << "Error parsing input:\n"
+                  << e.what() << "\n" << usage << general_options );
   }
-  
-  //TODO: Why is this not working?
-  //if ( !vm.count("input-image") || !vm.count("input-lola") )
-  //  vw_throw( ArgumentErr() << "Requires <left> and <right> input in order to proceed.\n\n"
-  //            << usage << general_options );
+
+  if ( !vm.count("input-dem") || !vm.count("lola-points") )
+    vw_throw( vw::ArgumentErr() << "Requires <input DEM path> and <input LOLA path> input in order to proceed.\n\n"
+              << usage << general_options );
+
+
 
   // Load the input DEM
   ImageView<PixelGray<float> > inputDem;
@@ -245,8 +249,11 @@ int main( int argc, char *argv[] )
   }
 
   std::ofstream csvFile;
-  if (csvPath.size() > 0)
+  if (csvPath.size() > 0) // Start CSV file and write header
+  {
     csvFile.open(csvPath.c_str());
+    csvFile << "# Latitude(Deg), Longitude(Deg), LOLA elevation(m), DEM elevation(m), difference(m)" << std::endl;
+  }
 
   // Loop through all the lines in the file
   unsigned int numValidPixels = 0;
@@ -318,9 +325,12 @@ int main( int argc, char *argv[] )
     if (csvPath.size() > 0)
     {
       csvFile.precision(12);
-      //if (ptLonDeg > 180)
-      //  ptLonDeg -= 360;
-      csvFile << ptLatDeg << ", " << ptLonDeg << ", " << lolaElevation << ", " << diff << std::endl;
+      if (sub180)
+      {
+      if (ptLonDeg > 180)
+        ptLonDeg -= 360;
+      }
+      csvFile << ptLatDeg << ", " << ptLonDeg << ", " << lolaElevation << ", " << demValue << ", " << diff << std::endl;
     }
   } // End of loop through lines
   

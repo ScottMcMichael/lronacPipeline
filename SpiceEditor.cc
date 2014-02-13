@@ -87,7 +87,7 @@ bool handle_arguments(int argc, char* argv[], Parameters &opt)
 
   po::positional_options_description positional_desc;
 
-  std::string usage("[options] ");
+  std::string usage("[options]\n");
   po::variables_map vm =
     asp::check_command_line( argc, argv, opt, general_options, general_options,
                              positional, positional_desc, usage );

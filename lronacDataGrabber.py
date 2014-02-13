@@ -349,7 +349,8 @@ def retrieveDataFiles(logPath, outputDir, name=''):
         elif (line.find('Min lon') >= 0):
             minLon = float(line[10:])
         elif (line.find('Max lon') >= 0): # The last BB entry, download the LOLA data file
-            maxLon = float(line[10:])            
+            maxLon = float(line[10:])
+            
             retrieveLolaFile(minLat, maxLat, minLon, maxLon, currentOutputFolder)
 
 

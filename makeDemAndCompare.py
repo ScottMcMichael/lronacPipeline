@@ -39,8 +39,8 @@ class Usage(Exception):
 def compareDemToLola(lolaPath, demPath, outputPath, csvPath, force):
 
     if force or not os.path.exists(outputPath):
-        cmd = ('lola_compare --absolute 1 --limit-hist=2 -l "' + lolaPath + 
-                             '" -d ' + demPath + ' -o ' + outputPath + ' -c ' + csvPath)
+        cmd = ('lola_compare --absolute --limit-hist=2 ' + demPath +  ' "' + lolaPath + 
+                             '" -o ' + outputPath + ' -c ' + csvPath)
         print cmd
         os.system(cmd)
         
@@ -166,6 +166,7 @@ def main(argsIn):
         stereoOutputPrefix = os.path.join(tempFolder, 'stereoWorkDir/stereo')
         pointCloudPath     = stereoOutputPrefix + '-PC.tif'
         if (not os.path.exists(pointCloudPath)) or carry:
+            # TODO: Test out with higher quality subpixel-mode 2
             cmd = ('parallel_stereo --corr-timeout 400 --alignment affineepipolar --subpixel-mode 1' +
                                   ' --disable-fill-holes ' +  options.leftPath + ' ' + options.rightPath + 
                                   ' ' + stereoOutputPrefix + ' --processes 8 --threads-multiprocess 4' +
@@ -209,6 +210,7 @@ def main(argsIn):
         else:
             print 'DEM file ' + hillshadePath + ' already exists, skipping hillshade step.'
 
+        #TODO map_project (same settings as point2dem but higher resolution 0.5)
 
         # Call script to compare LOLA data with the DEM
         if options.lolaPath or carry:

@@ -50,7 +50,12 @@ def readPositions(positionFilePath):
         if line.find('#') < 0: # Skip lines containing the comment symbol
             strings = line.split(',')
             #print strings
-            thisPoint = (float(strings[1]), float(strings[0]), float(strings[2]), float(strings[3]))
+            lat        = float(strings[0])
+            lon        = float(strings[1])
+            lolaHeight = float(strings[2])
+            ourHeight  = float(strings[3])
+            diff       = float(strings[4])
+            thisPoint  = (lon, lat, lolaHeight, ourHeight, diff)
             pointList.append(thisPoint)
     f.close()
 
@@ -88,7 +93,10 @@ def generateKml(pointList, outputPath, pointSkip, maxErrorLimit, name, color):
     counter = 0
     for i in range (0, len(pointList), int(pointSkip)):
     
-        point = kml.newpoint(name=str(counter), coords=[(pointList[i][0], pointList[i][1], pointList[i][2])],
+        lon        = pointList[i][0]
+        lat        = pointList[i][1]
+        lolaHeight = pointList[i][2]
+        point = kml.newpoint(name=str(counter), coords=[lon, lat, lolaHeight],
                               gxaltitudemode= simplekml.AltitudeMode.absolute)
         point.style   = style
         point.extrude = 0

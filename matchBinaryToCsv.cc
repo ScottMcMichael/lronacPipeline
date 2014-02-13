@@ -48,26 +48,37 @@ int main( int argc, char *argv[] )
   po::options_description general_options("Options");
   general_options.add_options()
     ("help,h",        "Display this help message")  
-    ("input,i",   po::value<std::string>(&inputPath),                "The input .match file")
     ("output,o",  po::value<std::string>(&outputPath)->default_value(""), "The output .csv file (default append .csv)");
-    
-  po::positional_options_description positional_desc;
-  positional_desc.add("input",  1);
-  
-  std::ostringstream usage;
-  usage << "Usage: " << argv[0] << " [options] <input path>" << std::endl << std::endl;
-  usage << general_options << std::endl;
 
+  po::options_description positional("");
+  positional.add_options()
+    ("input",   po::value(&inputPath     ), "The input .match file");
+
+  po::positional_options_description positional_desc;
+  positional_desc.add("input", 1);
+
+  std::string usage("[options] <input>\n");
   po::variables_map vm;
   try {
-    po::store( po::command_line_parser( argc, argv ).options(general_options).positional(positional_desc).run(), vm );
+    po::options_description all_options;
+    all_options.add(general_options).add(positional);
+
+    po::store( po::command_line_parser( argc, argv ).options(all_options).positional(positional_desc).style( po::command_line_style::unix_style ).run(), vm );
+
     po::notify( vm );
-  } catch (const po::error& e) {
-    std::cout << "An error occured while parsing command line arguments.\n";
-    std::cout << "\t" << e.what() << "\n\n";
-    std::cout << usage.str();
-    return 1;
+  } catch (po::error const& e) {
+    vw::vw_throw( vw::ArgumentErr() << "Error parsing input:\n"
+                  << e.what() << "\n" << usage << general_options );
   }
+
+  if ( !vm.count("input") )
+    vw_throw( vw::ArgumentErr() << "Requires <input> in order to proceed.\n\n"
+              << usage << general_options );
+
+
+
+
+
 
 
   try {

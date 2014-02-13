@@ -128,7 +128,7 @@ def extractPixelPairsFromStereoResults(disparityImagePath, outputDirectory, outp
         return outputPixelPath
 
     # Run the process
-    cmd = ('pixelPairsFromStereo -i ' + disparityImagePath + ' -o ' + outputPixelPath + 
+    cmd = ('pixelPairsFromStereo ' + disparityImagePath + ' ' + outputPixelPath + 
           ' -p ' + str(sampleInterval))
     print cmd
     os.system(cmd)
@@ -311,7 +311,7 @@ def getInterestPointPairs(leftInputPath, rightInputPath, outputPath, forceOperat
                             ' from input files ' + leftInputPath + ' and ' + rightInputPath)
 
         # Convert from the binary file to an easy to read CSV final
-        cmd = 'matchBinaryToCsv -i '+ binaryPath + ' -o ' + outputPath
+        cmd = 'matchBinaryToCsv '+ binaryPath + ' -o ' + outputPath
         print cmd
         os.system(cmd)
 
