@@ -302,7 +302,7 @@ def getInterestPointPairs(leftInputPath, rightInputPath, outputPath, forceOperat
 
         # Generate intermediate binary file
         binaryPath = outputPath + '.bin'
-        cmd = 'stereoIpFind -l '+ leftInputPath + ' -r ' + rightInputPath + ' -o ' + binaryPath
+        cmd = 'stereoIpFind '+ leftInputPath + ' ' + rightInputPath + ' ' + binaryPath
         print cmd
         os.system(cmd)
 
@@ -824,7 +824,7 @@ def main(argsIn):
         if (not os.path.exists(pcAlignTransformPath)) or carry:
             # TODO: Confirm which input order works best
             #cmd = 'pc_align --highest-accuracy --max-displacement 1500 --datum D_MOON --max-num-reference-points 25000000 --save-transformed-source-points ' + options.lolaPath + ' ' + largeGdcFile + ' -o ' + pcAlignOutputPrefix + ' --compute-translation-only'
-            cmd = ('pc_align --highest-accuracy --max-displacement 100 --datum D_MOON ' + 
+            cmd = ('pc_align --highest-accuracy --max-displacement 200 --datum D_MOON ' + 
                    '--save-inv-transformed-reference-points ' + largeGdcFile + 
                    ' ' + options.lolaPath + ' -o ' + pcAlignOutputPrefix + ' --compute-translation-only')
             print cmd
