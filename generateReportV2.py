@@ -190,11 +190,11 @@ def accumulateStatistics(prefix, filePath, meanList, stdDevList, meanHistogram, 
     # Record the raw percentile data
     dataStorage[prefix] = percentile
   
-    if not meanHistogram:
+    if not meanHistogram: # First histogram
         meanHistogram.extend(histogram)
-    else:
+    else: # Accumulate each histogram bin
         for o, n in zip(meanHistogram, histogram):
-            o = o + n
+            o = o + n 
 
     return True # We successfully added data
 
@@ -363,6 +363,10 @@ def generatePlots(dataFolder):
     for i in lolaAsuMeanHistogram:
       i = i / numElements
 
+    # Compute standard deviation of the LOLA and ASU means
+    lolaStdDev    = np.std(lolaMeanList)
+    lolaAsuStdDev = np.std(lolaAsuMeanList)
+
     # Write results into a condensed file
     condensedDataPath = os.path.join(dataFolder, 'resultsSummary.csv')
     condensedFile     = open(condensedDataPath, 'w')
@@ -392,7 +396,7 @@ def generatePlots(dataFolder):
         dataStorage[f+'_lola'].pop() # Strip of error values in last bin
         plt.plot(xAxis, dataStorage[f+'_lola'], 'o', label=f)
         
-        # Accumulate mean value
+        # Accumulate mean value for each percentile across data sets
         for i in range(0,numEls):
             lolaMeanPercentile[i] = lolaMeanPercentile[i] + dataStorage[f+'_lola'][i]
             
@@ -420,7 +424,7 @@ def generatePlots(dataFolder):
         dataStorage[f+'_comp'].pop() # Strip of error values in last bin
         plt.plot(xAxis, dataStorage[f+'_comp'], 'o', label=f)
         
-        # Accumulate mean value
+        # Accumulate mean value for each percentile across data sets
         for i in range(0,numEls):
             lolaAsuMeanPercentile[i] = lolaAsuMeanPercentile[i] + dataStorage[f+'_comp'][i]
             
@@ -439,10 +443,35 @@ def generatePlots(dataFolder):
     plt.savefig(lolaAsuComparisonPath, bbox_extra_artists=[lgd], bbox_inches='tight')
     plt.clf()    
     
+    # Compute the standard deviations for LOLA and ASU in each percentile
+    lolaPercentileStdList    = []
+    lolaAsuPercentileStdList = []
+    for i in range(0,numEls): # For each percentile
+        lolaDiffSum    = 0
+        lolaAsuDiffSum = 0
+        for f in usedFolderList: # For each data set
+            lolaDiff       = dataStorage[f+'_lola'][i] - lolaMeanPercentile[i]
+            lolaAsuDiff    = dataStorage[f+'_comp'][i] - lolaAsuMeanPercentile[i]
+            lolaDiffSum    = lolaDiffSum    + lolaDiff*lolaDiff
+            lolaAsuDiffSum = lolaAsuDiffSum + lolaAsuDiff*lolaAsuDiff
+        
+        # This is the standard deviation for this percentile
+        lolaPercentileStd    = lolaDiffSum       / len(usedFolderList)
+        lolaAsuPercentileStd = lolaAsuDiffSum    / len(usedFolderList)
+        
+        lolaPercentileStdList.append(lolaPercentileStd)
+        lolaAsuPercentileStdList.append(lolaAsuPercentileStd)
     
-    # Plot the three mean percentiles on one chart
-    plt.plot(xAxis, lolaMeanPercentile   , label='us vs LOLA')
-    plt.plot(xAxis, lolaAsuMeanPercentile, label='ASU vs LOLA')
+    lolaPercentileErrBars    = np.row_stack((lolaPercentileStdList,    lolaPercentileStdList))
+    lolaAsuPercentileErrBars = np.row_stack((lolaAsuPercentileStdList, lolaAsuPercentileStdList))
+    
+    #print lolaPercentileStdList
+    #print '---'
+    #print lolaAsuPercentileStdList
+    
+    # Plot the mean percentiles on one chart
+    plt.errorbar(xAxis, lolaAsuMeanPercentile, label='ASU vs LOLA', yerr=lolaAsuPercentileErrBars)
+    plt.errorbar(xAxis, lolaMeanPercentile   , label='us vs LOLA',  yerr=lolaPercentileErrBars, linewidth=3, elinewidth=3)
     plt.grid(color='gray', linestyle='dashed')
     plt.ylim(yMin, yMax)
     plt.ylabel('Difference in meters')
@@ -507,7 +536,6 @@ def main():
 #        backupData(dataFolder)
         if options.makePlots:
             generatePlots(dataFolder)
-
 
 
         print "Finished"
