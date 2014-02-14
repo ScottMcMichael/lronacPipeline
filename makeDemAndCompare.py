@@ -19,7 +19,7 @@
 
 import sys, os, glob, optparse, re, subprocess, string, time, logging, threading
 
-import IsisTools
+import IsisTools, pointErrorToKml
 
 def man(option, opt, value, parser):
     print >>sys.stderr, parser.usage
@@ -38,14 +38,35 @@ class Usage(Exception):
 # Generate a comparison of a DEM to the LOLA point cloud
 def compareDemToLola(lolaPath, demPath, outputPath, csvPath, force):
 
+    # Generate LOLA comparison files
     if force or not os.path.exists(outputPath):
         cmd = ('lola_compare --absolute --limit-hist=2 ' + demPath +  ' "' + lolaPath + 
                              '" -o ' + outputPath + ' -c ' + csvPath)
         print cmd
         os.system(cmd)
-        
+
+    # Make KML plot of the point errors
+    kmlPath = os.path.splitext(outputPath)[0] + '.kml'
+    demName = os.path.dirname(demPath)
+    cmdArgs = [csvPath, kmlPath, '--name', demName]
+    pointErrorToKml.main(cmdArgs)
+    
     return True
 
+
+# Generate a map projected version of an input image using the output DEM
+def mapProjectImage(inputImage, demPath, outputPath, resolution, centerLat, force):
+    
+    if (not os.path.exists(outputPath)) or force:
+        cmd = ('mapproject ' + demPath         + ' ' + inputImage + ' ' + outputPath +
+                         ' --tr ' + str(resolution) + ' --t_srs "+proj=eqc +lat_ts=' + str(centerLat) + 
+                         ' +lat_0=0 +a=1737400 +b=1737400 +units=m" --nodata -32767')
+        print cmd
+        os.system(cmd)
+    else:
+        print 'Map projected file  ' + outputPath + ' already exists, skipping map project step.'
+
+    return True
 
 # Makes sure all needed functions are found in the PATH
 def functionStartupCheck():
@@ -210,7 +231,16 @@ def main(argsIn):
         else:
             print 'DEM file ' + hillshadePath + ' already exists, skipping hillshade step.'
 
-        #TODO map_project (same settings as point2dem but higher resolution 0.5)
+
+        # Generate a map projected version of the left and right images
+        MAP_PROJECT_RESOLUTION = 0.5
+        mapProjectLeftPath     = os.path.join(outputFolder, 'mapProjLeft.tif')
+        mapProjectRightPath    = os.path.join(outputFolder, 'mapProjRight.tif')
+        
+        mapProjectImage(options.leftPath,  demPath, mapProjectLeftPath,  MAP_PROJECT_RESOLUTION, centerLat, carry)
+        mapProjectImage(options.rightPath, demPath, mapProjectRightPath, MAP_PROJECT_RESOLUTION, centerLat, carry)
+
+        carry = True
 
         # Call script to compare LOLA data with the DEM
         if options.lolaPath or carry:
@@ -223,6 +253,7 @@ def main(argsIn):
             lolaAsuDiffStatsPath  = os.path.join(outputFolder, 'ASU_LOLA_diff_stats.txt')
             lolaAsuDiffPointsPath = os.path.join(outputFolder, 'ASU_LOLA_diff_points.csv')
             compareDemToLola(options.lolaPath, options.asuPath, lolaAsuDiffStatsPath, lolaAsuDiffPointsPath, carry)
+
 
         statsTime = time.time()
         logging.info('Final results finished in %f seconds', statsTime - stereoTime)
