@@ -73,37 +73,40 @@ def generateKml(pointList, outputPath, pointSkip, maxErrorLimit, name, color):
     kml.hint = 'target=moon'
     
     # Compute the min and max point error
-    minError = pointList[0][3]
+    minError = pointList[0][4]
     maxError = minError
     for p in pointList:
-        if p[3] < minError:
-            minError = p[3]
-        if p[3] > maxError:
-            maxError = p[3]
+        if p[4] < minError:
+            minError = p[4]
+        if p[4] > maxError:
+            maxError = p[4]
     if (maxErrorLimit > 0): # Apply max error limit if used
         maxError = maxErrorLimit
     errorRange = maxError - minError
     
-
+    print 'min = ' + str(minError)
+    print 'max = ' + str(maxError)
+    
     # Plot each point
-    style = simplekml.Style()
-    style.labelstyle.scale    = 0
-    style.iconstyle.scale     = 0.7
-    style.iconstyle.icon.href = 'http://maps.google.com/mapfiles/kml/shapes/open-diamond.png'
+    #style = simplekml.Style()
     counter = 0
     for i in range (0, len(pointList), int(pointSkip)):
     
         lon        = pointList[i][0]
         lat        = pointList[i][1]
         lolaHeight = pointList[i][2]
-        point = kml.newpoint(name=str(counter), coords=[lon, lat, lolaHeight],
+        point = kml.newpoint(name=str(counter), coords=[(lon, lat, lolaHeight)],
                               gxaltitudemode= simplekml.AltitudeMode.absolute)
-        point.style   = style
+        #point.style   = style
         point.extrude = 0
         counter       = counter + 1
         
+        point.style.labelstyle.scale    = 0
+        point.style.iconstyle.scale     = 0.7
+        point.style.iconstyle.icon.href = 'http://maps.google.com/mapfiles/kml/shapes/open-diamond.png'
+        
         # Generate a color based on the error value:  white (low error) <--> red (high error)
-        thisError = pointList[i][3]
+        thisError = pointList[i][4]
         colorVal = int(255.0 - 255.0*(thisError - minError)/errorRange)
         if (colorVal < 0):
             colorVal = 0
@@ -115,9 +118,6 @@ def generateKml(pointList, outputPath, pointSkip, maxErrorLimit, name, color):
         else: # red
             point.style.iconstyle.color   = simplekml.Color.rgb(255,colorVal,colorVal,255)
     
-    print 'min = ' + str(minError)
-    print 'max = ' + str(maxError)
-    print errorRange
     
     # Save kml document
     kml.save(outputPath)
@@ -127,7 +127,7 @@ def generateKml(pointList, outputPath, pointSkip, maxErrorLimit, name, color):
 
 #--------------------------------------------------------------------------------------------
     
-def main():
+def main(argsIn):
     
     try:
         try:
@@ -143,13 +143,13 @@ def main():
             parser.add_option("--errorLimit", dest="errorLimit", help="Max displayed error")
             parser.add_option("--name",       dest="name",       help="KML name")
             parser.add_option("--color",      dest="color",      help="Set to red, blue, or green")
-            (options, args) = parser.parse_args()
+            (options, args) = parser.parse_args(argsIn)
     
         except optparse.OptionError, msg:
             raise Usage(msg)
     
         if len(args) != 2:
-            raise Exception('Must pass in input and output paths!')
+            raise Usage('Must pass in input and output paths!')
     
         print "Beginning processing....."
     
@@ -167,6 +167,6 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main(sys.argv[1:]))
 
     
