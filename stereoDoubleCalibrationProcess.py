@@ -833,7 +833,7 @@ def main(argsIn):
                                                                  'stereoPixelPairsLeftLarge.csv', 8, carry)
 
         # TODO: Many changes needed before RE images can be used here!
-        #pixelPairsRightLarge = extractPixelPairsFromStereoResults(disparityImageRight, tempFolder, 'stereoPixelPairsRightLarge.csv', 16, False)
+        #pixelPairsRightLarge = extractPixelPairsFromStereoResults(disparityImageRight, tempFolder, 'stereoPixelPairsRightLarge.csv', 8, carry)
 
         # Compute the 3d coordinates for each pixel pair using the rotation and offset computed earlier
         # - All this step does is use stereo intersection to determine a lat/lon/alt coordinate for each pixel pair in the large data set.  No optimization is performed.
@@ -842,17 +842,22 @@ def main(argsIn):
             os.mkdir(largeGdcFolder)
         largeGdcPrefix = os.path.join(tempFolder, 'gdcPointsLargeComp/out')
         largeGdcFile   = largeGdcPrefix + '-initialGdcPoints.csv'
-        if (not os.path.exists(largeGdcFile)) or carry:
-            cmd = ('lronacAngleDoubleSolver --outputPrefix '           + largeGdcPrefix + 
-                                          ' --matchingPixelsLeftPath ' + pixelPairsLeftLarge + 
-                                          ' --leftCubePath '           + posOffsetCorrectedLeftPath + 
-                                          ' --leftStereoCubePath '     + posOffsetCorrectedStereoLeftPath + 
+        if (not os.path.exists(largeGdcFile)) or True:#carry:
+            cmd = ('lronacAngleDoubleSolver --outputPrefix '            + largeGdcPrefix + 
+                                          ' --matchingPixelsLeftPath '  + pixelPairsLeftLarge +
+                                          ' --matchingPixelsRightPath ' + pixelPairsRightSmall + 
+                                          ' --leftCubePath '            + posOffsetCorrectedLeftPath + 
+                                          ' --leftStereoCubePath '      + posOffsetCorrectedStereoLeftPath +
+                                          ' --rightCubePath '           + posOffsetCorrectedRightPath + 
+                                          ' --rightStereoCubePath '     + posOffsetCorrectedStereoRightPath + 
                                           ' --initialOnly --initialValues ' + solvedParamsPath + 
                                           ' --elevation ' + str(expectedSurfaceElevation))
             print cmd
             os.system(cmd)
         else:
             print 'Skipping large GDC file creation step'
+
+        raise Exception('ntehuonthu')
 
         prepTime = time.time()
         logging.info('pc_align prep finished in %f seconds', prepTime - sbaTime)

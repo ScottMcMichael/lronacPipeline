@@ -284,9 +284,9 @@ IsisInterfaceLineScanRot::point_to_pixel_rotated( vw::Vector3 const& point, vw::
   m_camera->setTime(Isis::iTime( solution_e[0] ));
 
   // Working out pointing
-  m_camera->instrumentPosition(&m_center[0]); // Get camera position in GCC coordinates
+  m_camera->instrumentPosition(&m_center[0]); // Get camera position in body coordinates
   m_center *= 1000; // Convert to meters
-  Vector3 look = normalize(point-m_center); // Vector from point to camera in GCC coordinates
+  Vector3 look = normalize(point-m_center); // Vector from point to camera in body coordinates
 
   // Calculating Rotation to camera frame
   std::vector<double> rot_inst = m_camera->instrumentRotation()->Matrix();
@@ -304,7 +304,7 @@ IsisInterfaceLineScanRot::point_to_pixel_rotated( vw::Vector3 const& point, vw::
   // Body_from_CorrectedInstrument = Body_from_J2000 * transpose(CorrectedInstrument_from_SC * SC_from_J2000)
   m_pose = Quat(R_body*transpose(R_offset * R_inst));
   
-  // Apply rotation from body coordinates to camera coordinates to look vector
+  // Apply rotation from body coordinates to camera coordinates to the look vector
   look = inverse(m_pose).rotate( look ); 
   
   // Now that look vector is in camera coordinates, project to a pixel.
@@ -359,6 +359,44 @@ IsisInterfaceLineScanRot::pixel_to_vector( Vector2 const& pix ) const {
   
   return result;
 }
+
+// Version of function where a local rotation is inserted
+Vector3
+IsisInterfaceLineScanRot::pixel_to_vector_rotated( Vector2 const& pix , vw::Vector3 const& rotAngles) const
+{
+  Vector2 px = pix + Vector2(1,1);
+  SetTime( px, true );
+
+  // Projecting to get look direction
+  Vector3 result;
+  m_focalmap->SetDetector( m_detectmap->DetectorSample(),
+                           m_detectmap->DetectorLine() );
+  m_distortmap->SetFocalPlane( m_focalmap->FocalPlaneX(),
+                               m_focalmap->FocalPlaneY() );
+  result[0] = m_distortmap->UndistortedFocalPlaneX();
+  result[1] = m_distortmap->UndistortedFocalPlaneY();
+  result[2] = m_distortmap->UndistortedFocalPlaneZ();
+  result = normalize( result ); // Result is a vector in camera coordinates
+
+
+
+  std::vector<double>     rot_inst = m_camera->instrumentRotation()->Matrix();
+  std::vector<double>     rot_body = m_camera->bodyRotation()->Matrix();
+  MatrixProxy<double,3,3> R_inst(&(rot_inst[0])); // Rotation of spacecraft/instrument relative to J2000
+  MatrixProxy<double,3,3> R_body(&(rot_body[0])); // Rotation of planet relative to J2000 (earth-centered) frame
+
+  // Add in input offsets
+  vw::math::Matrix<double,3,3> R_offset = vw::math::euler_to_rotation_matrix(rotAngles[0], rotAngles[1], rotAngles[2], "xyz");
+
+  // Body_from_CorrectedInstrument = Body_from_J2000 * transpose(CorrectedInstrument_from_SC * SC_from_J2000)
+  m_pose = Quat(R_body*transpose(R_offset * R_inst));
+
+  // Convert result from (rotated) camera coordinates to body coordinates
+  result = m_pose.rotate(result);
+
+  return result;
+}
+
 
 Vector3
 IsisInterfaceLineScanRot::camera_center( Vector2 const& pix ) const {

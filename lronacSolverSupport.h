@@ -93,40 +93,35 @@ bool raySphereIntersect(const vw::Vector3 &rayOrigin, const vw::Vector3 &rayVect
 //###############################################################################################
 
 
-/// This class is useful if you have an existing camera model, and
-/// you want to systematically "tweak" its extrinsic parameters
-/// (position and pose).  This is particularly useful in Bundle
-/// Adjustment.
-class AdjustedCameraModelRot : public vw::camera::CameraModel
+/// Expands the original AdjustedCameraModel class to allow global and local rotations
+class AdjustedCameraModelRot : public LocalRotCameraModel
 {
 private:
   
-  boost::shared_ptr<IsisInterfaceLineScanRot> m_camera;
+  boost::shared_ptr<LocalRotCameraModel> m_camera;
   vw::Vector3 m_translation;
-  vw::Quat m_rotation;
-  vw::Quat m_rotation_inverse;
+  vw::Quat    m_rotation;
+  vw::Quat    m_rotation_inverse;
 
 public:
   AdjustedCameraModelRot(){}
   
-  AdjustedCameraModelRot(boost::shared_ptr<IsisInterfaceLineScanRot> camera_model) : m_camera(camera_model) 
+  AdjustedCameraModelRot(boost::shared_ptr<LocalRotCameraModel> camera_model) : m_camera(camera_model)
   {
     m_rotation         = vw::Quat(vw::math::identity_matrix<3>());
     m_rotation_inverse = vw::Quat(vw::math::identity_matrix<3>());
   }
 
-  AdjustedCameraModelRot(boost::shared_ptr<IsisInterfaceLineScanRot> camera_model,
+  AdjustedCameraModelRot(boost::shared_ptr<LocalRotCameraModel> camera_model,
                       vw::Vector3 const& translation, vw::Quat const& rotation) :
     m_camera(camera_model), m_translation(translation), m_rotation(rotation), m_rotation_inverse(inverse(rotation)) {}
 
   virtual ~AdjustedCameraModelRot() {}
   virtual std::string type() const { return "Adjusted"; }
 
-  vw::Vector3 translation() const { return m_translation; }
-  vw::Quat rotation() const { return m_rotation; }
+  vw::Vector3            translation    () const { return m_translation; }
+  vw::Quat               rotation       () const { return m_rotation; }
   vw::Matrix<double,3,3> rotation_matrix() const { return m_rotation.rotation_matrix(); }
-  //Vector3 axis_angle_rotation() const;
-  //void set_rotation(Quat const&);
 
   template <class MatrixT>
   void set_rotation(vw::MatrixBase<MatrixT> const& m)
@@ -155,29 +150,34 @@ void set_rotation(vw::Quat const& rotation) {
   m_rotation_inverse = inverse(m_rotation);
 }
 
-vw::Vector2 point_to_pixel (vw::Vector3 const& point) const {
+virtual vw::Vector2 point_to_pixel (vw::Vector3 const& point) const {
   vw::Vector3 offset_pt = point-m_camera->camera_center(vw::Vector2(0,0))-m_translation;
-  vw::Vector3 new_pt = m_rotation_inverse.rotate(offset_pt) + m_camera->camera_center(vw::Vector2(0,0));
+  vw::Vector3 new_pt    = m_rotation_inverse.rotate(offset_pt) + m_camera->camera_center(vw::Vector2(0,0));
   return m_camera->point_to_pixel(new_pt);
 }
 
 /// New code to support passing local rotation angles into this function
-vw::Vector2 point_to_pixel_rotated( vw::Vector3 const& point, vw::Vector3 const& rotAngles, int guessLine) const
+virtual vw::Vector2 point_to_pixel_rotated( vw::Vector3 const& point, vw::Vector3 const& rotAngles, int guessLine) const
 {
   vw::Vector3 offset_pt = point-m_camera->camera_center(vw::Vector2(0,0))-m_translation;
-  vw::Vector3 new_pt = m_rotation_inverse.rotate(offset_pt) + m_camera->camera_center(vw::Vector2(0,0));
+  vw::Vector3 new_pt    = m_rotation_inverse.rotate(offset_pt) + m_camera->camera_center(vw::Vector2(0,0));
   return m_camera->point_to_pixel_rotated(new_pt, rotAngles, guessLine);
 }
 
-vw::Vector3 pixel_to_vector (vw::Vector2 const& pix) const {
+virtual vw::Vector3 pixel_to_vector (vw::Vector2 const& pix) const {
   return m_rotation.rotate(m_camera->pixel_to_vector(pix));
 }
 
-vw::Vector3 camera_center(vw::Vector2 const& pix) const {
+/// New code to support passing local rotation angles into this function
+virtual vw::Vector3 pixel_to_vector_rotated (vw::Vector2 const& pix, vw::Vector3 const& rotAngles) const {
+  return m_rotation.rotate(m_camera->pixel_to_vector_rotated(pix, rotAngles));
+}
+
+virtual vw::Vector3 camera_center(vw::Vector2 const& pix) const {
   return m_camera->camera_center(pix) + m_translation;
 }
 
-vw::Quat camera_pose(vw::Vector2 const& pix) const {
+virtual vw::Quat camera_pose(vw::Vector2 const& pix) const {
   return m_rotation*m_camera->camera_pose(pix);
 }
   

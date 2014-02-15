@@ -293,6 +293,7 @@ def main(argsIn):
 
         # Correct all four input images at once
         caughtException = False
+        exceptionText   = ''
         doubleCalWorkFolder = os.path.join(tempFolder, 'doubleCal')
         try:
           if ( not os.path.exists(leftCorrectedPath)       or not os.path.exists(rightCorrectedPath)       or 
@@ -316,11 +317,11 @@ def main(argsIn):
 
         except Exception, e: 
             caughtException = True
+            exceptionText   = str(e)
             print 'Caught an exception: ' + str(e)
 
         # Convert GDC output files into KML plots 
         # - This is just to help with debugging
-
         #generateKmlFromGdcPoints(os.path.join(doubleCalWorkFolder, 'initialGdcCheck'),            tempFolder, 'SBA_check-outputGdcPoints.csv', 'pairGdcCheckInitial',           1,    'blue', 'normal', carry)
         #generateKmlFromGdcPoints(os.path.join(doubleCalWorkFolder, 'posCorrectGdcCheck'),         tempFolder, 'SBA_check-outputGdcPoints.csv', 'pairGdcCheckPos',               1,    'green', 'normal',  carry)
         #generateKmlFromGdcPoints(os.path.join(doubleCalWorkFolder, 'posCorrectStereoGdcCheck'),   tempFolder, 'SBA_check-outputGdcPoints.csv', 'pairGdcStereoCheckPos',         1,    'green', 'normal',  carry)
@@ -338,7 +339,7 @@ def main(argsIn):
 
         # Delay check for left path to allow debug KML files to be generated
         if caughtException or not os.path.exists(leftCorrectedPath) or not os.path.exists(rightStereoCorrectedPath):
-            raise Exception('Failed to run stereo calibration process!')
+            raise Exception('Failed to run stereo calibration process - ' + exceptionText)
 
         print '\n-------------------------------------------------------------------------\n'
 

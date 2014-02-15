@@ -35,52 +35,71 @@
 #include <AlphaCube.h>
 
 
-  class IsisInterfaceLineScanRot : public asp::isis::IsisInterface, public vw::camera::CameraModel {
+/// Extension of CameraModel class interface which allows local (camera frame) rotations to be applied
+class LocalRotCameraModel : public vw::camera::CameraModel
+{
+public:
 
-  public:
-    IsisInterfaceLineScanRot(const std::string &file );
+  LocalRotCameraModel() {}
+  virtual ~LocalRotCameraModel() {}
 
-    virtual ~IsisInterfaceLineScanRot() {}
+  /// Additional function to apply an in-camera rotation during this operation
+  virtual vw::Vector2
+    point_to_pixel_rotated( vw::Vector3 const& point, vw::Vector3 const& rotAngles, int guessLine=-1) const = 0;
 
-    virtual std::string type()  { return "LineScan"; }
-    virtual std::string type() const { return "LineScan"; }
+  /// Additional function to apply an in-camera rotation during this operation
+  virtual vw::Vector3
+    pixel_to_vector_rotated( vw::Vector2 const& pix, vw::Vector3 const& rotAngles) const = 0;
+};
 
-    // Standard Methods
-    //-------------------------------------------------
+class IsisInterfaceLineScanRot : public asp::isis::IsisInterface, public LocalRotCameraModel
+{
 
-    virtual vw::Vector2
-      point_to_pixel( vw::Vector3 const& point ) const;
-    virtual vw::Vector3
-      pixel_to_vector( vw::Vector2 const& pix) const;
-    virtual vw::Vector3
-      camera_center( vw::Vector2 const& pix = vw::Vector2(1,1) ) const;
-    virtual vw::Quat
-      camera_pose( vw::Vector2 const& pix = vw::Vector2(1,1) ) const;
+public:
+  IsisInterfaceLineScanRot(const std::string &file );
 
-    /// Additional function to apply an in-camera rotation during this operation
-    vw::Vector2
-      point_to_pixel_rotated( vw::Vector3 const& point, vw::Vector3 const& rotAngles, int guessLine=-1) const;
+  virtual ~IsisInterfaceLineScanRot() {}
 
-    /// Returns the instrument and body matrices at the given time
-    bool getMatricesAtTime(const double et, vw::Matrix3x3 &R_inst, vw::Matrix3x3 &R_body);
+  virtual std::string type()       { return "LineScan"; }
+  virtual std::string type() const { return "LineScan"; }
 
-  protected:
+  // Standard Methods
+  //-------------------------------------------------
 
-    // Custom Variables
-    Isis::CameraDistortionMap *m_distortmap;
-    Isis::CameraFocalPlaneMap *m_focalmap;
-    Isis::CameraDetectorMap   *m_detectmap;
-    mutable Isis::AlphaCube   m_alphacube; // Doesn't use const
+  virtual vw::Vector2 point_to_pixel ( vw::Vector3 const& point ) const;
+  virtual vw::Vector3 pixel_to_vector( vw::Vector2 const& pix   ) const;
+  virtual vw::Vector3 camera_center  ( vw::Vector2 const& pix = vw::Vector2(1,1) ) const;
+  virtual vw::Quat    camera_pose    ( vw::Vector2 const& pix = vw::Vector2(1,1) ) const;
 
-  private:
+  /// Additional function to apply an in-camera rotation during this operation
+  virtual vw::Vector2
+    point_to_pixel_rotated( vw::Vector3 const& point, vw::Vector3 const& rotAngles, int guessLine=-1) const;
 
-    // Custom Fuctions
-    mutable vw::Vector2 m_c_location;
-    mutable vw::Vector3 m_center;
-    mutable vw::Quat m_pose;
-    void SetTime( vw::Vector2 const& px,
-                  bool calc=false ) const;
-  };
+  /// Additional function to apply an in-camera rotation during this operation
+  virtual vw::Vector3
+    pixel_to_vector_rotated( vw::Vector2 const& pix, vw::Vector3 const& rotAngles) const;
+
+
+  /// Returns the instrument and body matrices at the given time
+  bool getMatricesAtTime(const double et, vw::Matrix3x3 &R_inst, vw::Matrix3x3 &R_body);
+
+protected:
+
+  // Custom Variables
+  Isis::CameraDistortionMap *m_distortmap;
+  Isis::CameraFocalPlaneMap *m_focalmap;
+  Isis::CameraDetectorMap   *m_detectmap;
+  mutable Isis::AlphaCube   m_alphacube; // Doesn't use const
+
+private:
+
+  // Custom Fuctions
+  mutable vw::Vector2 m_c_location;
+  mutable vw::Vector3 m_center;
+  mutable vw::Quat m_pose;
+  void SetTime( vw::Vector2 const& px,
+                bool calc=false ) const;
+};
 
 
 

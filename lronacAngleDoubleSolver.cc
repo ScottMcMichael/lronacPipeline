@@ -344,40 +344,43 @@ size_t loadInputPointPairs(const Parameters &params, PointObsList &leftPixelPair
   std::string stereoIpFindPath = params.outputPrefix + "-stereoIpFindPixels.csv";
 
   // -- Adjacent cubes section (ipfind based matches) --
-  if (boost::filesystem::exists(boost::filesystem::path(mainIpFindPath)))
+  if (params.initialOnly == false) // Don't do any of this if we are only computing initial state
   {
-    // Point file already exists
-    printf("Loading list of matched pixels from file %s\n", mainIpFindPath.c_str());
-    if (!loadMatchingPixels(mainIpFindPath, overlapPairs))
-      return 0;
-  }
-  else // Point file does not exist
-  {
-    // If the left and right cubes were passed in, call ipfind in the overlap region to get points.
-    if ((params.leftFilePath.size() > 0) && (params.rightFilePath.size() > 0))
+    if (boost::filesystem::exists(boost::filesystem::path(mainIpFindPath)))
     {
-      printf("Searching for matching pixels in image overlap region\n");
-      if (!findMatchingPixels(params.leftFilePath, params.rightFilePath, mainIpFindPath, params.cropWidth, overlapPairs))
+      // Point file already exists
+      printf("Loading list of matched pixels from file %s\n", mainIpFindPath.c_str());
+      if (!loadMatchingPixels(mainIpFindPath, overlapPairs))
         return 0;
     }
-  }
-  if (boost::filesystem::exists(boost::filesystem::path(stereoIpFindPath)))
-  {
-    // Point file already exists
-    printf("Loading list of matched pixels from file %s\n", stereoIpFindPath.c_str());
-    if (!loadMatchingPixels(stereoIpFindPath, stereoOverlapPairs))
-      return 0;
-  }
-  else // Point file does not exist
-  {
-    // If the left and right stereo cubes were passed in, call ipfind in the overlap region to get points.
-    if ((params.leftStereoFilePath.size() > 0) && (params.rightStereoFilePath.size() > 0))
+    else // Point file does not exist
     {
-      printf("Searching for matching pixels in stereo image overlap region\n");
-      if (!findMatchingPixels(params.leftStereoFilePath, params.rightStereoFilePath, stereoIpFindPath, params.cropWidth, stereoOverlapPairs))
+      // If the left and right cubes were passed in, call ipfind in the overlap region to get points.
+      if ((params.leftFilePath.size() > 0) && (params.rightFilePath.size() > 0))
+      {
+        printf("Searching for matching pixels in image overlap region\n");
+        if (!findMatchingPixels(params.leftFilePath, params.rightFilePath, mainIpFindPath, params.cropWidth, overlapPairs))
+          return 0;
+      }
+    }
+    if (boost::filesystem::exists(boost::filesystem::path(stereoIpFindPath)))
+    {
+      // Point file already exists
+      printf("Loading list of matched pixels from file %s\n", stereoIpFindPath.c_str());
+      if (!loadMatchingPixels(stereoIpFindPath, stereoOverlapPairs))
         return 0;
     }
-  }
+    else // Point file does not exist
+    {
+      // If the left and right stereo cubes were passed in, call ipfind in the overlap region to get points.
+      if ((params.leftStereoFilePath.size() > 0) && (params.rightStereoFilePath.size() > 0))
+      {
+        printf("Searching for matching pixels in stereo image overlap region\n");
+        if (!findMatchingPixels(params.leftStereoFilePath, params.rightStereoFilePath, stereoIpFindPath, params.cropWidth, stereoOverlapPairs))
+          return 0;
+      }
+    }
+  } // End adjacent cubes section
 
   // -- Stereo cubes section (stereo based matches) --
   if (params.matchingLeftPointsPath.size() > 0)
@@ -397,18 +400,12 @@ size_t loadInputPointPairs(const Parameters &params, PointObsList &leftPixelPair
     printf("Loading list of matched pixels from file %s\n", params.matchingLeftCrossPointsPath.c_str());
     if (!loadMatchingPixels(params.matchingLeftCrossPointsPath, leftCrossPixelPairs))
       return false;
-//    // Add in the offsets to the X (sample/column) location to account for the image crop
-//    for (size_t i=0; i<leftCrossPixelPairs.leftObsList.size(); ++i)
-//      leftCrossPixelPairs.leftObsList[i][0] += 2531; //TODO: READ IN THESE OFFSETS!
   }
   if (params.matchingRightCrossPointsPath.size() > 0)
   {
     printf("Loading list of matched pixels from file %s\n", params.matchingRightCrossPointsPath.c_str());
     if (!loadMatchingPixels(params.matchingRightCrossPointsPath, rightCrossPixelPairs))
       return false;
-//    // Add in the offsets to the X (sample/column) location to account for the image crop
-//    for (size_t i=0; i<rightCrossPixelPairs.leftObsList.size(); ++i)
-//      rightCrossPixelPairs.leftObsList[i][0] += 2531;
   }
 
   // Total up all the loaded points
@@ -448,6 +445,16 @@ bool optimizeRotations(Parameters & params)
       return false;
     }
   }
+  else // No file given, make sure we don't need it!
+  {
+    if ( (params.matchingLeftPointsPath.size()      > 0) ||
+         (params.matchingLeftCrossPointsPath.size() > 0)  )
+    {
+      printf("Error: Specified input file requires left input image!\n");
+      return false;
+    }
+  }
+
   if (params.rightFilePath.size() > 0)
   {
     if (boost::filesystem::exists(boost::filesystem::path(params.rightFilePath)))
@@ -458,6 +465,16 @@ bool optimizeRotations(Parameters & params)
       return false;
     }
   }
+  else // No file given, make sure we don't need it!
+  {
+    if ( (params.matchingRightPointsPath.size()      > 0) ||
+         (params.matchingRightCrossPointsPath.size() > 0)  )
+    {
+      printf("Error: Specified input file requires right input image!\n");
+      return false;
+    }
+  }
+
   if (params.leftStereoFilePath.size() > 0)
   {
     if (boost::filesystem::exists(boost::filesystem::path(params.leftStereoFilePath)))
@@ -468,6 +485,16 @@ bool optimizeRotations(Parameters & params)
       return false;
     }
   }
+  else // No file given, make sure we don't need it!
+  {
+    if ( (params.matchingLeftPointsPath.size()       > 0) ||
+         (params.matchingRightCrossPointsPath.size() > 0)  )
+    {
+      printf("Error: Specified input file requires left stereo input image!\n");
+      return false;
+    }
+  }
+
   if (params.rightStereoFilePath.size() > 0)
   {
     if (boost::filesystem::exists(boost::filesystem::path(params.rightStereoFilePath)))
@@ -475,6 +502,15 @@ bool optimizeRotations(Parameters & params)
     else
     {
       printf("Error: input file %s is missing!\n", params.rightStereoFilePath.c_str());
+      return false;
+    }
+  }
+  else // No file given, make sure we don't need it!
+  {
+    if ( (params.matchingRightPointsPath.size()     > 0) ||
+         (params.matchingLeftCrossPointsPath.size() > 0)  )
+    {
+      printf("Error: Specified input file requires right stereo input image!\n");
       return false;
     }
   }
