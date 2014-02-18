@@ -617,7 +617,7 @@ def main(argsIn):
                                                    posOffsetCorrectedStereoLeftPath, 
                                                    stereoPrefixLeft, 400, carry)
 
-        # Extract a small number of matching pixel locations from the LE and RE disparity images ( < 300 pairs)
+        # Extract a small number of matching pixel locations from the LE disparity image ( < 300 pairs)
         pixelPairsLeftSmall  = extractPixelPairsFromStereoResults(disparityImageLeft, tempFolder, 
                                                                   'stereoPixelPairsLeftSmall.csv', 
                                                                   800, carry)
@@ -631,10 +631,23 @@ def main(argsIn):
 
 
 
-        # Get small number of matching pixels for the right side quickly
-        pixelPairsRightSmall = os.path.join(tempFolder, 'stereoPixelPairsRightSmall.csv')
-        getInterestPointPairs(posOffsetCorrectedRightPath, posOffsetCorrectedStereoRightPath, 
-                              pixelPairsRightSmall, expectedSurfaceElevation, carry)
+        ## Get small number of matching pixels for the right side quickly
+        #pixelPairsRightSmall = os.path.join(tempFolder, 'stereoPixelPairsRightSmall.csv')
+        #getInterestPointPairs(posOffsetCorrectedRightPath, posOffsetCorrectedStereoRightPath, 
+        #                      pixelPairsRightSmall, expectedSurfaceElevation, carry)
+
+
+        # Perform initial stereo step on two RE cubes to generate a large number of point correspondences
+        stereoPrefixRight   = os.path.join(tempFolder, 'stereoOutputRight/out')
+        disparityImageRight = callStereoCorrelation(posOffsetCorrectedRightPath, 
+                                                   posOffsetCorrectedStereoRightPath, 
+                                                   stereoPrefixRight, 400, carry)
+
+        # Extract a small number of matching pixel locations from the RE disparity image ( < 300 pairs)
+        pixelPairsRightSmall  = extractPixelPairsFromStereoResults(disparityImageRight, tempFolder, 
+                                                                  'stereoPixelPairsRightSmall.csv', 
+                                                                  800, carry)
+
 
         print '\n-------------------------------------------------------------------------\n'
 
@@ -690,6 +703,7 @@ def main(argsIn):
         try:
             numLeftCrossPairs  = getInterestPointPairs(leftPosCorrectedCropped, rightStereoPosCorrectedCropped, 
                                                        tempLeftCrossPixelPairs, expectedSurfaceElevation, carry)
+
             # Add in offset to the LE image so that the pixel coordinates are in the full, not cropped, frame
             IsisTools.modifyPixelPairs(tempLeftCrossPixelPairs, pixelPairsLeftCrossSmall, cropWidth, 0, 0, 0)
             usingLeftCross = True
@@ -827,14 +841,16 @@ def main(argsIn):
 
         print '\n-------------------------------------------------------------------------\n'
 
-        # Extract a large number of matching pixel locations (many thousands) from the LE/LE and RE/RE.
+        # Extract a large number of matching pixel locations (many thousands) from the LE/LE stereo output.
         # - The skip number is a row and column skip.
         pixelPairsLeftLarge = extractPixelPairsFromStereoResults(disparityImageLeft, tempFolder, 
-                                                                 'stereoPixelPairsLeftLarge.csv', 8, carry)
+                                                                 'stereoPixelPairsLeftLarge.csv', 12, carry)
 
-        # TODO: Many changes needed before RE images can be used here!
-        #pixelPairsRightLarge = extractPixelPairsFromStereoResults(disparityImageRight, tempFolder, 'stereoPixelPairsRightLarge.csv', 8, carry)
-
+        # Extract a large number of matching pixel locations (many thousands) from the RE/RE stereo output.
+        # - The skip number is a row and column skip.
+        pixelPairsRightLarge = extractPixelPairsFromStereoResults(disparityImageRight, tempFolder, 
+                                                                 'stereoPixelPairsRightLarge.csv', 12, carry)
+        
         # Compute the 3d coordinates for each pixel pair using the rotation and offset computed earlier
         # - All this step does is use stereo intersection to determine a lat/lon/alt coordinate for each pixel pair in the large data set.  No optimization is performed.
         largeGdcFolder = os.path.join(tempFolder, 'gdcPointsLargeComp/')
@@ -842,10 +858,10 @@ def main(argsIn):
             os.mkdir(largeGdcFolder)
         largeGdcPrefix = os.path.join(tempFolder, 'gdcPointsLargeComp/out')
         largeGdcFile   = largeGdcPrefix + '-initialGdcPoints.csv'
-        if (not os.path.exists(largeGdcFile)) or True:#carry:
+        if (not os.path.exists(largeGdcFile)) or carry:
             cmd = ('lronacAngleDoubleSolver --outputPrefix '            + largeGdcPrefix + 
                                           ' --matchingPixelsLeftPath '  + pixelPairsLeftLarge +
-                                          ' --matchingPixelsRightPath ' + pixelPairsRightSmall + 
+                                          ' --matchingPixelsRightPath ' + pixelPairsRightLarge + 
                                           ' --leftCubePath '            + posOffsetCorrectedLeftPath + 
                                           ' --leftStereoCubePath '      + posOffsetCorrectedStereoLeftPath +
                                           ' --rightCubePath '           + posOffsetCorrectedRightPath + 
@@ -857,7 +873,7 @@ def main(argsIn):
         else:
             print 'Skipping large GDC file creation step'
 
-        raise Exception('ntehuonthu')
+        carry = True
 
         prepTime = time.time()
         logging.info('pc_align prep finished in %f seconds', prepTime - sbaTime)
@@ -882,6 +898,7 @@ def main(argsIn):
 
         if not os.path.exists(pcAlignTransformPath):
             raise Exception('pc_align call failed!')
+
 
         # Copy the pc_align log to the output folder
         pcAlignLogPath = findOutputLog(pcAlignFolder)
