@@ -218,15 +218,21 @@ def readPositions(positionFilePath):
     #TODO: Read this from the file?
     MEAN_MOON_RADIUS = 1737400
 
-    isLolaFile = False
+    isLolaFile         = False
+    isPcAlignErrorFile = False
     f = open(positionFilePath, 'r')
     i = 0
     for line in f:
         # On first line check if this is a LOLA RDR file
-        if (i == 0) and (line.find('Coordinated_Universal_Time') == 0):
-            isLolaFile = True
-            print 'Detected LOLA RDR file'
-            continue # Skip this header line
+        if (i == 0):
+            if (line.find('Coordinated_Universal_Time') == 0):
+                isLolaFile = True
+                print 'Detected LOLA RDR file'
+                continue # Skip this header line
+            if (line.find('radius (meters)') > 0):
+                isPcAlignErrorFile = True
+                print 'Detected pc_align error file'
+                continue # Skip this header line
 
         if isLolaFile: # Pick out the correct fields
 
@@ -234,8 +240,15 @@ def readPositions(positionFilePath):
                 pointList.append(float(strings[1])) # lon
                 pointList.append(float(strings[2])) # lat
                 pointList.append(float(strings[3])*1000 - MEAN_MOON_RADIUS) # alt
+        
+        elif isPcAlignErrorFile: # pc_align error file
 
-        else: # Not a LOLA RDR file
+                strings = line.split(',')
+                pointList.append(float(strings[0])) # lon
+                pointList.append(float(strings[1])) # lat
+                pointList.append(float(strings[2]) - MEAN_MOON_RADIUS) # alt
+
+        else: # Default handling
             if line.find('#') < 0: # Skip lines containing the comment symbol
                 strings = line.split(',')
                 #print strings

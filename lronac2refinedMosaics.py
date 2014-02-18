@@ -37,22 +37,17 @@ class Usage(Exception):
 #--------------------------------------------------------------------------------
 
 # Generates a KML file to describe a set of GDC points on the moon
-def generateKmlFromGdcPoints(inputFolder, outputFolder, filename, pointSkip, color, size, forceOperation):
+def generateKmlFromGdcPoints(inputFolder, outputFolder, fileIn, fileOut, pointSkip, color, size, forceOperation):
 
-    # TODO: Clean up the way this works!!!
     # Determine input and output paths
-    inputPath      = os.path.join(inputFolder,  'SBA_check-outputGdcPoints.csv')
-    if not os.path.exists(inputPath):
-        inputPath = os.path.join(inputFolder,  'out-initialGdcPoints.csv') # Large GDC point set
-    if not os.path.exists(inputPath):
-        inputPath = os.path.join(inputFolder,  'dem-trans_reference.csv') # pc_align output
+    inputPath      = os.path.join(inputFolder,  fileIn)
     if not os.path.exists(inputPath):
         print ('=======> WARNING: Kml point generation could not find input in input folder ' + inputFolder)
         return False
 
-    outputFilename = os.path.splitext(filename)[0] + '.kml'
+    outputFilename = os.path.splitext(fileOut)[0] + '.kml'
     outputPath     = os.path.join(outputFolder, outputFilename)
-    kmlName        = os.path.splitext(filename)[0]
+    kmlName        = os.path.splitext(fileOut)[0]
 
 
     # Quit immediately if the output file already exists
@@ -282,12 +277,9 @@ def main(argsIn):
             cmdArgs = ['--input',  options.lolaPath, 
                        '--output', lolaKmlPath, 
                        '--name', ' lolaRdrPoints', 
-                       '--skip',   str(100), '--color', 'blue', '--size', 'small']
+                       '--skip',   str(4), '--color', 'green', '--size', 'small']
             print cmdArgs
             calibrationReport.main(cmdArgs)
-
-
-        carry = False
 
         # Set corrected image paths
         filename                 = os.path.splitext(options.leftPath)[0]    + '.geoCorrected.cub'
@@ -327,19 +319,21 @@ def main(argsIn):
 
         # Convert GDC output files into KML plots 
         # - This is just to help with debugging
-        #generateKmlFromGdcPoints(os.path.join(doubleCalWorkFolder, 'initialGdcCheck'),            tempFolder, 'pairGdcCheckInitial.csv',           1,    'blue', 'normal', carry)
-        #generateKmlFromGdcPoints(os.path.join(doubleCalWorkFolder, 'posCorrectGdcCheck'),         tempFolder, 'pairGdcCheckPos.csv',               1,    'green', 'normal',  carry)
-        #generateKmlFromGdcPoints(os.path.join(doubleCalWorkFolder, 'posCorrectStereoGdcCheck'),   tempFolder, 'pairGdcStereoCheckPos.csv',         1,    'green', 'normal',  carry)
-        generateKmlFromGdcPoints(os.path.join(doubleCalWorkFolder, 'stereoGlobalAdjustGdcCheck'), tempFolder, 'pairGdcCheckGlobalAdjustStero.csv', 1,    'blue', 'normal', carry)
-        generateKmlFromGdcPoints(os.path.join(doubleCalWorkFolder, 'pcAlignStereoGdcCheck'),      tempFolder, 'pairGdcCheckPcAlign.csv',           1,    'red', 'normal',  carry)
-        generateKmlFromGdcPoints(os.path.join(doubleCalWorkFolder, 'finalGdcCheck'),              tempFolder, 'pairGdcCheckFinal.csv',             1,    'white', 'normal', carry)
-        generateKmlFromGdcPoints(os.path.join(doubleCalWorkFolder, 'finalStereoGdcCheck'),        tempFolder, 'pairGdcCheckFinalStereo.csv',       1,    'white', 'normal',  carry)
-        generateKmlFromGdcPoints(os.path.join(doubleCalWorkFolder, 'gdcPointsLargeComp'),         tempFolder, 'inputGdcPoints.csv',                1000, 'blue', 'tiny', carry)
-        #generateKmlFromGdcPoints(os.path.join(doubleCalWorkFolder, 'initialGdcCheck'),            tempFolder, 'dem-trans_source.csv',              1000, 'blue', 'normal', , False)
-        generateKmlFromGdcPoints(os.path.join(doubleCalWorkFolder, 'pcAlignOutput'),              tempFolder, 'dem-trans_reference.csv',           1000, 'red', 'tiny',  carry)
+
+        #generateKmlFromGdcPoints(os.path.join(doubleCalWorkFolder, 'initialGdcCheck'),            tempFolder, 'SBA_check-outputGdcPoints.csv', 'pairGdcCheckInitial',           1,    'blue', 'normal', carry)
+        #generateKmlFromGdcPoints(os.path.join(doubleCalWorkFolder, 'posCorrectGdcCheck'),         tempFolder, 'SBA_check-outputGdcPoints.csv', 'pairGdcCheckPos',               1,    'green', 'normal',  carry)
+        #generateKmlFromGdcPoints(os.path.join(doubleCalWorkFolder, 'posCorrectStereoGdcCheck'),   tempFolder, 'SBA_check-outputGdcPoints.csv', 'pairGdcStereoCheckPos',         1,    'green', 'normal',  carry)
+        generateKmlFromGdcPoints(os.path.join(doubleCalWorkFolder, 'stereoGlobalAdjustGdcCheck'), tempFolder, 'SBA_check-outputGdcPoints.csv', 'pairGdcCheckGlobalAdjustStereo', 1,    'blue',  'normal',  carry)
+        generateKmlFromGdcPoints(os.path.join(doubleCalWorkFolder, 'pcAlignStereoGdcCheck'),      tempFolder, 'SBA_check-outputGdcPoints.csv', 'pairGdcCheckPcAlign',            1,    'red',    'normal', carry)
+        generateKmlFromGdcPoints(os.path.join(doubleCalWorkFolder, 'finalGdcCheck'),              tempFolder, 'SBA_check-outputGdcPoints.csv', 'pairGdcCheckFinal',              1,    'white',  'normal', carry)
+        generateKmlFromGdcPoints(os.path.join(doubleCalWorkFolder, 'finalStereoGdcCheck'),        tempFolder, 'SBA_check-outputGdcPoints.csv', 'pairGdcCheckFinalStereo',        1,    'white',  'normal', carry)
+        generateKmlFromGdcPoints(os.path.join(doubleCalWorkFolder, 'gdcPointsLargeComp'),         tempFolder, 'out-initialGdcPoints.csv',      'inputGdcPoints',                 80,   'blue',   'tiny',   carry)
+        #generateKmlFromGdcPoints(os.path.join(doubleCalWorkFolder, 'initialGdcCheck'),            tempFolder, 'dem-trans_source.csv', 'transformedPoints'              1000, 'blue', 'normal', , False)
+        generateKmlFromGdcPoints(os.path.join(doubleCalWorkFolder, 'pcAlignOutput'),              tempFolder, 'dem-trans_reference.csv',       'transformedGdcPoints',           80,   'red',    'tiny',   carry)
+        generateKmlFromGdcPoints(os.path.join(doubleCalWorkFolder, 'pcAlignOutput'),              tempFolder, 'dem-beg_errors.csv',            'beg-errors',                     2,    'yellow', 'tiny',   carry)
+        generateKmlFromGdcPoints(os.path.join(doubleCalWorkFolder, 'pcAlignOutput'),              tempFolder, 'dem-end_errors.csv',            'end-errors',                     2,    'green',  'tiny',   carry)
 
         print 'Finished generating KML plots'
-
 
         # Delay check for left path to allow debug KML files to be generated
         if caughtException or not os.path.exists(leftCorrectedPath) or not os.path.exists(rightStereoCorrectedPath):

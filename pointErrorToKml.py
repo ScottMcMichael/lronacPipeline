@@ -42,6 +42,9 @@ def readPositions(positionFilePath):
         print 'File ' + positionFilePath + ' is missing!'
         return []
 
+    #TODO: Read this from the file?
+    MEAN_MOON_RADIUS = 1737400 # from D_MOON
+
     pointList = []
 
     f = open(positionFilePath, 'r')
@@ -49,13 +52,22 @@ def readPositions(positionFilePath):
 
         if line.find('#') < 0: # Skip lines containing the comment symbol
             strings = line.split(',')
+            
             #print strings
-            lat        = float(strings[0])
-            lon        = float(strings[1])
-            lolaHeight = float(strings[2])
-            ourHeight  = float(strings[3])
-            diff       = float(strings[4])
-            thisPoint  = (lon, lat, lolaHeight, ourHeight, diff)
+            if (len(strings) < 5): # PC_align format
+                lat       = float(strings[1])
+                lon       = float(strings[0])
+                height    = float(strings[2]) - MEAN_MOON_RADIUS
+                diff      = float(strings[3])
+                thisPoint = (lon, lat, height, diff)
+            else: # lolaCompare format
+                lat        = float(strings[0])
+                lon        = float(strings[1])
+                lolaHeight = float(strings[2])
+                ourHeight  = float(strings[3])
+                diff       = float(strings[4])
+                #thisPoint  = (lon, lat, lolaHeight, diff, ourHeight)
+                thisPoint  = (lon, lat, ourHeight, diff, lolaHeight)
             pointList.append(thisPoint)
     f.close()
 
@@ -73,13 +85,13 @@ def generateKml(pointList, outputPath, pointSkip, maxErrorLimit, name, color):
     kml.hint = 'target=moon'
     
     # Compute the min and max point error
-    minError = pointList[0][4]
+    minError = pointList[0][3]
     maxError = minError
     for p in pointList:
-        if p[4] < minError:
-            minError = p[4]
-        if p[4] > maxError:
-            maxError = p[4]
+        if p[3] < minError:
+            minError = p[3]
+        if p[3] > maxError:
+            maxError = p[3]
     if (maxErrorLimit > 0): # Apply max error limit if used
         maxError = maxErrorLimit
     errorRange = maxError - minError
@@ -92,11 +104,14 @@ def generateKml(pointList, outputPath, pointSkip, maxErrorLimit, name, color):
     counter = 0
     for i in range (0, len(pointList), int(pointSkip)):
     
-        lon        = pointList[i][0]
-        lat        = pointList[i][1]
-        lolaHeight = pointList[i][2]
-        point = kml.newpoint(name=str(counter), coords=[(lon, lat, lolaHeight)],
+        lon    = pointList[i][0]
+        lat    = pointList[i][1]
+        height = pointList[i][2]
+        point = kml.newpoint(name=str(counter), coords=[(lon, lat, height)],
                               gxaltitudemode= simplekml.AltitudeMode.absolute)
+        
+        #print point
+        
         #point.style   = style
         point.extrude = 0
         counter       = counter + 1
@@ -106,7 +121,7 @@ def generateKml(pointList, outputPath, pointSkip, maxErrorLimit, name, color):
         point.style.iconstyle.icon.href = 'http://maps.google.com/mapfiles/kml/shapes/open-diamond.png'
         
         # Generate a color based on the error value:  white (low error) <--> red (high error)
-        thisError = pointList[i][4]
+        thisError = pointList[i][3]
         colorVal = int(255.0 - 255.0*(thisError - minError)/errorRange)
         if (colorVal < 0):
             colorVal = 0
@@ -131,7 +146,7 @@ def main(argsIn):
     
     try:
         try:
-            usage = "usage: pointErrorToKml.py [--help][--manual] inputPath outputPath\n  "
+            usage = "usage: pointErrorToKml.py [options] inputPath outputPath\n  "
             parser = optparse.OptionParser(usage=usage)
             parser.set_defaults(skip=1)
             parser.set_defaults(errorLimit=0)
@@ -149,6 +164,7 @@ def main(argsIn):
             raise Usage(msg)
     
         if len(args) != 2:
+            print usage
             raise Usage('Must pass in input and output paths!')
     
         print "Beginning processing....."

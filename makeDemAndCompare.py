@@ -231,16 +231,22 @@ def main(argsIn):
         else:
             print 'DEM file ' + hillshadePath + ' already exists, skipping hillshade step.'
 
+        hillshadeTime = time.time()
+        logging.info('DEM and hillshade finished in %f seconds', hillshadeTime - stereoTime)
+
 
         # Generate a map projected version of the left and right images
-        MAP_PROJECT_RESOLUTION = 0.5
+        MAP_PROJECT_RESOLUTION = 0.5 # Map resolution in meters
         mapProjectLeftPath     = os.path.join(outputFolder, 'mapProjLeft.tif')
         mapProjectRightPath    = os.path.join(outputFolder, 'mapProjRight.tif')
         
-        mapProjectImage(options.leftPath,  demPath, mapProjectLeftPath,  MAP_PROJECT_RESOLUTION, centerLat, carry)
-        mapProjectImage(options.rightPath, demPath, mapProjectRightPath, MAP_PROJECT_RESOLUTION, centerLat, carry)
+        print 'Skipping mapproject for now because it is so slow!'
+        #mapProjectImage(options.leftPath,  demPath, mapProjectLeftPath,  MAP_PROJECT_RESOLUTION, centerLat, carry)
+        #mapProjectImage(options.rightPath, demPath, mapProjectRightPath, MAP_PROJECT_RESOLUTION, centerLat, carry)
 
-        carry = True
+        mapProjectTime = time.time()
+        logging.info('Map project finished in %f seconds', mapProjectTime - hillshadeTime)
+
 
         # Call script to compare LOLA data with the DEM
         if options.lolaPath or carry:
@@ -256,7 +262,7 @@ def main(argsIn):
 
 
         statsTime = time.time()
-        logging.info('Final results finished in %f seconds', statsTime - stereoTime)
+        logging.info('Final results finished in %f seconds', statsTime - mapProjectTime)
 
         # Clean up temporary files
         if not options.keep:

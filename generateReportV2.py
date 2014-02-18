@@ -92,24 +92,30 @@ class Usage(Exception):
 # Grabs the output files from the supercomputer
 def grabResultFiles(localFolder, force):
 
-    supercomputerSourceFolder = '/u/smcmich1/data/lronacPipeline'
+    #supercomputerSourceFolder = '/u/smcmich1/data/lronacPipeline'
+    supercomputerSourceFolder = '/nobackupnfs2/oalexan1/scott'
 
-    # TODO: Update list with newer ASU data sets
     demFolderList = [ \
-                      'ARISTARCHU2',  'FEOKTISTOV',   'HORTENSIUS1',  'KINGCRATER2',   'LICHTENBER7',  'MRECRISIUM2',  'ORIENTALE2',    'SEISMCLAND',\
-                      'ARISTARCHU3',  'FRESH1',       'HORTENSIUS2',  'KINGCRATER3',   'LICHTENBER8',  'MRECRISIUM3',  'ORIENTALE3',    'SLIPHER1',\
-                      'ARISTARCHU4',  'FRESH3',       'HORTENSIUS3',  'KINGCRATER4',   'LICHTENBER9',  'MRINGENII1',   'PLANCKFLOOR',   'SOSIRILLE',\
-                      'ARISTARCHU5',  'FRESHMELT1',   'HORTENSIUS5',  'KUGLERRIDGE',   'LINNECRATER',  'MRINGENII2',   'PYTHAGORAS1',   'SPARIM1',\
-                      'BHABHAPLAIN',  'FRESHMELT2',   'HORTENSIUS6',  'LICHTENBER1',   'LUNA16',       'MRINGENII3',   'RANGER',        'SPARIM2',\
-                      'CMPTNBELK2',   'FRSHCRATER4',  'HORTENSIUS7',  'LICHTENBER10',  'LUNA20',       'MRINGENII4',   'REINER1',       'SPARIM3',\
-                      'CMPTNBELK3',   'FRSHCRATER5',  'IMBRIUM',      'LICHTENBER11',  'LUNA24',       'NEARLENTS1',   'REINER2',       'SPARIM4',\
-                      'COMPTONBELK',  'FRSHCRATER8',  'IMBRIUM2',     'LICHTENBER12',  'MARIUS1',      'NRTHCRTRI1',   'REINER3',       'SULPICIUS1',\
-                      'EIMMARTA',     'GRUITHUISE1',  'IMPACTMELT1',  'LICHTENBER13',  'MARIUS2',      'NRTHCRTRI2',   'REINER4',       'SULPICIUS2',\
-                      'ENDYMION',     'GRUITHUISE2',  'IMPACTMELT2',  'LICHTENBER2',   'MARIUS3',      'NRTHCRTRII',   'RUMKERDOME1',   'SULPICIUS3',\
-                      'ERATOSTHNS1',  'GRUITHUISE3',  'IMPACTMELT3',  'LICHTENBER3',   'MARIUS4',      'NRTHCRTRIII',  'RUMKERDOME2',   'VIRTANEN1',\
-                      'ESALL_CR1',    'GRUITHUISE4',  'INACALDERA1',  'LICHTENBER4',   'MOOREF1',      'OBLIVIONIS1',  'RUMKERDOME3',   'VIRTANEN2',\
-                      'ESALL_MP1',    'GRUITHUISE5',  'INACALDERA3',  'LICHTENBER5',   'MOOREF2',      'OPENHIMERF',   'RUMKERDOME4',   'VIRTANEN3',\
-                      'ESALL_SR12',   'HIGHESTPOIN',  'ISISOSIRIS',   'LICHTENBER6',   'MRECRISIUM1',  'ORIENTALE1',   'RUMKERDOMES5',  'VITELLO']
+                        'ARISTARCHU2',  'FECUNPIT',	     'HORTENSIUS1',	 'LARMORQ3',       'LICHTENBER9',   'MRECRISIUM2',	 'PRINZVENT',     'SPARIM4',    \
+                        'ARISTARCHU3',  'FEOKTISTOV',    'HORTENSIUS2',	 'LARMORQ4',       'LINNECRATER',   'MRECRISIUM3',	 'PYTHAGORAS1',   'SULPICIUS1', \
+                        'ARISTARCHU4',  'FRESH1',	     'HORTENSIUS3',	 'LARMORQ5',       'LOWELL1',	    'MRINGENII1',	 'RANGER',	      'SULPICIUS2', \
+                        'ARISTARCHU5',  'FRESH3',	     'HORTENSIUS5',	 'LASELMASIF1',    'LOWELL2',	    'MRINGENII2',	 'REINER1',       'SULPICIUS3', \
+                        'ATLAS1',	    'FRESHMELT1',    'HORTENSIUS6',	 'LASELMASIF2',    'LUNA16',	    'MRINGENII3',	 'REINER2',       'VIRTANEN1',  \
+                        'ATLAS2',	    'FRESHMELT2',    'HORTENSIUS7',	 'LASELMASIF3',    'LUNA20',	    'MRINGENII4',	 'REINER3',       'VIRTANEN2',  \
+                        'ATLAS5',	    'FRSHCRATER10',  'IMBRIUM',	     'LASELMASIF5',    'LUNA24',	    'NEARLENTS1',	 'REINER4',       'VIRTANEN3',  \
+                        'ATLAS6',	    'FRSHCRATER14',  'IMBRIUM2',	 'LICHTENBER1',    'LUNOKHOD2_1',   'NECHO2',	     'RUMKERDOME1',   'VITELLO',    \
+                        'BHABHAPLAIN',  'FRSHCRATER15',  'IMPACTMELT1',	 'LICHTENBER10',   'LUNOKHOD2_2',   'NEWCRATER1',	 'RUMKERDOME2',   'WEIRDCRTR',  \
+                        'CAUCHY',	    'FRSHCRATER4',   'IMPACTMELT2',	 'LICHTENBER11',   'MANILUS',	    'NRTHCRTRI1',	 'RUMKERDOME3', 
+                        'CMPLXSCRP',    'FRSHCRATER5',   'IMPACTMELT3',	 'LICHTENBER12',   'MARIUS1',	    'NRTHCRTRI2',	 'RUMKERDOME4', 
+                        'CMPTNBELK2',   'FRSHCRATER8',   'INACALDERA1',	 'LICHTENBER13',   'MARIUS2',	    'NRTHCRTRII',	 'RUMKERDOMES5',
+                        'CMPTNBELK3',   'GRUITHUISE1',   'INACALDERA3',	 'LICHTENBER2',    'MARIUS3',	    'NRTHCRTRIII',	 'SEARESGRBN',  
+                        'COMPTONBELK',  'GRUITHUISE2',   'ISISOSIRIS',	 'LICHTENBER3',    'MARIUS4',	    'OBLIVIONIS1',	 'SEISMCLAND',
+                        'COPERNGRAB',   'GRUITHUISE3',   'KINGCRATER2',	 'LICHTENBER4',    'MOOREF1',	    'OPENHIMERF',	 'SLIPHER1',
+                        'DALEMBERT',    'GRUITHUISE4',   'KINGCRATER3',	 'LICHTENBER5',    'MOOREF2',	    'ORIENTALE1',	 'SOSIRILLE',
+                        'EIMMARTA',     'GRUITHUISE5',   'KINGCRATER4',	 'LICHTENBER6',    'MOROZOVE',	    'ORIENTALE2',	 'SPARIM1',
+                        'ENDYMION',     'HANSTEENAL1',   'KUGLERRIDGE',	 'LICHTENBER7',    'MOSCOVNSE1',    'ORIENTALE3',	 'SPARIM2',
+                        'ERATOSTHNS1',  'HIGHESTPOIN',   'LARMORQ1',	 'LICHTENBER8',    'MRECRISIUM1',   'PLANCKFLOOR',	 'SPARIM3' ]
+
 
 
     # List of all the output files we want copied
@@ -119,8 +125,9 @@ def grabResultFiles(localFolder, force):
                   'results/LOLA_diff_stats.txt' ,\
                   'results/output-Log.txt' ,\
                   'results/pcAlignLog.txt' ,\
+                  'stdOutLog.txt' ,\
 # TODO: Option to only grab the small output files
-                  'results/outputHillshade.tif' ,\
+#                  'results/outputHillshade.tif' ,\
 #                  'results/p2d-DEM.tif' ,\
 #                  'results/p2d-IntersectionErr.tif',\
                   'workDir/refinement/lolaRdrPoints.kml' ,\
@@ -163,7 +170,8 @@ def grabResultFiles(localFolder, force):
         dirFile.close()
     
         # Use rsync to grab all the specified files at once
-        cmd = 'rsync -av --files-from=' + dirListFile + ' smcmich1@pfe23.nas.nasa.gov:/u/smcmich1/data/lronacPipeline/ ' + localFolder
+        #cmd = 'rsync -av --files-from=' + dirListFile + ' smcmich1@pfe23.nas.nasa.gov:/u/smcmich1/data/lronacPipeline/ ' + localFolder
+        cmd = 'rsync -av --files-from=' + dirListFile + ' smcmich1@pfe23.nas.nasa.gov:/nobackupnfs2/oalexan1/scott/ ' + localFolder
         print cmd
         os.system(cmd)
     
