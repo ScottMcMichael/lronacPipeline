@@ -393,7 +393,7 @@ bool getInitialStateEstimate(const PointObsList &leftRight,   // Main pair
   {
     vw::Vector2 leftPixel  = leftSRightS.leftObsList[i];
     vw::Vector2 rightPixel = leftSRightS.rightObsList[i];
-    computePointLocation(_leftCameraModel, _rightCameraModel, leftPixel, rightPixel, expectedSurfaceElevation, useStereo, pointLoc);
+    computePointLocation(_leftStereoCameraRotatedModel, _rightStereoCameraRotatedModel, leftPixel, rightPixel, expectedSurfaceElevation, useStereo, pointLoc);
 
     // Record the x/y/z value for this point
     for (size_t p=0; p<PARAMS_PER_POINT; ++p)
