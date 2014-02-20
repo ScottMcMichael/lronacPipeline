@@ -67,6 +67,7 @@ struct Parameters
   std::string rightFilePath;
   std::string outputPath;
 
+  double elevationGuess;
 };
 
 bool parseInputParams(int argc, char *argv[], Parameters &params)
@@ -74,7 +75,9 @@ bool parseInputParams(int argc, char *argv[], Parameters &params)
 
   po::options_description general_options("Options");
   general_options.add_options()
-    ("help,h",        "Display this help message");
+    ("help,h",        "Display this help message")
+    ("elevationGuess", po::value<double>(&params.elevationGuess)->default_value(0.0),
+                       "Estimate of the elevation in the image");
 
   po::options_description positional("");
     positional.add_options()
@@ -144,9 +147,10 @@ bool produceInterestPoints(const Parameters &params)
   double noData1 = -32767;
   double noData2 = -32767;
 
-  // Set up Datum object for the moon
+  // Set up Datum object for the moon, then apply the elevation guess
   vw::cartography::Datum datum("D_MOON");
-
+  datum.set_semi_major_axis(datum.semi_major_axis() + params.elevationGuess);
+  datum.set_semi_minor_axis(datum.semi_minor_axis() + params.elevationGuess);
 
   // Call function to find the matching interest points
   printf("Calling ipfind\n");
