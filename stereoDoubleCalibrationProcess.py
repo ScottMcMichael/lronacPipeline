@@ -293,7 +293,7 @@ def callStereoCorrelation(leftInputPath, rightInputPath, outputPrefix, correlati
 
 
 # Quickly obtains a list of matched pixel pairs between two images
-def getInterestPointPairs(leftInputPath, rightInputPath, outputPath, forceOperation):
+def getInterestPointPairs(leftInputPath, rightInputPath, outputPath, surfaceElevation=0, forceOperation=False):
 
     # Quit immediately if the output file already exists
     if (not forceOperation) and (os.path.exists(outputPath)):
@@ -302,7 +302,8 @@ def getInterestPointPairs(leftInputPath, rightInputPath, outputPath, forceOperat
 
         # Generate intermediate binary file
         binaryPath = outputPath + '.bin'
-        cmd = 'stereoIpFind '+ leftInputPath + ' ' + rightInputPath + ' ' + binaryPath
+        cmd = ('stereoIpFind '+ leftInputPath + ' ' + rightInputPath + ' ' + binaryPath +
+                              ' --elevationGuess ' + str(surfaceElevation))
         print cmd
         os.system(cmd)
 
@@ -589,7 +590,7 @@ def main(argsIn):
         # Get small number of matching pixels for the right side quickly
         pixelPairsRightSmall = os.path.join(tempFolder, 'stereoPixelPairsRightSmall.csv')
         getInterestPointPairs(posOffsetCorrectedRightPath, posOffsetCorrectedStereoRightPath, 
-                              pixelPairsRightSmall, carry)
+                              pixelPairsRightSmall, expectedSurfaceElevation, carry)
 
         print '\n-------------------------------------------------------------------------\n'
 
@@ -646,7 +647,7 @@ def main(argsIn):
         tempLeftCrossPixelPairs  = os.path.join(tempFolder, 'tempLeftCrossPixelPairs.csv')
         try:
             numLeftCrossPairs  = getInterestPointPairs(leftPosCorrectedCropped, rightStereoPosCorrectedCropped, 
-                                                       tempLeftCrossPixelPairs, carry)
+                                                       tempLeftCrossPixelPairs, expectedSurfaceElevation, carry)
             # Add in offset to the LE image so that the pixel coordinates are in the full, not cropped, frame
             IsisTools.modifyPixelPairs(tempLeftCrossPixelPairs, pixelPairsLeftCrossSmall, cropWidth, 0, 0, 0)
             usingLeftCross = True
@@ -660,7 +661,7 @@ def main(argsIn):
         tempRightCrossPixelPairs  = os.path.join(tempFolder, 'tempRightCrossPixelPairs.csv')
         try:
             numRightCrossPairs = getInterestPointPairs(leftStereoPosCorrectedCropped, rightPosCorrectedCropped, 
-                                                       tempRightCrossPixelPairs, carry)
+                                                       tempRightCrossPixelPairs, expectedSurfaceElevation, carry)
             # Add in offset to the LE image so that the pixel coordinates are in the full, not cropped, frame
             IsisTools.modifyPixelPairs(tempRightCrossPixelPairs, pixelPairsRightCrossSmall, cropWidth, 0, 0, 0)
             usingRightCross = True
