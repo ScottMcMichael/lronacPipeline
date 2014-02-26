@@ -46,9 +46,9 @@ def compareDemToLola(lolaPath, demPath, outputPath, csvPath, force):
         os.system(cmd)
 
     # Make KML plot of the point errors
-    kmlPath = os.path.splitext(outputPath)[0] + '.kml'
+    kmlPath = os.path.splitext(csvPath)[0] + '.kml'
     demName = os.path.dirname(demPath)
-    cmdArgs = [csvPath, kmlPath, '--name', demName]
+    cmdArgs = [csvPath, kmlPath, '--name', demName, '--skip', 4, '--errorLimit', 10]
     pointErrorToKml.main(cmdArgs)
     
     return True
@@ -185,11 +185,12 @@ def main(argsIn):
         # - This step takes a really long time.
 
         stereoOutputPrefix = os.path.join(tempFolder, 'stereoWorkDir/stereo')
+        stereoOutputFolder = os.path.join(tempFolder, 'stereoWorkDir')
         pointCloudPath     = stereoOutputPrefix + '-PC.tif'
         if (not os.path.exists(pointCloudPath)) or carry:
             # TODO: Test out with higher quality subpixel-mode 2
-            cmd = ('parallel_stereo --corr-timeout 400 --alignment affineepipolar --subpixel-mode 1' +
-                                  ' --disable-fill-holes ' +  options.leftPath + ' ' + options.rightPath + 
+            cmd = ('parallel_stereo --corr-timeout 400 --alignment affineepipolar --subpixel-mode 1 ' +
+                                  options.leftPath + ' ' + options.rightPath + 
                                   ' ' + stereoOutputPrefix + ' --processes 8 --threads-multiprocess 4' +
                                   ' --threads-singleprocess 32 --compute-error-vector')
             print cmd
@@ -247,7 +248,6 @@ def main(argsIn):
         mapProjectTime = time.time()
         logging.info('Map project finished in %f seconds', mapProjectTime - hillshadeTime)
 
-
         # Call script to compare LOLA data with the DEM
         if options.lolaPath or carry:
             lolaDiffStatsPath  = os.path.join(outputFolder, 'LOLA_diff_stats.txt')
@@ -269,7 +269,8 @@ def main(argsIn):
             print 'Removing temporary files'
             IsisTools.removeIfExists(mainMosaicCroppedPath)
             IsisTools.removeIfExists(stereoMosaicCroppedPath)
-            IsisTools.removeIntermediateStereoFiles(stereoOutputPrefix)
+            #IsisTools.removeIntermediateStereoFiles(stereoOutputPrefix) # Limited clear
+            IsisTools.removeFolderIfExists(stereoOutputFolder) # Larger clear
             #if (hadToCreateTempFolder): Not done since stereo output needs to be retained
             #    IsisTools.removeFolderIfExists(tempFolder)
 

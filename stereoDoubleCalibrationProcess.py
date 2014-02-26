@@ -367,10 +367,10 @@ def evaluateAccuracy(leftCubePath, rightCubePath, ipFindOutputPath, workDir=''):
             sumDistance = sumDistance + distance
             count = count + 1.0
         i = i + 1
-    
+   
     if (i == 0):
         raise Exception("Can't evaluate pixel pairs, match file " + ipFindOutputPath + ' is empty!')
-    
+
     # Determine the mean distance
     meanDistance = sumDistance / count
     return meanDistance
@@ -1028,7 +1028,6 @@ def main(argsIn):
             # Remove local transform folders
             IsisTools.removeFolderIfExists(mainLocalWorkDir)
             IsisTools.removeFolderIfExists(stereoLocalWorkDir)
-
             ## Remove check folders
             #IsisTools.removeFolderIfExists(os.path.join(tempFolder, 'pcAlignStereoGdcCheck'))
             #IsisTools.removeFolderIfExists(os.path.join(tempFolder, 'stereoGlobalAdjustGdcCheck'))

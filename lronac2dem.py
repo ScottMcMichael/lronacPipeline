@@ -131,9 +131,8 @@ def main():
         filename         = os.path.splitext(options.stereoLeft)[0] + '.correctedMosaic.cub'
         stereoMosaicPath = os.path.join(tempFolder, os.path.basename(filename))
 
-
         # Call lronac2refinedMosaics.py
-        if (not os.path.exists(mainMosaicPath) or not os.path.exists(stereoMosaicPath)):
+        if (not os.path.exists(mainMosaicPath) or not os.path.exists(stereoMosaicPath)):    
             refineTemp = os.path.join(tempFolder, 'refinement')
             cmdArgs = ['--left',          options.leftPath,
                        '--right',         options.rightPath,
@@ -147,11 +146,12 @@ def main():
                 cmdArgs.append('--keep')
             print cmdArgs
             lronac2refinedMosaics.main(cmdArgs)
-            
+        
         # Copy the pc_align log file to the output folder
         pcAlignLogPath = os.path.join(tempFolder, 'pcAlignLog.txt')
         shutil.copyfile(pcAlignLogPath, os.path.join(outputFolder, 'pcAlignLog.txt'))
 
+        # Check that we successfully created the output files
         if (not os.path.exists(mainMosaicPath) or not os.path.exists(stereoMosaicPath)):
             raise Exception('lronac2refinedMosaics failed to produce mosaics!')
 

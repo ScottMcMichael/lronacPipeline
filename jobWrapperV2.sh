@@ -52,6 +52,6 @@ OUTPUT_FOLDER=$INPUT_FOLDER/results
 # Now call the lronac2dem.py function with the correct inputs
 lronac2dem.py --left $LEFT_IMG --right $RIGHT_IMG --stereo-left $LEFT_S_IMG --stereo-right $RIGHT_S_IMG --lola $LOLA_FILE_OUT --asu $ASU_FILE --workDir $WORKDIR --output-folder $OUTPUT_FOLDER
 
-exit 0
+
 
 
