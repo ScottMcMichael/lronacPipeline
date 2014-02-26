@@ -295,7 +295,8 @@ def main(argsIn):
         caughtException = False
         doubleCalWorkFolder = os.path.join(tempFolder, 'doubleCal')
         try:
-          if (not os.path.exists(leftCorrectedPath)) or carry:
+          if ( not os.path.exists(leftCorrectedPath)       or not os.path.exists(rightCorrectedPath)       or 
+               not os.path.exists(leftStereoCorrectedPath) or not os.path.exists(rightStereoCorrectedPath) or carry ):
               print '\n=============================================================================\n'
               cmdArgs = ['--left',          options.leftPath, 
                          '--right',         options.rightPath, 
@@ -313,9 +314,9 @@ def main(argsIn):
            
               print '\n============================================================================\n'
 
-        except: 
+        except Exception, e: 
             caughtException = True
-            print 'Caught an exception!'
+            print 'Caught an exception: ' + str(e)
 
         # Convert GDC output files into KML plots 
         # - This is just to help with debugging
@@ -429,8 +430,10 @@ def main(argsIn):
             IsisTools.removeIfExists(rightNoprojPath)
             IsisTools.removeIfExists(leftStereoNoprojPath)
             IsisTools.removeIfExists(rightStereoNoprojPath)
-            IsisTools.removeFolderIfExists(mainMosaicWorkDir)
-            IsisTools.removeFolderIfExists(stereoMosaicWorkDir)
+            #IsisTools.removeFolderIfExists(mainMosaicWorkDir)
+            #IsisTools.removeFolderIfExists(stereoMosaicWorkDir)
+            IsisTools.removeIfExists(outputPathMain)
+            IsisTools.removeIfExists(outputPathStereo)
             #if (hadToCreateTempFolder):
             #    IsisTools.removeFolderIfExists(tempFolder)
 

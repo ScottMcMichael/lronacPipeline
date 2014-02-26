@@ -120,8 +120,10 @@ def grabResultFiles(localFolder, force):
 
     # List of all the output files we want copied
     fileList = [  'results/ASU_LOLA_diff_points.csv', \
+                  'results/ASU_LOLA_diff_points.kml', \
                   'results/ASU_LOLA_diff_stats.txt' ,\
                   'results/LOLA_diff_points.csv', \
+                  'results/LOLA_diff_points.kml', \
                   'results/LOLA_diff_stats.txt' ,\
                   'results/output-Log.txt' ,\
                   'results/pcAlignLog.txt' ,\
@@ -132,7 +134,9 @@ def grabResultFiles(localFolder, force):
 #                  'results/p2d-IntersectionErr.tif',\
                   'workDir/refinement/lolaRdrPoints.kml' ,\
                   'workDir/refinement/inputGdcPoints.kml' ,\
-                  'workDir/refinement/dem-trans_reference.kml' ,\
+                  'workDir/refinement/transformedGdcPoints.kml' ,\
+                  'workDir/refinement/beg-errors.kml' ,\
+                  'workDir/refinement/end-errors.kml' ,\
                   'workDir/refinement/pairGdcCheckFinal.kml' ,\
                   'workDir/refinement/pairGdcCheckFinalStereo.kml']
 
@@ -380,9 +384,9 @@ def generatePlots(dataFolder):
     condensedFile     = open(condensedDataPath, 'w')
     print 'Writing condensed result file ' + condensedDataPath
     i = 0
-    condensedFile.write('Data_set,  Us_vs_Lola,  ASU_vs_Lola\n')
+    condensedFile.write('Data_set,  Us_vs_Lola,  ASU_vs_Lola,  Change\n')
     for f in usedFolderList:
-        condensedFile.write(f + ', ' + str(lolaMeanList[i]) + ', ' + str(lolaAsuMeanList[i]) + '\n')
+        condensedFile.write(f + ', ' + str(lolaMeanList[i]) + ', ' + str(lolaAsuMeanList[i]) + ', ' + str(lolaMeanList[i] - lolaAsuMeanList[i]) + '\n')
         i = i + 1
     condensedFile.close()
     
@@ -418,9 +422,9 @@ def generatePlots(dataFolder):
     plt.ylabel('Difference in meters')
     plt.xlabel('Percent of pixels less than difference')
     plt.title('Us vs LOLA pixel percentages for all samples')
-    lgd = plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    #lgd = plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
     print 'Writing plot ' + lolaComparisonPath
-    plt.savefig(lolaComparisonPath, bbox_extra_artists=[lgd], bbox_inches='tight')
+    plt.savefig(lolaComparisonPath)#, bbox_extra_artists=[lgd], bbox_inches='tight')
     plt.clf()
     
     
@@ -446,9 +450,9 @@ def generatePlots(dataFolder):
     plt.ylabel('Difference in meters')
     plt.xlabel('Percent of pixels less than difference')
     plt.title('LOLA vs ASU pixel percentages for all samples')
-    lgd = plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    #lgd = plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
     print 'Writing plot ' + lolaAsuComparisonPath
-    plt.savefig(lolaAsuComparisonPath, bbox_extra_artists=[lgd], bbox_inches='tight')
+    plt.savefig(lolaAsuComparisonPath)#, bbox_extra_artists=[lgd], bbox_inches='tight')
     plt.clf()    
     
     # Compute the standard deviations for LOLA and ASU in each percentile
@@ -492,9 +496,13 @@ def generatePlots(dataFolder):
 
     # Now plot the mean error for each folder
     yMin = 0
-    yMax = 6
+    yMax = 10
     xAxis = np.arange(len(lolaMeanList))
     barwidth = 0.2
+    # Sort the values according to the ASU error
+    zippedValues = zip(lolaAsuMeanList, lolaMeanList, usedFolderList)
+    zippedValues.sort()
+    lolaAsuMeanList, lolaMeanList, usedFolderList = zip(*zippedValues)
     plt.bar(xAxis+1*barwidth, lolaMeanList,    barwidth, color='g', label='us vs LOLA')
     plt.bar(xAxis+2*barwidth, lolaAsuMeanList, barwidth, color='b', label='ASU vs LOLA')
     plt.xticks(xAxis+.5, usedFolderList, size='small', rotation='vertical')

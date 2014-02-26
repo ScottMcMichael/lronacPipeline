@@ -345,9 +345,7 @@ def evaluateAccuracy(leftCubePath, rightCubePath, ipFindOutputPath, workDir=''):
     sumDistance = 0.0
     count       = 0.0
     for line in f:
-        i = i + 1
         if i % lineSkip == 0: # Compare locations on a sampling of lines
-            i = 0
             # Get the matching pixel coordinates from this line
             leftSample, leftLine, rightSample, rightLine = line.split(',')
             
@@ -368,6 +366,10 @@ def evaluateAccuracy(leftCubePath, rightCubePath, ipFindOutputPath, workDir=''):
             #print 'Distance = %.2f' % distance
             sumDistance = sumDistance + distance
             count = count + 1.0
+        i = i + 1
+    
+    if (i == 0):
+        raise Exception("Can't evaluate pixel pairs, match file " + ipFindOutputPath + ' is empty!')
     
     # Determine the mean distance
     meanDistance = sumDistance / count
@@ -994,10 +996,10 @@ def main(argsIn):
             IsisTools.removeIfExists(leftStereoPosCorrectedCropped)
             IsisTools.removeIfExists(rightStereoPosCorrectedCropped)
 
-            # Remove all the SBA files
-            fileList = [ f for f in os.listdir(tempFolder) if f.startswith("SBA_solution") ]
-            for f in fileList:
-                IsisTools.removeIfExists(os.path.join(tempFolder, f))
+            ## Remove all the SBA files
+            #fileList = [ f for f in os.listdir(tempFolder) if f.startswith("SBA_solution") ]
+            #for f in fileList:
+            #    IsisTools.removeIfExists(os.path.join(tempFolder, f))
 
             # Remove stereo corrected files
             IsisTools.removeIfExists(leftStereoAdjustedPath)
@@ -1006,8 +1008,8 @@ def main(argsIn):
             IsisTools.removeFolderIfExists(rightSteroCorrectWorkDir)
             # Clean pc_align steps
             IsisTools.removeIfExists(pixelPairsLeftLarge)
-            IsisTools.removeFolderIfExists(largeGdcFolder)
-            IsisTools.removeFolderIfExists(pcAlignFolder)
+            #IsisTools.removeFolderIfExists(largeGdcFolder)
+            #IsisTools.removeFolderIfExists(pcAlignFolder)
             # Clean out final file correction
             IsisTools.removeIfExists(leftCkPath)
             IsisTools.removeIfExists(leftSpkPath)
@@ -1027,11 +1029,11 @@ def main(argsIn):
             IsisTools.removeFolderIfExists(mainLocalWorkDir)
             IsisTools.removeFolderIfExists(stereoLocalWorkDir)
 
-            # Remove check folders
-            IsisTools.removeFolderIfExists(os.path.join(tempFolder, 'pcAlignStereoGdcCheck'))
-            IsisTools.removeFolderIfExists(os.path.join(tempFolder, 'stereoGlobalAdjustGdcCheck'))
-            IsisTools.removeFolderIfExists(os.path.join(tempFolder, 'finalGdcCheck'))
-            IsisTools.removeFolderIfExists(os.path.join(tempFolder, 'finalStereoGdcCheck'))
+            ## Remove check folders
+            #IsisTools.removeFolderIfExists(os.path.join(tempFolder, 'pcAlignStereoGdcCheck'))
+            #IsisTools.removeFolderIfExists(os.path.join(tempFolder, 'stereoGlobalAdjustGdcCheck'))
+            #IsisTools.removeFolderIfExists(os.path.join(tempFolder, 'finalGdcCheck'))
+            #IsisTools.removeFolderIfExists(os.path.join(tempFolder, 'finalStereoGdcCheck'))
 
             #if (hadToCreateTempFolder):
             #    IsisTools.removeFolderIfExists(tempFolder)

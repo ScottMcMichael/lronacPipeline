@@ -429,6 +429,7 @@ def getPixelLocInCube(cubePath, sample, line, workDir=''):
 
     # Check that we created the temporary file
     if not os.path.exists(tempTextPath):
+        print cmd
         raise Exception('campt failed to create temporary file ' + tempTextPath)
         
     # Read in the output file to extract the pixel coordinates

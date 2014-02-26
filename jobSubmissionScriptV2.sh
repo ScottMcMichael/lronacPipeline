@@ -4,11 +4,25 @@
 
 ## Each job is one compute node on one input folder
 
+# Return the current number of active PBS jobs
+function getNumActiveJobs(){
+  NUM_LINES="qstat -u smcmich1 | wc -l"
+  NUM_TASKS=$((NUM_LINES - 3))
+  return $NUM_TASKS
+}
+
+
+#---------------------------------------------
+
+DATA_FOLDER=/nobackupnfs2/oalexan1/scott
+#DATA_FOLDER=/u/smcmich1/data/lronacPipeline
+
+
 # Move to data folder
-cd /u/smcmich1/data/lronacPipeline
+cd $DATA_FOLDER
 
 # Find all the files with the .lola data points downloaded
-FILES=$(find . -name '*.csv')
+FILES=$(find . -name 'NAC_DTM*')
 
 #echo $FILES
 
@@ -16,7 +30,9 @@ FILES=$(find . -name '*.csv')
 cd /u/smcmich1/projects/lronacPipeline
 
 # Limit number of batch jobs to submit
-declare -i LIMIT=4
+SIMULTANEOUS_JOB_LIMIT=8
+SLEEP_TIME=300 # Check number of active processes every five minutes
+declare -i LIMIT=8
 declare -i ONE=1
 
 for f in $FILES
@@ -27,29 +43,40 @@ do
     PRETTY_NAME=${LOCAL_FOLDER:2}
     
     # This is the full path to the data set
-    FULL_DIRECTORY=/u/smcmich1/data/lronacPipeline/$PRETTY_NAME
+    FULL_DIRECTORY=$DATA_FOLDER/$PRETTY_NAME
 
-    STD_OUT_PATH=/u/smcmich1/data/lronacPipeline/$PRETTY_NAME/stdOutLog.txt
-    ERR_OUT_PATH=/u/smcmich1/data/lronacPipeline/$PRETTY_NAME/errorLog.txt
+    STD_OUT_PATH=$FULL_DIRECTORY/stdOutLog.txt
+    ERR_OUT_PATH=$FULL_DIRECTORY/errorLog.txt
 
     # Only run if the last output file is not present
     ASU_STATS_FILE=$FULL_DIRECTORY/results/ASU_LOLA_diff_stats.txt
-    echo $ASU_STATS_FILE
+    #echo $ASU_STATS_FILE
     if [ ! -e "$ASU_STATS_FILE" ]; then
         echo "Running script for $PRETTY_NAME"
+
+
+        # Check the number of currently running jobs
+        NUM_ACTIVE_JOBS=getNumActiveJobs()
+        do
+            if [ $NUM_ACTIVE_JOBS -lt $SIMULTANEOUS_JOB_LIMIT]
+       
+                # Submit the job using a westmere (cheap) CPU
+                qsub -q normal -N ${PRETTY_NAME} -l walltime="8:00:00" -W group_list=s1219 -j oe -e $ERR_OUT_PATH -o $STD_OUT_PATH -S /bin/bash -V -C $PWD -l select=1:ncpus=12:model=wes -m eb -- /u/smcmich1/projects/lronacPipeline/jobWrapperV2.sh $FULL_DIRECTORY       
+                    
+            else # Wait for a while
+                CURRENT_TIME=date +"%T"
+                echo "$CURRENT_TIME - Waiting for a job to finish."
+                sleep $SLEEP_TIME    
+                NUM_ACTIVE_JOBS=getNumActiveJobs()
+            fi
+        done # End waiting loop
         
-        # Submit the job using a westmere (cheap) CPU
-        qsub -q normal -N ${PRETTY_NAME} -l walltime="8:00:00" -W group_list=s1219 -j oe -e $ERR_OUT_PATH -o $STD_OUT_PATH -S /bin/bash -V -C $PWD -l select=1:ncpus=12:model=wes -m eb -- /u/smcmich1/projects/lronacPipeline/jobWrapperV2.sh $FULL_DIRECTORY
-
-    else
-        echo $PRETTY_NAME = Already finished!
+#        LIMIT=$(($LIMIT-$ONE))        
     fi
 
-    LIMIT=$(($LIMIT-$ONE))
-
-    if [ $LIMIT -eq  0 ]; then
-        exit 0
-    fi
+    #if [ $LIMIT -eq  0 ]; then
+    #    exit 0
+    #fi
 
 done
 

@@ -19,12 +19,10 @@
 import sys
 
 #sys.path.append('/home/smcmich1/.local/lib/python2.7/site-packages/')
-from bs4 import BeautifulSoup
+#from bs4 import BeautifulSoup
+from BeautifulSoup import BeautifulSoup
 
 import os, glob, optparse, re, shutil, subprocess, string, time, urllib, urllib2
-
-#TODO: Clean this up!
-#sys.path.append('/home/smcmich1/programs/mechanize-0.2.5/')
 
 import mechanize
 
