@@ -8,10 +8,24 @@
 # Return the current number of active PBS jobs
 function getNumActiveJobs(){
   NUM_LINES=$(qstat -u smcmich1 | wc -l)
-  NUM_TASKS=$((NUM_LINES - 3))
-  echo $NUM_TASKS
+  if [ $NUM_LINES -eq 0 ]; then
+      echo 0
+  else # Lines returned means at least one active job
+      NUM_TASKS=$((NUM_LINES - 3)) # num tasks = num lines - header lines
+      echo $NUM_TASKS
+  fi
 }
 
+# Check if the given job name is already in the queue
+function checkForJobName(){
+
+ NUM_LINES=$(qstat -u smcmich1 | grep $1 | wc -l)
+ if [ $NUM_LINES -gt 0 ]; then # Job found
+     echo 1 
+ else # Job not found in queue
+     echo 0
+ fi
+}
 
 #---------------------------------------------
 
@@ -31,8 +45,8 @@ echo Obtained file list
 cd /u/smcmich1/projects/lronacPipeline
 
 # Limit number of batch jobs to submit
-SIMULTANEOUS_JOB_LIMIT=5
-SLEEP_TIME=60 # Check number of active processes every five minutes
+SIMULTANEOUS_JOB_LIMIT=6
+SLEEP_TIME=120 # Check number of active processes every five minutes
 declare -i LIMIT=8
 declare -i ONE=1
 
@@ -52,10 +66,10 @@ do
     STD_OUT_PATH=$FULL_DIRECTORY/stdOutLog.txt
     ERR_OUT_PATH=$FULL_DIRECTORY/errorLog.txt
 
-    # Only run if the last output file is not present
+    # Only run if the last output file is not present and this job is not in the queue
     ASU_STATS_FILE=$FULL_DIRECTORY/results/ASU_LOLA_diff_stats.txt
     #echo $ASU_STATS_FILE
-    if [ ! -e "$ASU_STATS_FILE" ]; then
+    if [ ! -e "$ASU_STATS_FILE" ] && [ $(checkForJobName $PRETTY_NAME) -eq 0 ]; then
 
         # Check the number of currently running jobs
         NUM_ACTIVE_JOBS=$(getNumActiveJobs)
@@ -67,7 +81,7 @@ do
                 echo "Running script for $PRETTY_NAME"
       
                 # Submit the job using a westmere (cheap) CPU
-                echo qsub -q normal -N ${PRETTY_NAME} -l walltime="8:00:00" -W group_list=s1219 -j oe -e $ERR_OUT_PATH -o $STD_OUT_PATH -S /bin/bash -V -C $PWD -l select=1:ncpus=12:model=wes -m eb -- /u/smcmich1/projects/lronacPipeline/jobWrapperV2.sh $FULL_DIRECTORY       
+                qsub -q normal -N ${PRETTY_NAME} -l walltime="8:00:00" -W group_list=s1219 -j oe -e $ERR_OUT_PATH -o $STD_OUT_PATH -S /bin/bash -V -C $PWD -l select=1:ncpus=12:model=wes -m eb -- /u/smcmich1/projects/lronacPipeline/jobWrapperV2.sh $FULL_DIRECTORY       
                break # Move on to the next data set
             else # Wait for a while
                 CURRENT_TIME=$(date +"%T")
@@ -86,6 +100,7 @@ do
 
 done
 
+echo jobSubmissionScript completed!
 
 # Sample individual submissions
 
