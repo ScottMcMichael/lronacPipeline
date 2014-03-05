@@ -610,9 +610,7 @@ def main(argsIn):
         print 'Input image size = ' + str(imageSize)
         logging.info('Image size = %s', str(imageSize))
         if (imageSize[0] < 5000):
-            logging.info('Stopping processing on half-width image until they are tested!')
-            raise Exception('Stopping processing on half-width image until they are tested!')
-        
+            logging.info('This data is half-width!')
         
         cropWidth     = imageSize[0] / 2
         isisCropStart = cropWidth + 1 # One-based starting pixel for ISIS LE crop
