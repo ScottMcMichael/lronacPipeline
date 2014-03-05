@@ -171,10 +171,38 @@ def main():
         print cmdArgs
         makeDemAndCompare.main(cmdArgs)
 
+        # Compress the input files to save disk space
+        compressedPath = os.path.join(options.outputFolder, 'compressedInputs.tar.bz2')
+        if not os.path.exists(compressedPath):
+            cmd = ('tar -jcvf ' + compressedPath + ' ' + options.leftPath   + ' ' + options.rightPath
+                                                 + ' ' + options.stereoLeft + ' ' + options.stereoRight
+                                                 + ' ' + options.lolaPath   + ' ' + options.asuPath)
+            print cmd
+            os.system(cmd)
+
+
         if not options.keep:
             print 'Deleting temporary files'
             IsisTools.removeIfExists(mainMosaicPath)
             IsisTools.removeIfExists(stereoMosaicPath)
+
+        #TODO: Will need a way to do this with no ASU info
+        # Get the data set name
+        startPos    = options.asuPath.rfind('_') + 1
+        stopPos     = options.asuPath.rfind('.') - 1
+        dataSetName = options.asuPath[startPos:endPos]
+
+        # Generate label file
+        labelPath = os.path.join(outputFolder, 'labelFile.txt')
+        labelFile = open(labelPath, 'w')
+        labelFile.write('Data set: ' + dataSetName    + '\n')
+        labelFile.write('Input Files:\n')
+        labelFile.write(options.leftPath    + '\n')
+        labelFile.write(options.rightPath   + '\n')
+        labelFile.write(options.stereoLeft  + '\n')
+        labelFile.write(options.stereoRight + '\n')
+        #TODO: Store more infomation here!  Use head or gdalinfo commands.
+        labelFile.close()
 
 
         endTime = time.time()

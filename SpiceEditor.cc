@@ -142,7 +142,7 @@ bool editSpiceFile(const Parameters &params)
   const std::string EARTH_STRING        = "earth";
 
   // Output kernel files have this many entries
-  // - Could definately do something better than hard-coding this number
+  // - Could definitely do something better than hard-coding this number
   const int NUM_STEPS = 5000; 
   
   // Interpolation buffer in seconds added to each end of cube time
@@ -210,6 +210,10 @@ bool editSpiceFile(const Parameters &params)
     //printf("maxSourceCubeEt = %lf\n", maxSourceCubeEt);
   }
 
+  ////DEBUG
+  //// Set up georeference class with default moon datum
+  //vw::cartography::Datum datum("D_MOON");
+
   // Global transforms get stored here
   SpiceDouble planetFixed_from_planet_R[3][3];
   SpiceDouble planetFixed_from_planet_T[3];
@@ -229,6 +233,66 @@ bool editSpiceFile(const Parameters &params)
       return false;
 
   }
+
+/*
+  // First line from the GDC input points
+  vw::Vector3 gdcCoord(177.237619187, 16.3946260748, -342.789915524); //GDC input point
+  //vw::Vector3 gdcCoord(177.2371529, 16.4003421, 1737.107905*1000 - 1737400 ); // beg-error point -> works
+  vw::Vector3 gccCoord = datum.geodetic_to_cartesian(gdcCoord);
+  SpiceDouble stateMoonGcc[3];
+
+  printf("GCC coords initial: ");
+  for (int m=0; m<3; ++m)
+  {
+    printf("%lf, ", gccCoord[m]);
+    stateMoonGcc[m] = gccCoord[m];
+  }
+  printf("\n");
+
+
+  printf("GDC coords initial: ");
+  for (int m=0; m<3; ++m)
+    printf("%lf, ", gdcCoord[m]);
+  printf("\n");
+
+//  vw::Vector3 gdcCoordBack = datum.cartesian_to_geodetic(gccCoord);
+//  printf("GDC coords test: ");
+//  for (int m=0; m<3; ++m)
+//    printf("%lf, ", gdcCoordBack[m]);
+//  printf("\n");
+
+
+  // Apply the rotation to the position, then add in the translation
+  SpiceDouble stateMoonFixed[3];
+  mxv_c(planetFixed_from_planet_R, stateMoonGcc, stateMoonFixed);
+
+  printf("GCC coords rotation: ");
+  for (int m=0; m<3; ++m)
+    printf("%lf, ", stateMoonFixed[m]);
+  printf("\n");
+
+  for (int r=0; r<3; ++r)
+  {
+    stateMoonFixed[r] += (planetFixed_from_planet_T[r]/1.0);
+  }
+
+  printf("GCC coords tranlation: ");
+  for (int m=0; m<3; ++m)
+    printf("%lf, ", stateMoonFixed[m]);
+  printf("\n");
+
+  vw::Vector3 gccPoint2(stateMoonFixed[0], stateMoonFixed[1], stateMoonFixed[2]);
+  gdcCoord = datum.cartesian_to_geodetic(gccPoint2);
+
+  printf("GDC coords translation: ");
+  for (int m=0; m<3; ++m)
+    printf("%lf, ", gdcCoord[m]);
+  printf("\n");
+
+  return false;
+*/
+
+
 
   SpiceChar timeString[51];
   SPICEDOUBLE_CELL(cover, 2000);
@@ -550,12 +614,47 @@ bool editSpiceFile(const Parameters &params)
           }
           else // PC_ALIGN transform
           {
+
+//            printf("GCC coords initial: ");
+//            for (int m=0; m<3; ++m)
+//              printf("%lf, ", stateMoon[m]);
+//            printf("\n");
+
+            vw::Vector3 gccPoint(stateMoon[0], stateMoon[1], stateMoon[2]);
+            vw::Vector3 gdcCoord = datum.cartesian_to_geodetic(gccPoint);
+
+//            printf("GDC coords initial: ");
+//            for (int m=0; m<3; ++m)
+//              printf("%lf, ", gdcCoord[m]);
+//            printf("\n");
+
             // Apply the rotation to the position, then add in the translation
             mxv_c(planetFixed_from_planet_R, stateMoon, stateMoonFixed);
+
+//            printf("GCC coords rotation: ");
+//            for (int m=0; m<3; ++m)
+//              printf("%lf, ", stateMoonFixed[m]);
+//            printf("\n");
+
             for (int r=0; r<3; ++r)
             {
               stateMoonFixed[r] += planetFixed_from_planet_T[r];
             }
+
+//            printf("GCC coords tranlation: ");
+//            for (int m=0; m<3; ++m)
+//              printf("%lf, ", stateMoonFixed[m]);
+//            printf("\n");
+
+            vw::Vector3 gccPoint2(stateMoonFixed[0], stateMoonFixed[1], stateMoonFixed[2]);
+            gdcCoord = datum.cartesian_to_geodetic(gccPoint2);
+
+//            printf("GDC coords translation: ");
+//            for (int m=0; m<3; ++m)
+//              printf("%lf, ", gdcCoord[m]);
+//            printf("\n");
+
+
           }
 
           // Now that the position is corrected in body frame, convert back to J2000 frame

@@ -432,8 +432,6 @@ def main(argsIn):
             IsisTools.removeIfExists(rightStereoNoprojPath)
             #IsisTools.removeFolderIfExists(mainMosaicWorkDir)
             #IsisTools.removeFolderIfExists(stereoMosaicWorkDir)
-            IsisTools.removeIfExists(outputPathMain)
-            IsisTools.removeIfExists(outputPathStereo)
             #if (hadToCreateTempFolder):
             #    IsisTools.removeFolderIfExists(tempFolder)
 

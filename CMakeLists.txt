@@ -224,6 +224,9 @@ target_link_libraries(pixelPairsFromStereo  ${VISIONWORKBENCH_LIBRARIES}  ${Ster
 add_executable(lola_compare lola_compare.cc) 
 target_link_libraries(lola_compare  ${VISIONWORKBENCH_LIBRARIES} ${Boost_LIBRARIES}) 
 
+add_executable(maskFromIntersectError maskFromIntersectError.cc) 
+target_link_libraries(maskFromIntersectError  ${VISIONWORKBENCH_LIBRARIES} ${Boost_LIBRARIES}) 
+
 
 add_executable(stereoIpFind stereoIpFind.cc)
 target_link_libraries(stereoIpFind  ${VISIONWORKBENCH_LIBRARIES}  ${StereoPipeline_LIBRARIES}) 
