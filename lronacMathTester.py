@@ -16,7 +16,7 @@ def rotX(angle):
     r = numpy.matrix([[1, 0, 0],[0, numpy.cos(angle), numpy.sin(angle)],[0, -numpy.sin(angle), numpy.cos(angle)]])
     return r
 
-def main():
+def lronacCorrectionChecks():
 
     numpy.set_printoptions(precision=5)
     numpy.set_printoptions(suppress=True)
@@ -179,6 +179,21 @@ def main():
 
     # This output matches the computed combined pose
     #print numpy.transpose(r_xyz * rotX(-0.026260*deg2rad)*rotY(0.002981*deg2rad)*rotZ(-0.139726*deg2rad) ) * r_sc
+
+
+def main():
+    #
+    #trans = numpy.matrix([[ 0.9999995853825769,      0.0009062023905230226, -8.962087702005867e-05,    36.7860548843164],
+    #                      [-0.0009061195317528319,   0.9999991659912527,     0.0009203065754106731, -1855.469392587693],
+    #                      [ 9.045478629411443e-05,  -0.0009202249866084112,  0.9999995725018616,      173.3749649630045],
+    #                      [ 0,                       0,                      0,                         1]])
+    #print trans
+    #inverted = numpy.linalg.inv(trans)
+    #print inverted
+
+    s = numpy.matrix([ [1.02253,       0.0263913,  -901.29],
+                       [0.0143687,    -1.00422,     52129.9]
+                       [-5.30316e-08, -1.10032e-08, 1]])
 
 
 

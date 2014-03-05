@@ -116,7 +116,7 @@ def grabResultFiles(localFolder, force):
                         'ENDYMION',     'HANSTEENAL1',   'KUGLERRIDGE',	 'LICHTENBER7',    'MOSCOVNSE1',    'ORIENTALE3',	 'SPARIM2',
                         'ERATOSTHNS1',  'HIGHESTPOIN',   'LARMORQ1',	 'LICHTENBER8',    'MRECRISIUM1',   'PLANCKFLOOR',	 'SPARIM3' ]
 
-
+    demFolderList.sort() # Sort these names for convenience
 
     # List of all the output files we want copied
     fileList = [  'results/ASU_LOLA_diff_points.csv', \
@@ -328,7 +328,9 @@ def generatePlots(dataFolder):
     # ---> TODO: Get log file and restore this!
 
     usedFolderList = []
-    for f in os.listdir(dataFolder):
+    foldersInDirectory = os.listdir(dataFolder)
+    foldersInDirectory.sort()
+    for f in foldersInDirectory:
 
         folderPath = os.path.join(dataFolder, f)
 
@@ -379,6 +381,7 @@ def generatePlots(dataFolder):
     lolaStdDev    = np.std(lolaMeanList)
     lolaAsuStdDev = np.std(lolaAsuMeanList)
 
+
     # Write results into a condensed file
     condensedDataPath = os.path.join(dataFolder, 'resultsSummary.csv')
     condensedFile     = open(condensedDataPath, 'w')
@@ -389,6 +392,7 @@ def generatePlots(dataFolder):
         condensedFile.write(f + ', ' + str(lolaMeanList[i]) + ', ' + str(lolaAsuMeanList[i]) + ', ' + str(lolaMeanList[i] - lolaAsuMeanList[i]) + '\n')
         i = i + 1
     condensedFile.close()
+    
     
     # Now generate plots
 
@@ -499,7 +503,7 @@ def generatePlots(dataFolder):
     yMax = 10
     xAxis = np.arange(len(lolaMeanList))
     barwidth = 0.2
-    # Sort the values according to the ASU error
+    # Sort the values according to the ASU error for this plot
     zippedValues = zip(lolaAsuMeanList, lolaMeanList, usedFolderList)
     zippedValues.sort()
     lolaAsuMeanList, lolaMeanList, usedFolderList = zip(*zippedValues)

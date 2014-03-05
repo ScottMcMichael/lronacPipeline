@@ -47,9 +47,10 @@ def compareDemToLola(lolaPath, demPath, outputPath, csvPath, force):
 
     # Make KML plot of the point errors
     kmlPath = os.path.splitext(csvPath)[0] + '.kml'
-    demName = os.path.dirname(demPath)
-    cmdArgs = [csvPath, kmlPath, '--name', demName, '--skip', 4, '--errorLimit', 10]
-    pointErrorToKml.main(cmdArgs)
+    if not os.path.exists(kmlPath):
+        demName = os.path.dirname(demPath)
+        cmdArgs = [csvPath, kmlPath, '--name', demName, '--skip', 4, '--errorLimit', 10]
+        pointErrorToKml.main(cmdArgs)
     
     return True
 
@@ -162,18 +163,19 @@ def main(argsIn):
             options.logPath = options.prefix + '-Log.txt'
         logging.basicConfig(filename=options.logPath,level=logging.INFO)
 
+
         # If specified, crop the inputs that will be passed into the stereo function to reduce processing time
         mainMosaicCroppedPath   = os.path.join(tempFolder, 'mainMosaicCropped.cub')
         stereoMosaicCroppedPath = os.path.join(tempFolder, 'stereoMosaicCropped.cub')
         if options.cropAmount and (options.cropAmount > 0):
             if (not os.path.exists(mainMosaicCroppedPath)) or carry:
                 cmd = ('crop from= ' + options.leftPath   + ' to= ' + mainMosaicCroppedPath + 
-                           ' nlines= ' + str(options.cropAmount))
+                           ' nlines= ' + str(options.cropAmount))# + ' line=19000')
                 print cmd
                 os.system(cmd)
             if (not os.path.exists(stereoMosaicCroppedPath) or carry):
                 cmd = ('crop from= ' + options.rightPath + ' to= ' + stereoMosaicCroppedPath + 
-                           ' nlines= ' + str(options.cropAmount))
+                           ' nlines= ' + str(options.cropAmount))# + ' line=19000')
                 print cmd
                 os.system(cmd)
             options.leftPath  = mainMosaicCroppedPath
@@ -187,17 +189,41 @@ def main(argsIn):
         stereoOutputPrefix = os.path.join(tempFolder, 'stereoWorkDir/stereo')
         stereoOutputFolder = os.path.join(tempFolder, 'stereoWorkDir')
         pointCloudPath     = stereoOutputPrefix + '-PC.tif'
+        
+        stereoOptionString = ('--corr-timeout 400 --alignment affineepipolar --subpixel-mode 2 ' +
+                              options.leftPath + ' ' + options.rightPath + 
+                              ' ' + stereoOutputPrefix + ' --processes 8 --threads-multiprocess 4' +
+                              ' --threads-singleprocess 32 --compute-error-vector' + ' --filter-mode 1' +
+                              ' --erode-max-size 5000 --max-valid-triangulation-error 15')
+  
         if (not os.path.exists(pointCloudPath)) or carry:
-            # TODO: Test out with higher quality subpixel-mode 2
-            cmd = ('parallel_stereo --corr-timeout 400 --alignment affineepipolar --subpixel-mode 1 ' +
-                                  options.leftPath + ' ' + options.rightPath + 
-                                  ' ' + stereoOutputPrefix + ' --processes 8 --threads-multiprocess 4' +
-                                  ' --threads-singleprocess 32 --compute-error-vector')
+            cmd = ('parallel_stereo ' + stereoOptionString)
             print cmd
             os.system(cmd)
-            #--nodes-list PBS_NODEFILE --processes 4 --threads-multiprocess 16 --threads-singleprocess 32
+            
+            ## Preprocessing, correlation, and subpixel refinement
+            #cmd = ('parallel_stereo --entry-point 0 --stop-point 3' + stereoOptionString)
+            #print cmd
+            #os.system(cmd)
+            #
+            ## TODO: Delete -D files
+            #
+            ## Filtering, triangulation, and post-processing
+            #cmd = ('parallel_stereo --entry-point 3 --stop-point 6' + stereoOptionString)
+            #print cmd
+            #os.system(cmd)
+            #
+            ## TODO: Delete other stereo files!
+            #if not options.keep:
+            #    IsisTools.removeIntermediateStereoFiles(stereoOutputPrefix) # Limited clear
+            #    #IsisTools.removeFolderIfExists(stereoOutputFolder) # Larger clear
+            
+            
         else:
             print 'Stereo file ' + pointCloudPath + ' already exists, skipping stereo step.'
+
+# TODO: Split this up and do piecemeal deletions (stages 0-5)
+
 
         stereoTime = time.time()
         logging.info('Stereo finished in %f seconds', stereoTime - startTime)
@@ -212,8 +238,9 @@ def main(argsIn):
         centerLat = IsisTools.getCubeCenterLatitude(options.leftPath, tempFolder)
 
         # Generate a DEM
-        demPrefix = os.path.join(outputFolder, 'p2d')
-        demPath   = demPrefix + '-DEM.tif'
+        demPrefix    = os.path.join(outputFolder, 'p2d')
+        demPath      = demPrefix + '-DEM.tif'
+        intErrorPath = demPrefix + '-IntersectionErr.tif'
         if (not os.path.exists(demPath)) or carry:
             cmd = ('point2dem --errorimage -o ' + demPrefix + ' ' + pointCloudPath + 
                             ' -r moon --tr 1 --t_srs "+proj=eqc +lat_ts=' + str(centerLat) + 
@@ -230,7 +257,50 @@ def main(argsIn):
             print cmd
             os.system(cmd)
         else:
-            print 'DEM file ' + hillshadePath + ' already exists, skipping hillshade step.'
+            print 'Output file ' + hillshadePath + ' already exists, skipping hillshade step.'
+
+        # Create a colorized image to visualize the output
+        colormapPath = os.path.join(outputFolder, 'colormap.tif')
+        if (not os.path.exists(hillshadePath)) or carry:
+            cmd = 'colormap ' + demPath + ' -o ' + colormapPath
+            print cmd
+            os.system(cmd)
+        else:
+            print 'Output file ' + colormapPath + ' already exists, skipping colormap step.'
+
+
+        # Create a 3d mesh of the point cloud
+        meshPath   = os.path.join(outputFolder, 'mesh.ive')
+        meshPrefix = os.path.join(outputFolder, 'mesh')
+        cmd = 'point2mesh ' + pointCloudPath + ' ' + options.leftPath + ' -o ' + meshPrefix
+        if not os.path.exists(meshPath):
+            print cmd
+            os.system(cmd)
+
+        # Convert the intersection error to a viewable format
+        intersectionViewPathX = os.path.join(outputFolder, 'intersectionErrorX.tif')
+        intersectionViewPathY = os.path.join(outputFolder, 'intersectionErrorY.tif')
+        intersectionViewPathZ = os.path.join(outputFolder, 'intersectionErrorZ.tif')
+        cmdX = 'gdal_translate -ot byte -scale 0 10 0 255 -outsize 50 50 -b 1 ' + intErrorPath + ' ' + intersectionViewPathX
+        cmdY = 'gdal_translate -ot byte -scale 0 10 0 255 -outsize 50 50 -b 2 ' + intErrorPath + ' ' + intersectionViewPathY
+        cmdZ = 'gdal_translate -ot byte -scale 0 10 0 255 -outsize 50 50 -b 3 ' + intErrorPath + ' ' + intersectionViewPathZ
+        if not os.path.exists(intersectionViewPathX) or carry:
+            print cmdX
+            os.system(cmdX)
+        if not os.path.exists(intersectionViewPathY) or carry:
+            print cmdY
+            os.system(cmdY)
+        if not os.path.exists(intersectionViewPathZ) or carry:
+            print cmdZ
+            os.system(cmdZ)
+
+        # Generate a good pixel mask from the intersection error
+        # TODO: How to set this threshold?
+        accuratePixelMask = os.path.join(outputFolder, 'accuratePixelMask.tif')
+        if not os.path.exists(accuratePixelMask):
+            cmd = 'maskFromIntersectError ' + intErrorPath + ' ' + accuratePixelMask + ' --errorThreshold 5'
+            print cmd
+            os.system(cmd)
 
         hillshadeTime = time.time()
         logging.info('DEM and hillshade finished in %f seconds', hillshadeTime - stereoTime)
@@ -249,13 +319,13 @@ def main(argsIn):
         logging.info('Map project finished in %f seconds', mapProjectTime - hillshadeTime)
 
         # Call script to compare LOLA data with the DEM
-        if options.lolaPath or carry:
+        if options.lolaPath:
             lolaDiffStatsPath  = os.path.join(outputFolder, 'LOLA_diff_stats.txt')
             lolaDiffPointsPath = os.path.join(outputFolder, 'LOLA_diff_points.csv')
             compareDemToLola(options.lolaPath, demPath, lolaDiffStatsPath, lolaDiffPointsPath, carry)
 
         # Call script to compare LOLA data with the ASU DEM
-        if options.asuPath or carry:
+        if options.asuPath:
             lolaAsuDiffStatsPath  = os.path.join(outputFolder, 'ASU_LOLA_diff_stats.txt')
             lolaAsuDiffPointsPath = os.path.join(outputFolder, 'ASU_LOLA_diff_points.csv')
             compareDemToLola(options.lolaPath, options.asuPath, lolaAsuDiffStatsPath, lolaAsuDiffPointsPath, carry)

@@ -401,9 +401,11 @@ def makeSpkSetupFile(leapSecondFilePath, outputPath):
     f.close()
 
 
-# TODO: Combine this with other functions to return all information about a cube from campt
+# TODO: Merge this with IsisTools functions
 def getPixelLocInCube(cubePath, sample, line, workDir=''):
     """Returns the BodyFixedCoordinate of a pixel from a cube"""
+
+    DEFAULT_MOON_RADIUS = 1737400 # In meters
 
     # Make sure the input file exists
     if not os.path.exists(cubePath):
@@ -414,7 +416,7 @@ def getPixelLocInCube(cubePath, sample, line, workDir=''):
     if workDir == '':
         outputFolder = os.path.dirname(cubePath)
        
-    if not os.path.exists(outputFolder):
+    if (len(outputFolder) > 1) and not os.path.exists(outputFolder):
         os.mkdir(outputFolder)
 
     # Call ISIS campt function to compute the pixel location
@@ -429,40 +431,77 @@ def getPixelLocInCube(cubePath, sample, line, workDir=''):
 
     # Check that we created the temporary file
     if not os.path.exists(tempTextPath):
-        print cmd
         raise Exception('campt failed to create temporary file ' + tempTextPath)
+    
+    infoFile = open(tempTextPath, 'r')
         
     # Read in the output file to extract the pixel coordinates
-    pixelLocation = [0, 0, 0]
-    infoFile      = open(tempTextPath, 'r')
-    buildLine     = ''
+    gccLine       = ''
+    latLine       = ''
+    lonLine       = ''
+    radiusLine    = ''
+    lineAfterBody = False
     for line in infoFile:
-        if (buildLine == ''): # Look for start of the info
+        
+        # GCC stuff
+        if lineAfterBody: # BodyFixedCoordinate takes up two lines
+            gccLine       = gccLine + line
+            lineAfterBody = False
+            
+        if (gccLine == ''): # Look for start of the info (this check must come second)
             if (line.find('BodyFixedCoordinate') >= 0):
-                buildLine = line
-        else: # Append next line
-            buildLine = buildLine + line
-            break
+                gccLine     = line
+                lineAfterBody = True
+        
+        # GDC stuff
+        if line.find('PlanetocentricLatitude') >= 0:
+            latLine = line
+            #print line
+        if line.find('PositiveEast180Longitude') >= 0:
+            lonLine = line
+            #print line
+        if line.find('LocalRadius') >= 0:
+            radiusLine = line
+            #print line
 
     os.remove(tempTextPath) # Remove the file to clean up
 
     # Make sure we found the desired lines
-    if (buildLine == ''):
+    if (gccLine == ''):
         raise Exception("Unable to find BodyFixedCoordinate in file " + tempTextPath)
+    if (latLine == ''):
+        raise Exception("Unable to find PlanetocentricLatitude in file " + tempTextPath)
+    if (lonLine == ''):
+        raise Exception("Unable to find PositiveEast180Longitude in file " + tempTextPath)
+    if (radiusLine == ''):
+        raise Exception("Unable to find LocalRadius in file " + tempTextPath)
 
-    # Extract the desired coordinates
-    startParen = buildLine.find('(')
-    stopParen  = buildLine.find(')')
-    numString  = buildLine[startParen+1:stopParen]
-    #print numString
+    # Extract GCC coordinates
+    startParen = gccLine.find('(')
+    stopParen  = gccLine.find(')')
+    numString  = gccLine[startParen+1:stopParen]
     x,y,z = numString.split(',')
 
     # Convert output from kilometers to meters
-    pixelLocation[0] = float(x) * 1000.0
-    pixelLocation[1] = float(y) * 1000.0
-    pixelLocation[2] = float(z) * 1000.0
-
-    return pixelLocation
+    pixelLocationGcc = [0, 0, 0]
+    pixelLocationGcc[0] = float(x) * 1000.0
+    pixelLocationGcc[1] = float(y) * 1000.0
+    pixelLocationGcc[2] = float(z) * 1000.0
+    
+    # Extract GDC coordinates
+    latStart     = latLine.find('=')+2
+    lonStart     = lonLine.find('=')+2
+    radiusStart  = radiusLine.find('=')+2
+    radiusEnd    = radiusLine.find('<') - 1
+    latNumStr    = latLine[latStart:]
+    lonNumStr    = lonLine[lonStart:]
+    radiusNumStr = radiusLine[radiusStart:radiusEnd]
+    pixelLocationGdc = [float(lonNumStr), float(latNumStr), float(radiusNumStr)-1737400]
+                        
+    pixelInformation = dict()
+    pixelInformation['gcc'] = pixelLocationGcc
+    pixelInformation['gdc'] = pixelLocationGdc
+    return pixelInformation
 
 
 
