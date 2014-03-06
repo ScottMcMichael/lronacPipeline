@@ -218,8 +218,9 @@ def readPositions(positionFilePath):
     #TODO: Read this from the file?
     MEAN_MOON_RADIUS = 1737400
 
-    isLolaFile         = False
-    isPcAlignErrorFile = False
+    isLolaFile           = False
+    isPcAlignErrorFileKm = False
+    isPcAlignErrorFileM  = False
     f = open(positionFilePath, 'r')
     i = 0
     for line in f:
@@ -229,9 +230,13 @@ def readPositions(positionFilePath):
                 isLolaFile = True
                 print 'Detected LOLA RDR file'
                 continue # Skip this header line
-            if (line.find('radius (meters)') > 0):
-                isPcAlignErrorFile = True
-                print 'Detected pc_align error file'
+            if line.find('radius (meters)') > 0:
+                isPcAlignErrorFileM = True
+                print 'Detected pc_align meters error file'
+                continue # Skip this header line
+            if  line.find('radius (km)') > 0:
+                isPcAlignErrorFileKm = True
+                print 'Detected pc_align kilometers error file'
                 continue # Skip this header line
 
         if isLolaFile: # Pick out the correct fields
@@ -241,12 +246,15 @@ def readPositions(positionFilePath):
                 pointList.append(float(strings[2])) # lat
                 pointList.append(float(strings[3])*1000 - MEAN_MOON_RADIUS) # alt
         
-        elif isPcAlignErrorFile: # pc_align error file
+        elif isPcAlignErrorFileM or isPcAlignErrorFileKm: # pc_align error file
 
                 strings = line.split(',')
                 pointList.append(float(strings[0])) # lon
                 pointList.append(float(strings[1])) # lat
-                pointList.append(float(strings[2]) - MEAN_MOON_RADIUS) # alt
+                if isPcAlignErrorFileM:
+                    pointList.append(float(strings[2]) - MEAN_MOON_RADIUS) # alt
+                else: # Units are km
+                    pointList.append(float(strings[2])*1000.0 - MEAN_MOON_RADIUS) # alt
 
         else: # Default handling
             if line.find('#') < 0: # Skip lines containing the comment symbol
