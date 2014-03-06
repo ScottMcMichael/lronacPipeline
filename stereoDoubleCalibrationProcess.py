@@ -873,8 +873,6 @@ def main(argsIn):
         else:
             print 'Skipping large GDC file creation step'
 
-        carry = True
-
         prepTime = time.time()
         logging.info('pc_align prep finished in %f seconds', prepTime - sbaTime)
 
@@ -1035,67 +1033,110 @@ def main(argsIn):
         localTime = time.time()
         logging.info('Local transforms finished in %f seconds', localTime - navTime)
 
+
+
+
+#DEBUG: Now that the LE and RE images are fully corrected, see if our points match the pc_align transformed points
+        # Compute the 3d coordinates for each pixel pair using the rotation and offset computed earlier
+        # - All this step does is use stereo intersection to determine a lat/lon/alt coordinate for each pixel pair in the large data set.  No optimization is performed.
+        largeGdcTestFolder = os.path.join(tempFolder, 'gdcPointsLargeTest/')
+        if not os.path.exists(largeGdcTestFolder):
+            os.mkdir(largeGdcTestFolder)
+        largeGdcTestPrefix = os.path.join(tempFolder, 'gdcPointsLargeTest/out')
+        largeGdcTestFile   = largeGdcTestPrefix + '-initialGdcPoints.csv'
+        zeroParamsPath = '/home/smcmich1/data/zeroParamsFile.csv'
+        if (not os.path.exists(largeGdcTestFile)) or carry:
+            cmd = ('lronacAngleDoubleSolver --outputPrefix '            + largeGdcTestPrefix + 
+                                          ' --matchingPixelsLeftPath '  + pixelPairsLeftLarge +
+                                          ' --matchingPixelsRightPath ' + pixelPairsRightLarge + 
+                                          ' --leftCubePath '            + outputPathLeft + 
+                                          ' --leftStereoCubePath '      + outputPathStereoLeft +
+                                          ' --rightCubePath '           + outputPathRight + 
+                                          ' --rightStereoCubePath '     + outputPathStereoRight + 
+                                          ' --initialOnly --initialValues ' + zeroParamsPath + 
+                                          ' --elevation ' + str(expectedSurfaceElevation))
+            print cmd
+            os.system(cmd)
+            
+        # Generate KML for the output!
+        testKmlFile = os.path.join(tempFolder, 'testLargeGdc.kml')
+        if (not os.path.exists(testKmlFile)) or carry:
+            cmd = 'calibrationReport.py --size tiny --skip 80 --name movedPtsCheck --input ' + largeGdcTestFile + ' --output ' + testKmlFile
+            print cmd
+            os.system(cmd)
+
+            
+        else:
+            print 'Skipping large GDC TEST file creation step'
+# ----------------
+
+
+
+
         print '\n-------------------------------------------------------------------------\n'
 
         # One last pair of checks to compute accuracy
         # - This calls campt for pixel pairs and finds the GCC location difference
-        meanMainError   = evaluateAccuracy(outputPathLeft,       outputPathRight, 
+        medianMainError   = evaluateAccuracy(outputPathLeft,       outputPathRight, 
                                            mainIpFindPath,       os.path.join(tempFolder, 'finalGdcCheckMain'), True)
-        meanStereoError = evaluateAccuracy(outputPathStereoLeft, outputPathStereoRight, 
+        medianStereoError = evaluateAccuracy(outputPathStereoLeft, outputPathStereoRight, 
                                            stereoIpFindPath,     os.path.join(tempFolder, 'finalGdcCheckStereo'), True)
-        meanLeftError   = evaluateAccuracy(outputPathLeft,       outputPathStereoLeft,
+        medianLeftError   = evaluateAccuracy(outputPathLeft,       outputPathStereoLeft,
                                            pixelPairsLeftSmall,  os.path.join(tempFolder, 'finalGdcCheckLeft'), True)
-        meanRightError  = evaluateAccuracy(outputPathRight,      outputPathStereoRight, 
+        medianRightError  = evaluateAccuracy(outputPathRight,      outputPathStereoRight, 
                                            pixelPairsRightSmall, os.path.join(tempFolder, 'finalGdcCheckRight'), True)
  
-        print '=====> Median main   pair error = %.4f meters' % meanMainError
-        print '=====> Median stereo pair error = %.4f meters' % meanStereoError
-        print '=====> Median left   pair error = %.4f meters' % meanLeftError
-        print '=====> Median right  pair error = %.4f meters' % meanRightError
+        print '=====> Median main   pair error = %.4f meters' % medianMainError
+        print '=====> Median stereo pair error = %.4f meters' % medianStereoError
+        print '=====> Median left   pair error = %.4f meters' % medianLeftError
+        print '=====> Median right  pair error = %.4f meters' % medianRightError
 
-        logging.info('=====> Median main   pair error = %.4f meters' % meanMainError)
-        logging.info('=====> Median stereo pair error = %.4f meters' % meanStereoError)
-        logging.info('=====> Median left   pair error = %.4f meters' % meanLeftError)
-        logging.info('=====> Median right  pair error = %.4f meters' % meanRightError)
-        #
-        #leftKmlFile = os.path.join(tempFolder, 'finalGdcCheckMain/leftEvalPoints.kml')
-        #leftCsvFile = os.path.join(tempFolder, 'finalGdcCheckMain/leftEvalPoints.csv')
-        #cmd = 'calibrationReport.py --color red --size tiny --skip 1 --name leftMainEvalPoints --input ' + leftCsvFile + ' --output ' + leftKmlFile
-        #os.system(cmd)
-        #rightKmlFile = os.path.join(tempFolder, 'finalGdcCheckMain/rightEvalPoints.kml')
-        #rightCsvFile = os.path.join(tempFolder, 'finalGdcCheckMain/rightEvalPoints.csv')
-        #cmd = 'calibrationReport.py --color blue --size tiny --skip 1 --name rightMainEvalPoints --input ' + rightCsvFile + ' --output ' + rightKmlFile
-        #os.system(cmd)
-        #
-        #
-        #leftKmlFile = os.path.join(tempFolder, 'finalGdcCheckStereo/leftEvalPoints.kml')
-        #leftCsvFile = os.path.join(tempFolder, 'finalGdcCheckStereo/leftEvalPoints.csv')
-        #cmd = 'calibrationReport.py --color red --size tiny --skip 1 --name leftStereoEvalPoints --input ' + leftCsvFile + ' --output ' + leftKmlFile
-        #os.system(cmd)
-        #rightKmlFile = os.path.join(tempFolder, 'finalGdcCheckStereo/rightEvalPoints.kml')
-        #rightCsvFile = os.path.join(tempFolder, 'finalGdcCheckStereo/rightEvalPoints.csv')
-        #cmd = 'calibrationReport.py --color blue --size tiny --skip 1 --name rightStereoEvalPoints --input ' + rightCsvFile + ' --output ' + rightKmlFile
-        #os.system(cmd)
-        #
-        #
-        #leftKmlFile = os.path.join(tempFolder, 'finalGdcCheckLeft/leftEvalPoints.kml')
-        #leftCsvFile = os.path.join(tempFolder, 'finalGdcCheckLeft/leftEvalPoints.csv')
-        #cmd = 'calibrationReport.py --color red --size tiny --skip 1 --name leftLeftEvalPoints --input ' + leftCsvFile + ' --output ' + leftKmlFile
-        #os.system(cmd)
-        #rightKmlFile = os.path.join(tempFolder, 'finalGdcCheckLeft/rightEvalPoints.kml')
-        #rightCsvFile = os.path.join(tempFolder, 'finalGdcCheckLeft/rightEvalPoints.csv')
-        #cmd = 'calibrationReport.py --color blue --size tiny --skip 1 --name rightLeftEvalPoints --input ' + rightCsvFile + ' --output ' + rightKmlFile
-        #os.system(cmd)
-        #
-        #
-        #leftKmlFile = os.path.join(tempFolder, 'finalGdcCheckRight/leftEvalPoints.kml')
-        #leftCsvFile = os.path.join(tempFolder, 'finalGdcCheckRight/leftEvalPoints.csv')
-        #cmd = 'calibrationReport.py --color red --size tiny --skip 1 --name leftRightEvalPoints --input ' + leftCsvFile + ' --output ' + leftKmlFile
-        #os.system(cmd)
-        #rightKmlFile = os.path.join(tempFolder, 'finalGdcCheckRight/rightEvalPoints.kml')
-        #rightCsvFile = os.path.join(tempFolder, 'finalGdcCheckRight/rightEvalPoints.csv')
-        #cmd = 'calibrationReport.py --color blue --size tiny --skip 1 --name rightRightEvalPoints --input ' + rightCsvFile + ' --output ' + rightKmlFile
-        #os.system(cmd)
+        logging.info('=====> Median main   pair error = %.4f meters' % medianMainError)
+        logging.info('=====> Median stereo pair error = %.4f meters' % medianStereoError)
+        logging.info('=====> Median left   pair error = %.4f meters' % medianLeftError)
+        logging.info('=====> Median right  pair error = %.4f meters' % medianRightError)
+
+        
+        leftKmlFile = os.path.join(tempFolder, 'finalGdcCheckMain/leftEvalPoints.kml')
+        leftCsvFile = os.path.join(tempFolder, 'finalGdcCheckMain/leftEvalPoints.csv')
+        cmd = 'calibrationReport.py --color red --size tiny --skip 1 --name leftMainEvalPoints --input ' + leftCsvFile + ' --output ' + leftKmlFile
+        os.system(cmd)
+        rightKmlFile = os.path.join(tempFolder, 'finalGdcCheckMain/rightEvalPoints.kml')
+        rightCsvFile = os.path.join(tempFolder, 'finalGdcCheckMain/rightEvalPoints.csv')
+        cmd = 'calibrationReport.py --color blue --size tiny --skip 1 --name rightMainEvalPoints --input ' + rightCsvFile + ' --output ' + rightKmlFile
+        os.system(cmd)
+        
+        
+        leftKmlFile = os.path.join(tempFolder, 'finalGdcCheckStereo/leftEvalPoints.kml')
+        leftCsvFile = os.path.join(tempFolder, 'finalGdcCheckStereo/leftEvalPoints.csv')
+        cmd = 'calibrationReport.py --color red --size tiny --skip 1 --name leftStereoEvalPoints --input ' + leftCsvFile + ' --output ' + leftKmlFile
+        os.system(cmd)
+        rightKmlFile = os.path.join(tempFolder, 'finalGdcCheckStereo/rightEvalPoints.kml')
+        rightCsvFile = os.path.join(tempFolder, 'finalGdcCheckStereo/rightEvalPoints.csv')
+        cmd = 'calibrationReport.py --color blue --size tiny --skip 1 --name rightStereoEvalPoints --input ' + rightCsvFile + ' --output ' + rightKmlFile
+        os.system(cmd)
+        
+        
+        leftKmlFile = os.path.join(tempFolder, 'finalGdcCheckLeft/leftEvalPoints.kml')
+        leftCsvFile = os.path.join(tempFolder, 'finalGdcCheckLeft/leftEvalPoints.csv')
+        cmd = 'calibrationReport.py --color red --size tiny --skip 1 --name leftLeftEvalPoints --input ' + leftCsvFile + ' --output ' + leftKmlFile
+        os.system(cmd)
+        rightKmlFile = os.path.join(tempFolder, 'finalGdcCheckLeft/rightEvalPoints.kml')
+        rightCsvFile = os.path.join(tempFolder, 'finalGdcCheckLeft/rightEvalPoints.csv')
+        cmd = 'calibrationReport.py --color blue --size tiny --skip 1 --name rightLeftEvalPoints --input ' + rightCsvFile + ' --output ' + rightKmlFile
+        os.system(cmd)
+        
+        
+        leftKmlFile = os.path.join(tempFolder, 'finalGdcCheckRight/leftEvalPoints.kml')
+        leftCsvFile = os.path.join(tempFolder, 'finalGdcCheckRight/leftEvalPoints.csv')
+        cmd = 'calibrationReport.py --color red --size tiny --skip 1 --name leftRightEvalPoints --input ' + leftCsvFile + ' --output ' + leftKmlFile
+        os.system(cmd)
+        rightKmlFile = os.path.join(tempFolder, 'finalGdcCheckRight/rightEvalPoints.kml')
+        rightCsvFile = os.path.join(tempFolder, 'finalGdcCheckRight/rightEvalPoints.csv')
+        cmd = 'calibrationReport.py --color blue --size tiny --skip 1 --name rightRightEvalPoints --input ' + rightCsvFile + ' --output ' + rightKmlFile
+        os.system(cmd)
+        
+        raise Exception('Stopping after  test!')
         
         # All finished!  We should have a fully calibrated version of each of the four input files.
 

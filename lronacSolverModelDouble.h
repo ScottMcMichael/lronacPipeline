@@ -250,13 +250,14 @@ bool computePointLocation(const LocalRotCameraModel *cam1,
 
 /// Given the pixel pair observations, compute the initial state estimate.
 /// - This also loads the observation vectors and returns a packed version of them.
-bool getInitialStateEstimate(const PointObsList &leftRight,   // Main pair
-                             const PointObsList &leftSRightS, // Stereo pair
-                             const PointObsList &leftLeftS,   // LE to LE
-                             const PointObsList &rightRightS, // RE to RE
-                             const PointObsList &leftRightS,  // LE to RE_S
-                             const PointObsList &leftSRight,  // LE_S to RE
-                             vw::Vector<double> &stateEstimate, //Vector<double> &packedObsVector,
+bool getInitialStateEstimate(const PointObsList  &leftRight,   // Main pair
+                             const PointObsList  &leftSRightS, // Stereo pair
+                             const PointObsList  &leftLeftS,   // LE to LE
+                             const PointObsList  &rightRightS, // RE to RE
+                             const PointObsList  &leftRightS,  // LE to RE_S
+                             const PointObsList  &leftSRight,  // LE_S to RE
+                             vw::Vector<double>  &stateEstimate, //Vector<double> &packedObsVector,
+                             std::vector<double> &pointError,
                              const double        expectedSurfaceElevation=0,
                              const std::vector<double> &inputState = std::vector<double>())
 { 
@@ -307,6 +308,7 @@ bool getInitialStateEstimate(const PointObsList &leftRight,   // Main pair
   
   const size_t numStateElements = numPoints*PARAMS_PER_POINT + numCamParams;
   stateEstimate.set_size(numStateElements);
+  pointError.resize(numPoints);
   //packedObsVector.set_size(numPoints*4);
 
   // Camera parameters start at zero
@@ -355,6 +357,7 @@ bool getInitialStateEstimate(const PointObsList &leftRight,   // Main pair
   const bool useStereo = (inputState.size() > 0);
   vw::Vector3 pointLoc;
   double locationError;
+  size_t errorIndex = 0;
   
   size_t pointOffset = numCamParams; // Where to start writing the points in the state estimate
 
@@ -367,9 +370,11 @@ bool getInitialStateEstimate(const PointObsList &leftRight,   // Main pair
                          nullVec, localRotVec, leftPixel, rightPixel,
                          expectedSurfaceElevation, useStereo, pointLoc, locationError);
 
-    // Record the x/y/z value for this point
+    // Record the x/y/z and error values for this point
     for (size_t p=0; p<PARAMS_PER_POINT; ++p)
       stateEstimate[pointOffset + i*PARAMS_PER_POINT + p] = pointLoc[p];
+    pointError[errorIndex] = locationError;
+    ++errorIndex;
   } // End loop through points
   pointOffset += numMainPairs*PARAMS_PER_POINT;
 
@@ -386,6 +391,8 @@ bool getInitialStateEstimate(const PointObsList &leftRight,   // Main pair
     // Record the x/y/z value for this point
     for (size_t p=0; p<PARAMS_PER_POINT; ++p)
       stateEstimate[pointOffset + i*PARAMS_PER_POINT + p] = pointLoc[p];
+    pointError[errorIndex] = locationError;
+    ++errorIndex;
   } // End loop through points
   pointOffset += numStereoPairs*PARAMS_PER_POINT;
 
@@ -421,6 +428,8 @@ bool getInitialStateEstimate(const PointObsList &leftRight,   // Main pair
     // Record the x/y/z value for this point
     for (size_t p=0; p<PARAMS_PER_POINT; ++p)
       stateEstimate[pointOffset + i*PARAMS_PER_POINT + p] = pointLoc[p];
+    pointError[errorIndex] = locationError;
+    ++errorIndex;
   } // End loop through points
   pointOffset += numLeftPairs*PARAMS_PER_POINT;
   /*
@@ -440,6 +449,8 @@ bool getInitialStateEstimate(const PointObsList &leftRight,   // Main pair
     // Record the x/y/z value for this point
     for (size_t p=0; p<PARAMS_PER_POINT; ++p)
       stateEstimate[pointOffset + i*PARAMS_PER_POINT + p] = pointLoc[p];
+    pointError[errorIndex] = locationError;
+    ++errorIndex;
   } // End loop through points
   pointOffset += numRightPairs*PARAMS_PER_POINT;
 
@@ -456,6 +467,8 @@ bool getInitialStateEstimate(const PointObsList &leftRight,   // Main pair
     // Record the x/y/z value for this point
     for (size_t p=0; p<PARAMS_PER_POINT; ++p)
       stateEstimate[pointOffset + i*PARAMS_PER_POINT + p] = pointLoc[p];
+    pointError[errorIndex] = locationError;
+    ++errorIndex;
   } // End loop through points
   pointOffset += numLeftCrossPairs*PARAMS_PER_POINT;
 
@@ -472,6 +485,8 @@ bool getInitialStateEstimate(const PointObsList &leftRight,   // Main pair
     // Record the x/y/z value for this point
     for (size_t p=0; p<PARAMS_PER_POINT; ++p)
       stateEstimate[pointOffset + i*PARAMS_PER_POINT + p] = pointLoc[p];
+    pointError[errorIndex] = locationError;
+    ++errorIndex;
   } // End loop through points
   pointOffset += numRightCrossPairs*PARAMS_PER_POINT;
 

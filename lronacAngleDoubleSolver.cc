@@ -577,15 +577,24 @@ bool optimizeRotations(Parameters & params)
   // Load the inital points into the solver
   printf("Initializing solver state...\n");
   Vector<double> initialState;
+  std::vector<double> initialErrorVector;
   if (!lrocClass.getInitialStateEstimate(overlapPairs,        stereoOverlapPairs,
                                          leftPixelPairs,      rightPixelPairs,
-                                         leftCrossPixelPairs, rightCrossPixelPairs, initialState, 
+                                         leftCrossPixelPairs, rightCrossPixelPairs,
+                                         initialState,        initialErrorMeters,
                                          params.expectedSurfaceElevation, initialValues))
   {
     printf("Failed to get initial state!\n");
     return false;
   }
   // The initial state contains the camera parameters, then the point coordinates of each set of points in sequence
+
+  // Write initial state error to file
+  std::string initialErrorMetersPath = params.outputPrefix + "-initialPointErrorMeters.csv";
+  std::ofstream initialErrorMetersFile(initialErrorMetersPath.c_str());
+  for (size_t i=0; i<initialErrorMeters.size(); ++i)
+    initialErrorMetersFile << initialErrorMeters[i] << std::endl;
+  initialErrorMetersFile.close();
 
 
   // Set up georeference class with default moon datum

@@ -297,7 +297,7 @@ def main(argsIn):
         doubleCalWorkFolder = os.path.join(tempFolder, 'doubleCal')
         try:
           if ( not os.path.exists(leftCorrectedPath)       or not os.path.exists(rightCorrectedPath)       or 
-               not os.path.exists(leftStereoCorrectedPath) or not os.path.exists(rightStereoCorrectedPath) or carry ):
+               not os.path.exists(leftStereoCorrectedPath) or not os.path.exists(rightStereoCorrectedPath) or True):#carry ):
               print '\n=============================================================================\n'
               cmdArgs = ['--left',          options.leftPath, 
                          '--right',         options.rightPath, 
