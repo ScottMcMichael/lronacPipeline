@@ -620,8 +620,8 @@ bool editSpiceFile(const Parameters &params)
 //              printf("%lf, ", stateMoon[m]);
 //            printf("\n");
 
-            vw::Vector3 gccPoint(stateMoon[0], stateMoon[1], stateMoon[2]);
-            vw::Vector3 gdcCoord = datum.cartesian_to_geodetic(gccPoint);
+//            vw::Vector3 gccPoint(stateMoon[0], stateMoon[1], stateMoon[2]);
+//            vw::Vector3 gdcCoord = datum.cartesian_to_geodetic(gccPoint);
 
 //            printf("GDC coords initial: ");
 //            for (int m=0; m<3; ++m)
@@ -646,8 +646,8 @@ bool editSpiceFile(const Parameters &params)
 //              printf("%lf, ", stateMoonFixed[m]);
 //            printf("\n");
 
-            vw::Vector3 gccPoint2(stateMoonFixed[0], stateMoonFixed[1], stateMoonFixed[2]);
-            gdcCoord = datum.cartesian_to_geodetic(gccPoint2);
+//            vw::Vector3 gccPoint2(stateMoonFixed[0], stateMoonFixed[1], stateMoonFixed[2]);
+//            gdcCoord = datum.cartesian_to_geodetic(gccPoint2);
 
 //            printf("GDC coords translation: ");
 //            for (int m=0; m<3; ++m)

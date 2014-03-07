@@ -25,7 +25,8 @@ using namespace vw;
 
 
 // Construct
-IsisInterfaceLineScanRot::IsisInterfaceLineScanRot(const std::string &filename ) : IsisInterface(filename), m_alphacube( *m_label ) {
+IsisInterfaceLineScanRot::IsisInterfaceLineScanRot(const std::string &filename )
+: IsisInterface(filename), m_alphacube( *m_cube ) {
 
   // Gutting Isis::Camera
   m_distortmap = m_camera->DistortionMap();
