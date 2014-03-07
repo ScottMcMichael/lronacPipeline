@@ -31,6 +31,10 @@ Contains utilities for working with ISIS data files.
 '''
     sys.exit()
 
+def createFolder(path):
+    """Creates a folder if it does not already exist"""
+    if not os.path.exists(path):
+        os.mkdir(path)
 
 def removeIfExists(path):
     """Removes a file if it exists"""

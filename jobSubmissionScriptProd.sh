@@ -1,8 +1,11 @@
 #!/bin/bash
 
-## This script requests jobs for each of the desired folders
+# This script processes LRONAC pairs from a list.
+# - Each processing job is started after its data is downloaded.  
+# - Only one download will be going at once but processing jobs
+#    will be started up to a maximum number of simultaneous jobs.
 
-## Each job is one compute node on one input folder
+# Each job is one compute node on one input folder
 
 
 # Return the current number of active PBS jobs
@@ -29,48 +32,43 @@ function checkForJobName(){
 
 #---------------------------------------------
 
-DATA_FOLDER=/nobackupnfs2/oalexan1/scott
-#DATA_FOLDER=/u/smcmich1/data/lronacPipeline
+INPUT_FILE=TODO
 
-# Move to data folder
-cd $DATA_FOLDER
-
-## Find all the files with the ASU data downloaded
-#FILES=$(find . -name 'NAC_DTM*')
-
-# Find all the files with the LOLA data data downloaded
-FILES=$(find . -name 'lolaRdrPoints.csv')
-
-
-#echo $FILES
-echo Obtained file list
-
-# Move back to execution folder
-cd /u/smcmich1/projects/lronacPipeline
+OUTPUT_FOLDER=/nobackupnfs2/oalexan1/scott/production
+#OUTPUT_FOLDER=/u/smcmich1/data/lronacPipeline
 
 # Limit number of batch jobs to submit
 SIMULTANEOUS_JOB_LIMIT=6
 SLEEP_TIME=120 # Check number of active processes every five minutes
 
-for f in $FILES
+# Loop until we have exhausted our source file
+LAST_LINE=0
+while :
 do
+    # Call the data grabber script
+    # - The index of the last line we got is used to start the next search on the correct line
+    GRABBER_OUTPUT=$(productionDataGrabber.py -i $INPUT_FILE --starting-line $LAST_LINE -o $OUTOUT_FOLDER)
 
-    # Get the name of the data set    
-    LOCAL_FOLDER=$(dirname $f)
-    PRETTY_NAME=${LOCAL_FOLDER:2}
+    # Check if we actually got data
+    LAST_LINE=$(cut -d " " -f 1 <<< "$STRING")
+    if [ "$LAST_LINE" -eq "-1" ]; then
+        echo ">>>>> Ran out of data lines in input file, stopping script <<<<<"
+        return 0
+    fi
     
-    #echo $LOCAL_FOLDER
-    #echo $PRETTY_NAME
+    # Parse results
+    FULL_DIRECTORY=$(cut -d " " -f 2 <<< "$STRING")
+    POS=`expr "$STRING" : '.*pair_'`
+    PRETTY_NAME=${STRING:POS}
 
-    # This is the full path to the data set
-    FULL_DIRECTORY=$DATA_FOLDER/$PRETTY_NAME
+    #echo $PRETTY_NAME
 
     STD_OUT_PATH=$FULL_DIRECTORY/stdOutLog.txt
     ERR_OUT_PATH=$FULL_DIRECTORY/errorLog.txt
 
     # Only run if the last output file is not present and this job is not in the queue
-    #ASU_STATS_FILE=$FULL_DIRECTORY/results/ASU_LOLA_diff_stats.txt
-    LOLA_STATS_FILE=$FULL_DIRECTORY/results/LOLA_diff_stats.txt
+    ASU_STATS_FILE=$FULL_DIRECTORY/results/ASU_LOLA_diff_stats.txt
+    LOLA_STATS_FILE=$FULL_DIRECTORY/results/LOLA_diff_stats.txt    
     #echo $ASU_STATS_FILE
     if [ ! -e "$LOLA_STATS_FILE" ] && [ $(checkForJobName $PRETTY_NAME) -eq 0 ]; then
 
@@ -86,19 +84,23 @@ do
                 # Submit the job using a westmere (cheap) CPU
                 qsub -q normal -N ${PRETTY_NAME} -l walltime="8:00:00" -W group_list=s1219 -j oe -e $ERR_OUT_PATH -o $STD_OUT_PATH -S /bin/bash -V -C $PWD -l select=1:ncpus=12:model=wes -m eb -- /u/smcmich1/projects/lronacPipeline/jobWrapperV2.sh $FULL_DIRECTORY       
                break # Move on to the next data set
+        
             else # Wait for a while
                 CURRENT_TIME=$(date +"%T")
                 echo "$CURRENT_TIME - Waiting for a job to finish."
                 sleep $SLEEP_TIME    
                 NUM_ACTIVE_JOBS=$(getNumActiveJobs)
             fi
+            
         done # End waiting loop
-        
+
     fi
 
 done
 
 echo jobSubmissionScript completed!
+
+#TODO: Will need to re-run modified v2 script to catch "stragglers" where the download finished but the processing stopped.
 
 # Sample individual submissions
 
