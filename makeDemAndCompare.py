@@ -238,7 +238,7 @@ def main(argsIn):
         centerLat = IsisTools.getCubeCenterLatitude(options.leftPath, tempFolder)
 
         # Generate a DEM
-        demPrefix    = os.path.join(outputFolder, 'p2d')
+        demPrefix    = options.prefix
         demPath      = demPrefix + '-DEM.tif'
         intErrorPath = demPrefix + '-IntersectionErr.tif'
         if (not os.path.exists(demPath)) or carry:
@@ -259,10 +259,10 @@ def main(argsIn):
         else:
             print 'Output file ' + hillshadePath + ' already exists, skipping hillshade step.'
 
-        # Create a colorized image to visualize the output
+        # Create a colorized version of the hillshade
         colormapPath = os.path.join(outputFolder, 'colormap.tif')
         if (not os.path.exists(hillshadePath)) or carry:
-            cmd = 'colormap ' + demPath + ' -o ' + colormapPath
+            cmd = 'colormap ' + demPath + ' -o ' + colormapPath + ' -s ' + hillshadePath
             print cmd
             os.system(cmd)
         else:

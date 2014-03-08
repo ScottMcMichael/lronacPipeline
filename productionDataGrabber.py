@@ -102,40 +102,6 @@ Pick out only one uncompleted row from the file and grab that data.
 
 """
 
-#TODO: Move this code!
-def getCubeBoundingBox(cubePath, workDir):
-    """Returns (minLon, maxLon, minLat, maxLat)"""
-    
-    # Get the cube size, then request the positions of the four corners
-    cubeSize = IsisTools.getCubeSize(cubePath)
-    
-    # Note that the underlying ISIS tool is one-based
-    points  = []
-    firstPt =     IsisTools.getPixelLocInCube(cubePath, 1,           1,           workDir)['gdc']
-    points.append(IsisTools.getPixelLocInCube(cubePath, cubeSize[0], 1,           workDir)['gdc'])
-    points.append(IsisTools.getPixelLocInCube(cubePath, 1,           cubeSize[1], workDir)['gdc'])
-    points.append(IsisTools.getPixelLocInCube(cubePath, cubeSize[0], cubeSize[1], workDir)['gdc'])
-
-    # Go through the four corners and get the bounding box
-    minLon = firstPt[0]
-    maxLon = firstPt[0]
-    minLat = firstPt[1]
-    maxLat = firstPt[1]
-    
-    for p in points:
-        if p[0] < minLon:
-            minLon = p[0]
-        if p[0] > maxLon:
-            maxLon = p[0]
-        if p[1] < minLat:
-            minLat = p[1]
-        if p[1] > maxLat:
-            maxLat = p[1]
-            
-    return (minLon, maxLon, minLat, maxLat)
-    
-
-
 def retrieveData(inputFile, outputFolder, startLine=0):
     
     # Make sure output folder exists
@@ -160,7 +126,7 @@ def retrieveData(inputFile, outputFolder, startLine=0):
         # Generate the name for this pair
         imageA      = strings[0]
         imageB      = strings[1]
-        dataSetName = 'pair_' + imageA[:-2] + '_' + imageB[:-2]
+        dataSetName = IsisTools.getDataSetName(imageA, imageB)
         subFolder   = os.path.join(outputFolder, dataSetName+'/')
         
         # If the final log exists in this folder than it is finished and we can skip it
@@ -168,11 +134,15 @@ def retrieveData(inputFile, outputFolder, startLine=0):
         if os.path.exists(logPath):
             continue
 
+        # Skip this list if not all the image paths are available
+        imagePathList  = strings[13:17]
+        if imagePathList.index(''):
+            continue
+
         IsisTools.createFolder(subFolder) # Create the output folder
         
         # Download the images
         IMAGE_BASE_URL = 'http://lroc.sese.asu.edu/data/'
-        imagePathList  = strings[13:17]
         lastDiskPath   = ''
         for image in imagePathList:
             
@@ -199,7 +169,7 @@ def retrieveData(inputFile, outputFolder, startLine=0):
         os.system(cmd)
         
         # Get the bounding box of the cube's footprint
-        cubeBB = getCubeBoundingBox(cubePath, subFolder)
+        cubeBB = IsisTools.getCubeBoundingBox(cubePath, subFolder)
          
         # Remove the temporary file
         os.remove(cubePath)

@@ -648,6 +648,37 @@ def getCubeSize(cubePath):
     size = [numSamples, numLines]
     return size
 
+def getCubeBoundingBox(cubePath, workDir):
+    """Returns (minLon, maxLon, minLat, maxLat)"""
+    
+    # Get the cube size, then request the positions of the four corners
+    cubeSize = IsisTools.getCubeSize(cubePath)
+    
+    # Note that the underlying ISIS tool is one-based
+    points  = []
+    firstPt =     getPixelLocInCube(cubePath, 1,           1,           workDir)['gdc']
+    points.append(getPixelLocInCube(cubePath, cubeSize[0], 1,           workDir)['gdc'])
+    points.append(getPixelLocInCube(cubePath, 1,           cubeSize[1], workDir)['gdc'])
+    points.append(getPixelLocInCube(cubePath, cubeSize[0], cubeSize[1], workDir)['gdc'])
+
+    # Go through the four corners and get the bounding box
+    minLon = firstPt[0]
+    maxLon = firstPt[0]
+    minLat = firstPt[1]
+    maxLat = firstPt[1]
+    
+    for p in points:
+        if p[0] < minLon:
+            minLon = p[0]
+        if p[0] > maxLon:
+            maxLon = p[0]
+        if p[1] < minLat:
+            minLat = p[1]
+        if p[1] > maxLat:
+            maxLat = p[1]
+            
+    return (minLon, maxLon, minLat, maxLat)
+
 
 def modifyPixelPairs(inputPath, outputPath, leftOffsetX, leftOffsetY, rightOffsetX, rightOffsetY):
     """Adds offsets to the pixel pairs in a file on disk"""
@@ -715,6 +746,15 @@ def readLolaCompareFile(filePath):
     
     return (meanValue, stdDev, percentile, histogram)
 
+def makeDataSetName(fileNameA, filenameB):
+    """Given two of the input images, determines a data set name"""
+
+    if fileNameA < fileNameB: # Always put the image with the lower number first
+        dataSetName = 'NAC_DTM_' + fileNameA[:-2] + '_' + fileNameB[:-2]
+    else:
+        dataSetName = 'NAC_DTM_' + fileNameB[:-2] + '_' + fileNameA[:-2]
+
+    return dataSetName
 
 #TODO: Make this one general?
 # Copies one file from the supercomputer - Caller needs to wait for the job to finish!
@@ -724,8 +764,19 @@ def grabSupercomputerFile(supercomputerPath, localPath):
     os.system(cmd)
 
 
+def getLastGitTag(codePath):
+    """Returns the last brief git tag of the repository containing the file""" 
 
+    # Get path to git folder
+    codeFolder = os.path.dirname(codePath)
+    gitFolder  = os.path.join(codeFolder, '.git/')
+    
+    # Get the tag using a subprocess call
+    cmd = ['git', '--git-dir', 'gitFolder', 'describe', '--abbrev=0']
+    p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+    textOutput, err = p.communicate()
 
+    return textOutput
 
 
 
