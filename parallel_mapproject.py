@@ -106,7 +106,7 @@ def handleArguments(args):
 def main(argsIn):
 
     try:
-        usage = "usage: parallel_mapproject.py [options] <dem> <camera-image>  <output>"
+        usage = "usage: parallel_mapproject.py [options] <dem> <camera-image> <output>"
         parser = IsisTools.PassThroughOptionParser(usage=usage) # Use parser that ignores unknown options
 
         parser.set_defaults(numThreads=8)
@@ -152,105 +152,104 @@ def main(argsIn):
     startTime = time.time()
 
     # Call mapproject on the input data using subprocess and record output
-    #cmd = ['mapproject',  '--query-projection', options.imagePath, options.demPath, options.outputPath]
-    cmd = ['mapproject',  options.imagePath, options.demPath, options.outputPath]
+    cmd = ['mapproject',  '--query-projection', options.imagePath, options.demPath, options.outputPath]
     cmd = cmd + options.extraArgs # Append other options
     p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
     projectionInfo, err = p.communicate()
     if not options.suppressOutput:
         print projectionInfo
         
-    #    
-    ## Now find the image size in the output
-    #startPos    = projectionInfo.find('Output image bounding box:')
-    #widthStart  = projectionInfo.find('width:', startPos)
-    #heightStart = projectionInfo.find('height:', widthStart)
-    #heightEnd   = projectionInfo.find(')', heightStart)
-    ## Extract values
-    #fullWidth   = int(projectionInfo[widthStart+7  : heightStart-1])
-    #fullHeight  = int(projectionInfo[heightStart+8 : heightEnd])
-    #print 'Output image size is ' + str(fullWidth) + ' by ' + str(fullHeight) + ' pixels.'
-    #
-    ## Figure out how to break up the image into tiles.
-    ## - For now just do something simple.
-    #TILE_SIZE = 1000
-    #
-    ## Round up; some tiles may be smaller then the normal size.
-    #numTilesX = int(math.ceil(fullWidth  / float(TILE_SIZE)))
-    #numTilesY = int(math.ceil(fullHeight / float(TILE_SIZE)))
-    #
-    #print 'Splitting into ' + str(numTilesX) + ' by ' + str(numTilesY) + ' tiles.'
-    #
-    ## Make a temporary directory to store the tiles
-    #outputFolder = os.path.dirname(options.outputPath)
-    #IsisTools.createFolder(outputFolder)
-    #tempFolder   = os.path.join(outputFolder, 'tiles')
-    #IsisTools.createFolder(tempFolder)
-    #
-    #
-    ## Queue up one mapproject call for each file
-    #print 'Writing tiles...'
-    #tilePathList = []
-    #for r in range(0, numTilesY):
-    #    for c in range(0, numTilesX):
-    #        
-    #        # Starting pixel positions for the tile
-    #        tileStartY = r * TILE_SIZE
-    #        tileStartX = c * TILE_SIZE
-    #        
-    #        # Determine the size of this tile
-    #        thisWidth  = TILE_SIZE
-    #        thisHeight = TILE_SIZE
-    #        if (r == numTilesY-1): # If the last row
-    #            thisHeight = fullHeight - tileStartY # Height is last remaining pixels
-    #        if (c == numTilesX-1): # If the last col
-    #            thisWidth  = fullWidth  - tileStartX # Width is last remaining pixels
-    #        
-    #        # Get the end pixels for this tile
-    #        tileStopY  = tileStartY + thisHeight # Stop values are exclusive
-    #        tileStopX  = tileStartX + thisWidth
-    #        
-    #        # Create a path for this tile
-    #        # - Tile format is tile_col_row_width_height_.tif
-    #        tileString = 'tile_' + str(c) + '_' + str(r) + '_' + str(thisWidth) + '_' + str(thisHeight) + '_.tif'
-    #        tilePath   = os.path.join(tempFolder, tileString)
-    #        tilePathList.append(tilePath)
-    #
-    #        print 'Writing tile: ' + tileString
-    #        
-    #        # Call mapproject on the input data using subprocess and record output
-    #        cmd = ['mapproject',  '--t_pixelwin', str(tileStartX), str(tileStartY), str(tileStopX), str(tileStopY),
-    #                               options.imagePath, options.demPath, tilePath]
-    #        cmd = cmd + options.extraArgs # Append other options
-    #        add_job(cmd, options.suppressOutput, options.numThreads) # Send to parallel job queue
-    #
-    ## Wait for all of the tiles to finish processing
-    #wait_on_all_jobs()
-    #
-    #if options.convertTiles: # Make uint8 version of all tiles for debugging
-    #    print 'Writing out uint8 version of all tiles...'
-    #    for tilePath in tilePathList:
-    #        tilePathU8 = os.path.splitext(tilePath)[0] + 'U8.tif'
-    #        cmd = ['gdal_translate', '-ot', 'byte', '-scale', tilePath, tilePathU8]
-    #        add_job(cmd, options.suppressOutput, options.numThreads) # Send to parallel job queue
-    #
-    #    # Wait for all of the tiles to finish processing
-    #    wait_on_all_jobs()
-    #
-    ## Build a gdal VRT file which is composed of all the processed tiles
-    #vrtPath = os.path.join(tempFolder, 'mosaic.vrt')
-    #cmd = "gdalbuildvrt  -resolution highest " + vrtPath + " " + tempFolder + "/*_.tif";
-    #print cmd
-    #os.system(cmd)
-    #
-    ## Convert VRT file to final output file
-    #cmd = "gdal_translate -co compress=lzw " + vrtPath + " " + options.outputPath;
-    #print cmd
-    #os.system(cmd)
-    #
-    ## Clean up temporary files
-    #if not options.keep:
-    #    IsisTools.removeFolderIfExists(tempFolder)
+        
+    # Now find the image size in the output
+    startPos    = projectionInfo.find('Output image bounding box:')
+    widthStart  = projectionInfo.find('width:', startPos)
+    heightStart = projectionInfo.find('height:', widthStart)
+    heightEnd   = projectionInfo.find(')', heightStart)
+    # Extract values
+    fullWidth   = int(projectionInfo[widthStart+7  : heightStart-1])
+    fullHeight  = int(projectionInfo[heightStart+8 : heightEnd])
+    print 'Output image size is ' + str(fullWidth) + ' by ' + str(fullHeight) + ' pixels.'
+
+    # Figure out how to break up the image into tiles.
+    # - For now just do something simple.
+    TILE_SIZE = 1000
+    
+    # Round up; some tiles may be smaller then the normal size.
+    numTilesX = int(math.ceil(fullWidth  / float(TILE_SIZE)))
+    numTilesY = int(math.ceil(fullHeight / float(TILE_SIZE)))
+    
+    print 'Splitting into ' + str(numTilesX) + ' by ' + str(numTilesY) + ' tiles.'
+
+    # Make a temporary directory to store the tiles
+    outputFolder = os.path.dirname(options.outputPath)
+    IsisTools.createFolder(outputFolder)
+    tempFolder   = os.path.join(outputFolder, 'tiles')
+    IsisTools.createFolder(tempFolder)
+    
+    
+    # Queue up one mapproject call for each file
+    print 'Writing tiles...'
+    tilePathList = []
+    for r in range(0, numTilesY):
+        for c in range(0, numTilesX):
+            
+            # Starting pixel positions for the tile
+            tileStartY = r * TILE_SIZE
+            tileStartX = c * TILE_SIZE
+            
+            # Determine the size of this tile
+            thisWidth  = TILE_SIZE
+            thisHeight = TILE_SIZE
+            if (r == numTilesY-1): # If the last row
+                thisHeight = fullHeight - tileStartY # Height is last remaining pixels
+            if (c == numTilesX-1): # If the last col
+                thisWidth  = fullWidth  - tileStartX # Width is last remaining pixels
+            
+            # Get the end pixels for this tile
+            tileStopY  = tileStartY + thisHeight # Stop values are exclusive
+            tileStopX  = tileStartX + thisWidth
+            
+            # Create a path for this tile
+            # - Tile format is tile_col_row_width_height_.tif
+            tileString = 'tile_' + str(c) + '_' + str(r) + '_' + str(thisWidth) + '_' + str(thisHeight) + '_.tif'
+            tilePath   = os.path.join(tempFolder, tileString)
+            tilePathList.append(tilePath)
+    
+            print 'Writing tile: ' + tileString
+            
+            # Call mapproject on the input data using subprocess and record output
+            cmd = ['mapproject',  '--t_pixelwin', str(tileStartX), str(tileStartY), str(tileStopX), str(tileStopY),
+                                   options.imagePath, options.demPath, tilePath]
+            cmd = cmd + options.extraArgs # Append other options
+            add_job(cmd, options.suppressOutput, options.numThreads) # Send to parallel job queue
+    
+    # Wait for all of the tiles to finish processing
+    wait_on_all_jobs()
+    
+    if options.convertTiles: # Make uint8 version of all tiles for debugging
+        print 'Writing out uint8 version of all tiles...'
+        for tilePath in tilePathList:
+            tilePathU8 = os.path.splitext(tilePath)[0] + 'U8.tif'
+            cmd = ['gdal_translate', '-ot', 'byte', '-scale', tilePath, tilePathU8]
+            add_job(cmd, options.suppressOutput, options.numThreads) # Send to parallel job queue
+    
+        # Wait for all of the tiles to finish processing
+        wait_on_all_jobs()
+    
+    # Build a gdal VRT file which is composed of all the processed tiles
+    vrtPath = os.path.join(tempFolder, 'mosaic.vrt')
+    cmd = "gdalbuildvrt  -resolution highest " + vrtPath + " " + tempFolder + "/*_.tif";
+    print cmd
+    os.system(cmd)
+
+    # Convert VRT file to final output file
+    cmd = "gdal_translate -co compress=lzw " + vrtPath + " " + options.outputPath;
+    print cmd
+    os.system(cmd)
+
+    # Clean up temporary files
+    if not options.keep:
+        IsisTools.removeFolderIfExists(tempFolder)
 
 
     endTime = time.time()

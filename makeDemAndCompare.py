@@ -59,9 +59,11 @@ def compareDemToLola(lolaPath, demPath, outputPath, csvPath, force):
 def mapProjectImage(inputImage, demPath, outputPath, resolution, centerLat, force):
     
     if (not os.path.exists(outputPath)) or force:
-        cmd = ('mapproject ' + demPath         + ' ' + inputImage + ' ' + outputPath +
-                         ' --tr ' + str(resolution) + ' --t_srs "+proj=eqc +lat_ts=' + str(centerLat) + 
-                         ' +lat_0=0 +a=1737400 +b=1737400 +units=m" --nodata -32767')
+        cmd = ('parallel_mapproject ' + demPath         + ' ' + inputImage + ' ' + outputPath +
+                                    ' --tr ' + str(resolution) + ' --t_srs "+proj=eqc +lat_ts=' + str(centerLat) + 
+                                    ' +lat_0=0 +a=1737400 +b=1737400 +units=m" --nodata -32767' +
+                                    ' --suppress-output --num-threads 24')
+        
         print cmd
         os.system(cmd)
     else:
@@ -75,6 +77,7 @@ def functionStartupCheck():
     # These calls will raise an exception if the tool is not found
     IsisTools.checkIfToolExists('lola_compare')
     IsisTools.checkIfToolExists('parallel_stereo')
+    IsisTools.checkIfToolExists('parallel_mapproject.py')
     IsisTools.checkIfToolExists('point2dem')
     IsisTools.checkIfToolExists('hillshade')
     IsisTools.checkIfToolExists('crop')
@@ -170,12 +173,12 @@ def main(argsIn):
         if options.cropAmount and (options.cropAmount > 0):
             if (not os.path.exists(mainMosaicCroppedPath)) or carry:
                 cmd = ('crop from= ' + options.leftPath   + ' to= ' + mainMosaicCroppedPath + 
-                           ' nlines= ' + str(options.cropAmount))# + ' line=19000')
+                           ' nlines= ' + str(options.cropAmount))
                 print cmd
                 os.system(cmd)
             if (not os.path.exists(stereoMosaicCroppedPath) or carry):
                 cmd = ('crop from= ' + options.rightPath + ' to= ' + stereoMosaicCroppedPath + 
-                           ' nlines= ' + str(options.cropAmount))# + ' line=19000')
+                           ' nlines= ' + str(options.cropAmount))
                 print cmd
                 os.system(cmd)
             options.leftPath  = mainMosaicCroppedPath
@@ -306,18 +309,6 @@ def main(argsIn):
         logging.info('DEM and hillshade finished in %f seconds', hillshadeTime - stereoTime)
 
 
-        # Generate a map projected version of the left and right images
-        MAP_PROJECT_RESOLUTION = 0.5 # Map resolution in meters
-        mapProjectLeftPath     = os.path.join(outputFolder, 'mapProjLeft.tif')
-        mapProjectRightPath    = os.path.join(outputFolder, 'mapProjRight.tif')
-        
-        print 'Skipping mapproject for now because it is so slow!'
-        #mapProjectImage(options.leftPath,  demPath, mapProjectLeftPath,  MAP_PROJECT_RESOLUTION, centerLat, carry)
-        #mapProjectImage(options.rightPath, demPath, mapProjectRightPath, MAP_PROJECT_RESOLUTION, centerLat, carry)
-
-        mapProjectTime = time.time()
-        logging.info('Map project finished in %f seconds', mapProjectTime - hillshadeTime)
-
         # Call script to compare LOLA data with the DEM
         if options.lolaPath:
             lolaDiffStatsPath  = os.path.join(outputFolder, 'LOLA_diff_stats.txt')
@@ -331,8 +322,16 @@ def main(argsIn):
             compareDemToLola(options.lolaPath, options.asuPath, lolaAsuDiffStatsPath, lolaAsuDiffPointsPath, carry)
 
 
-        statsTime = time.time()
-        logging.info('Final results finished in %f seconds', statsTime - mapProjectTime)
+        # Generate a map projected version of the left and right images
+        MAP_PROJECT_RESOLUTION = 0.5 # Map resolution in meters
+        mapProjectLeftPath     = os.path.join(outputFolder, 'mapProjLeft.tif')
+        mapProjectRightPath    = os.path.join(outputFolder, 'mapProjRight.tif')
+        
+        mapProjectImage(options.leftPath,  demPath, mapProjectLeftPath,  MAP_PROJECT_RESOLUTION, centerLat, carry)
+        mapProjectImage(options.rightPath, demPath, mapProjectRightPath, MAP_PROJECT_RESOLUTION, centerLat, carry)
+
+        mapProjectTime = time.time()
+        logging.info('Map project finished in %f seconds', mapProjectTime - hillshadeTime)
 
         # Clean up temporary files
         if not options.keep:
