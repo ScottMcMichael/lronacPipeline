@@ -442,6 +442,7 @@ def getPixelLocInCube(cubePath, sample, line, workDir=''):
     cmd = ['campt', 'from=', cubePath, 'to=', tempTextPath, 'sample=', str(sample), 'line=', str(line)]
     FNULL = open(os.devnull, 'w')
     subprocess.call(cmd, stdout=FNULL, stderr=subprocess.STDOUT)
+    #subprocess.call(cmd)
 
     # Check that we created the temporary file
     if not os.path.exists(tempTextPath):
@@ -654,7 +655,7 @@ def getCubeBoundingBox(cubePath, workDir):
     """Returns (minLon, maxLon, minLat, maxLat)"""
     
     # Get the cube size, then request the positions of the four corners
-    cubeSize = IsisTools.getCubeSize(cubePath)
+    cubeSize = getCubeSize(cubePath)
     
     # Note that the underlying ISIS tool is one-based
     points  = []
@@ -748,7 +749,7 @@ def readLolaCompareFile(filePath):
     
     return (meanValue, stdDev, percentile, histogram)
 
-def makeDataSetName(fileNameA, filenameB):
+def makeDataSetName(fileNameA, fileNameB):
     """Given two of the input images, determines a data set name"""
 
     if fileNameA < fileNameB: # Always put the image with the lower number first

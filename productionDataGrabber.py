@@ -41,6 +41,12 @@ class Usage(Exception):
 # Retrieves LOLA data from the WUSTL REST web interface
 def retrieveLolaFile(minLat, maxLat, minLon, maxLon, outputFolder, padAmount=0.25):
 
+    # The database seems to be failing for negative longitudes so just make them positive
+    if minLon < 0:
+        minLon = minLon + 360
+    if maxLon < 0:
+        maxLon = maxLon + 360
+
     # Build a query to the WUSTL REST interface for LOLA data
     lolaUrl        = 'http://oderest.rsl.wustl.edu/test/'
     baseQuery      = '?query=lolardr&results=v&'
@@ -58,7 +64,7 @@ def retrieveLolaFile(minLat, maxLat, minLon, maxLon, outputFolder, padAmount=0.2
     
     # Parse the response
     parsedPage = BeautifulSoup(urllib2.urlopen((queryUrl)).read())
-    #print parsedPage.prettify()
+    print parsedPage.prettify()
 
     # Find the link containing '_pts_csv.csv' and download it
     found = False
@@ -69,38 +75,11 @@ def retrieveLolaFile(minLat, maxLat, minLon, maxLon, outputFolder, padAmount=0.2
             print cmd
             os.system(cmd)
             found = True
-            
+       
     return found
 
 
 
-"""
-TODO: FUNCTIONS
-
-get input csv file
-
-decide which rows to fetch (all of them?)
-
-for each row:
-    
-    come up with a name for the pair (name_name?)
-     -- Must be reproducible so no pair is done more than once
-    
-    get path to left and right images (easy)
-    
-    download all four images
-    
-    *** How to determine the bounding box?  Start processing one frame and use campt?
-    
-    Request and download the LOLA file
-
--- OR --
-
-Pick out only one uncompleted row from the file and grab that data.
- - The submission script will al
-
-
-"""
 
 def retrieveData(inputFile, outputFolder, startLine=0):
     
@@ -109,10 +88,11 @@ def retrieveData(inputFile, outputFolder, startLine=0):
         os.mkdir(outputFolder)
     
     # Go through the lines in the file and look for the next unused line
+    cubeBB = None
     i = 0
     f = open(inputFile, 'r')
     for line in f:
-        
+
         # Skip the first N lines of the file if requested
         # - Also always skip the first header line
         if i <= startLine:
@@ -124,28 +104,35 @@ def retrieveData(inputFile, outputFolder, startLine=0):
         strings = line.split(',')
         
         # Generate the name for this pair
-        imageA      = strings[0]
-        imageB      = strings[1]
-        dataSetName = IsisTools.getDataSetName(imageA, imageB)
+        imageA      = strings[0].replace('"', '') # Strip quotes
+        imageB      = strings[1].replace('"', '')
+        dataSetName = IsisTools.makeDataSetName(imageA, imageB)
         subFolder   = os.path.join(outputFolder, dataSetName+'/')
-        
+
         # If the final log exists in this folder than it is finished and we can skip it
         logPath = os.path.join(subFolder, 'downloadLog.txt')
         if os.path.exists(logPath):
             continue
 
+        #print 'Grabbing data for data set ' + dataSetName
+
         # Skip this list if not all the image paths are available
         imagePathList  = strings[13:17]
-        if imagePathList.index(''):
-            continue
+	try:
+	    imagePathList.index('')
+            continue # Found a blank spot, skip this row
+        except:
+            pass # Did not find a blank spot, keep going
 
         IsisTools.createFolder(subFolder) # Create the output folder
         
         # Download the images
         IMAGE_BASE_URL = 'http://lroc.sese.asu.edu/data/'
         lastDiskPath   = ''
-        for image in imagePathList:
+        for imageRaw in imagePathList:
             
+	    image = imageRaw.replace('"', '') # Strip quotes
+
             # Get the output path
             startPos     = image.rfind('/')
             nameOnDisk   = image[startPos+1:]
@@ -163,10 +150,13 @@ def retrieveData(inputFile, outputFolder, startLine=0):
         
         # Init the nav data from one cube
         cubePath = lastDiskPath + '.cub'
-        cmd = 'lronac2isis from=' + lastDiskPath + ' to=' + cubePath
-        os.system(cmd)
-        cmd = 'spiceinit from=' + cubePath
-        os.system(cmd)
+        if not os.path.exists(cubePath):
+            cmd = 'lronac2isis from=' + lastDiskPath + ' to=' + cubePath
+            os.system(cmd)
+        #  Call spiceinit silently
+        FNULL = open(os.devnull, 'w')
+        cmd = ['spiceinit', 'from='+cubePath]
+        subprocess.call(cmd, stdout=FNULL, stderr=subprocess.STDOUT)
         
         # Get the bounding box of the cube's footprint
         cubeBB = IsisTools.getCubeBoundingBox(cubePath, subFolder)
@@ -199,14 +189,14 @@ def retrieveData(inputFile, outputFolder, startLine=0):
     if not cubeBB:
         return -1
     else: # Return the index of the last line processed plus the folder we wrote to
-        return str(i) + ' ' + subFolder 
+        return str(i-1) + ' ' + subFolder 
 
 #--------------------------------------------------------------------------------
 
 
 def main():
 
-    print "Started productionDataGrabber.py"
+    #print "Started productionDataGrabber.py\n"
 
     try:
         try:
@@ -233,7 +223,8 @@ def main():
 
         #startTime = time.time()
 
-        outputString = retrieveData(options.inputFile, options.outputFolder, options.startLine)
+        outputString = retrieveData(options.inputFile, options.outputFolder, int(options.startLine))
+        print outputString
 
         #endTime = time.time()
 
