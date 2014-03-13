@@ -94,7 +94,13 @@ def grabResultFiles(localFolder, force):
 
     #supercomputerSourceFolder = '/u/smcmich1/data/lronacPipeline'
     supercomputerSourceFolder = '/nobackupnfs2/oalexan1/scott'
+    #supercomputerSourceFolder = '/u/smcmich1/data/lronacProduction'
 
+    # List of processed production data
+    #demFolderList = ['NAC_DTM_M151318807_M181974094']
+    
+    
+    # Entire ASU folder list
     demFolderList = [ \
                         'ARISTARCHU2',  'FECUNPIT',	     'HORTENSIUS1',	 'LARMORQ3',       'LICHTENBER9',   'MRECRISIUM2',	 'PRINZVENT',     'SPARIM4',    \
                         'ARISTARCHU3',  'FEOKTISTOV',    'HORTENSIUS2',	 'LARMORQ4',       'LINNECRATER',   'MRECRISIUM3',	 'PYTHAGORAS1',   'SULPICIUS1', \
@@ -174,8 +180,9 @@ def grabResultFiles(localFolder, force):
         dirFile.close()
     
         # Use rsync to grab all the specified files at once
-        #cmd = 'rsync -av --files-from=' + dirListFile + ' smcmich1@pfe23.nas.nasa.gov:/u/smcmich1/data/lronacPipeline/ ' + localFolder
-        cmd = 'rsync -av --files-from=' + dirListFile + ' smcmich1@pfe23.nas.nasa.gov:/nobackupnfs2/oalexan1/scott/ ' + localFolder
+        #cmd = 'rsync -av --files-from=' + dirListFile + ' smcmich1@pfe22.nas.nasa.gov:/u/smcmich1/data/lronacPipeline/ ' + localFolder
+        cmd = 'rsync -av --files-from=' + dirListFile + ' smcmich1@pfe22.nas.nasa.gov:/nobackupnfs2/oalexan1/scott/ ' + localFolder
+        #cmd = 'rsync -av --files-from=' + dirListFile + ' smcmich1@pfe22.nas.nasa.gov:/u/smcmich1/data/lronacProduction/ ' + localFolder
         print cmd
         os.system(cmd)
     
@@ -339,11 +346,20 @@ def generatePlots(dataFolder):
         lolaAsuDiffPath     = folderPath + '/results/ASU_LOLA_diff_stats.txt'
         #stereoDemPath       = folderPath + '/stereo-DEM.tif'
         
+        if not os.path.exists(lolaDiffPath): # Ignore directories if the LOLA data is not there
+            continue
+        
         # Accumulate the statistics
         readLola    = accumulateStatistics(f+'_lola', lolaDiffPath,    lolaMeanList,    lolaStdDevList,    lolaMeanHistogram,    dataStorage )
         readLolaAsu = accumulateStatistics(f+'_comp', lolaAsuDiffPath, lolaAsuMeanList, lolaAsuStdDevList, lolaAsuMeanHistogram, dataStorage )
 
-        if readLola and readLolaAsu:# and readAsuTransform and readLolaTransform:
+        # Check the mean LOLA error from the last result
+        LOLA_ERROR_LIMIT = 50 # Max LOLA error before we consider the run a failure
+        lastLolaError = lolaMeanList[-1]
+        if lastLolaError >= LOLA_ERROR_LIMIT:
+            print 'Folder ' + f + ' considered failure due to high mean LOLA error of ' + str(lastLolaError)
+        
+        if readLola and readLolaAsu and (lastLolaError < LOLA_ERROR_LIMIT):
             usedFolderList.append(f) # Keep track of the folders we read data from
             print 'Read folder ' + f
         else:
@@ -419,7 +435,7 @@ def generatePlots(dataFolder):
     # Finish and plot mean value
     for i in range(0,numEls): 
         lolaMeanPercentile[i] = lolaMeanPercentile[i] / len(usedFolderList)
-    plt.plot(xAxis, lolaMeanPercentile, '-', label='mean percentiles')
+    plt.plot(xAxis, lolaMeanPercentile, '-', color='r', linewidth=3, label='mean percentiles')
     
     plt.grid(color='gray', linestyle='dashed')
     plt.ylim(yMin, yMax)
@@ -447,7 +463,7 @@ def generatePlots(dataFolder):
     # Finish and plot mean value
     for i in range(0,numEls): 
         lolaAsuMeanPercentile[i] = lolaAsuMeanPercentile[i] / len(usedFolderList)
-    plt.plot(xAxis, lolaAsuMeanPercentile, '-', label='mean percentiles')
+    plt.plot(xAxis, lolaAsuMeanPercentile, '-', color='b', linewidth=3, label='mean percentiles')
     
     plt.grid(color='gray', linestyle='dashed')
     plt.ylim(yMin, yMax)
@@ -474,6 +490,7 @@ def generatePlots(dataFolder):
         # This is the standard deviation for this percentile
         lolaPercentileStd    = lolaDiffSum       / len(usedFolderList)
         lolaAsuPercentileStd = lolaAsuDiffSum    / len(usedFolderList)
+        print lolaPercentileStd
         
         lolaPercentileStdList.append(lolaPercentileStd)
         lolaAsuPercentileStdList.append(lolaAsuPercentileStd)
@@ -486,8 +503,12 @@ def generatePlots(dataFolder):
     #print lolaAsuPercentileStdList
     
     # Plot the mean percentiles on one chart
-    plt.errorbar(xAxis, lolaAsuMeanPercentile, label='ASU vs LOLA', yerr=lolaAsuPercentileErrBars)
-    plt.errorbar(xAxis, lolaMeanPercentile   , label='us vs LOLA',  yerr=lolaPercentileErrBars, linewidth=3, elinewidth=3)
+    (_, capsLola, _) = plt.errorbar(xAxis, lolaMeanPercentile   , color='r', label='us vs LOLA',  yerr=lolaPercentileErrBars,    linewidth=3, elinewidth=4, capsize=6)
+    (_, capsAsu,  _) = plt.errorbar(xAxis, lolaAsuMeanPercentile, color='b', label='ASU vs LOLA', yerr=lolaAsuPercentileErrBars, linewidth=2, elinewidth=2, capsize=6)
+    for cap in capsLola:
+        cap.set_markeredgewidth(4)
+    for cap in capsAsu:
+        cap.set_markeredgewidth(4)
     plt.grid(color='gray', linestyle='dashed')
     plt.ylim(yMin, yMax)
     plt.ylabel('Difference in meters')
@@ -502,14 +523,14 @@ def generatePlots(dataFolder):
     yMin = 0
     yMax = 10
     xAxis = np.arange(len(lolaMeanList))
-    barwidth = 0.2
+    barwidth = 0.4
     # Sort the values according to the ASU error for this plot
     zippedValues = zip(lolaAsuMeanList, lolaMeanList, usedFolderList)
     zippedValues.sort()
     lolaAsuMeanList, lolaMeanList, usedFolderList = zip(*zippedValues)
-    plt.bar(xAxis+1*barwidth, lolaMeanList,    barwidth, color='g', label='us vs LOLA')
-    plt.bar(xAxis+2*barwidth, lolaAsuMeanList, barwidth, color='b', label='ASU vs LOLA')
-    plt.xticks(xAxis+.5, usedFolderList, size='small', rotation='vertical')
+    plt.bar(xAxis+1*barwidth, lolaMeanList,    barwidth, linewidth=0, color='r', label='us vs LOLA')
+    plt.bar(xAxis+2*barwidth, lolaAsuMeanList, barwidth, linewidth=0, color='b', label='ASU vs LOLA')
+    #plt.xticks(xAxis+.5, usedFolderList, size='small', rotation='vertical')
     plt.ylim(yMin, yMax)
     plt.ylabel('Difference in meters')
     lgd = plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
