@@ -335,6 +335,7 @@ def generatePlots(dataFolder):
     # ---> TODO: Get log file and restore this!
 
     usedFolderList = []
+    badFolderList  = []
     foldersInDirectory = os.listdir(dataFolder)
     foldersInDirectory.sort()
     for f in foldersInDirectory:
@@ -358,6 +359,7 @@ def generatePlots(dataFolder):
         lastLolaError = lolaMeanList[-1]
         if lastLolaError >= LOLA_ERROR_LIMIT:
             print 'Folder ' + f + ' considered failure due to high mean LOLA error of ' + str(lastLolaError)
+            badFolderList.append(f)
         
         if readLola and readLolaAsu and (lastLolaError < LOLA_ERROR_LIMIT):
             usedFolderList.append(f) # Keep track of the folders we read data from
@@ -475,43 +477,45 @@ def generatePlots(dataFolder):
     plt.savefig(lolaAsuComparisonPath)#, bbox_extra_artists=[lgd], bbox_inches='tight')
     plt.clf()    
     
-    # Compute the standard deviations for LOLA and ASU in each percentile
-    lolaPercentileStdList    = []
-    lolaAsuPercentileStdList = []
+    # Compute low and high percentage levels for each percentile
+    PLOT_PERCENTAGE = 10
+    lolaPercentileBoundList    = []
+    lolaAsuPercentileBoundList = []
+    lolaLowErrPlots  = []
+    lolaHighErrPlots = []
+    asuLowErrPlots   = []
+    asuHighErrPlots  = []
     for i in range(0,numEls): # For each percentile
-        lolaDiffSum    = 0
-        lolaAsuDiffSum = 0
+
+        # Get sorted list of values at each percentile
+        lolaValues = []
+        asuValues  = []
         for f in usedFolderList: # For each data set
-            lolaDiff       = dataStorage[f+'_lola'][i] - lolaMeanPercentile[i]
-            lolaAsuDiff    = dataStorage[f+'_comp'][i] - lolaAsuMeanPercentile[i]
-            lolaDiffSum    = lolaDiffSum    + lolaDiff*lolaDiff
-            lolaAsuDiffSum = lolaAsuDiffSum + lolaAsuDiff*lolaAsuDiff
+            lolaValues.append(dataStorage[f+'_lola'][i])
+            asuValues.append( dataStorage[f+'_comp'][i])
+        lolaValues.sort()
+        asuValues.sort()
         
-        # This is the standard deviation for this percentile
-        lolaPercentileStd    = lolaDiffSum       / len(usedFolderList)
-        lolaAsuPercentileStd = lolaAsuDiffSum    / len(usedFolderList)
-        print lolaPercentileStd
-        
-        lolaPercentileStdList.append(lolaPercentileStd)
-        lolaAsuPercentileStdList.append(lolaAsuPercentileStd)
-    
-    lolaPercentileErrBars    = np.row_stack((lolaPercentileStdList,    lolaPercentileStdList))
-    lolaAsuPercentileErrBars = np.row_stack((lolaAsuPercentileStdList, lolaAsuPercentileStdList))
-    
-    #print lolaPercentileStdList
-    #print '---'
-    #print lolaAsuPercentileStdList
+        # Get difference between low and high percentiles and the mean
+        lolaLowErrPlots.append (abs(np.percentile(lolaValues,   0 + PLOT_PERCENTAGE) - lolaMeanPercentile[i]))
+        lolaHighErrPlots.append(abs(np.percentile(lolaValues, 100 - PLOT_PERCENTAGE) - lolaMeanPercentile[i]))
+        asuLowErrPlots.append  (abs(np.percentile(asuValues,    0 + PLOT_PERCENTAGE) - lolaAsuMeanPercentile[i]))
+        asuHighErrPlots.append (abs(np.percentile(asuValues,  100 - PLOT_PERCENTAGE) - lolaAsuMeanPercentile[i]))
+
+    # Pack into format needed by pyplot.errorbar
+    lolaPercentileErrBars    = np.row_stack((lolaLowErrPlots, lolaHighErrPlots))
+    lolaAsuPercentileErrBars = np.row_stack((asuLowErrPlots,  asuHighErrPlots))    
     
     # Plot the mean percentiles on one chart
     (_, capsLola, _) = plt.errorbar(xAxis, lolaMeanPercentile   , color='r', label='us vs LOLA',  yerr=lolaPercentileErrBars,    linewidth=3, elinewidth=4, capsize=6)
     (_, capsAsu,  _) = plt.errorbar(xAxis, lolaAsuMeanPercentile, color='b', label='ASU vs LOLA', yerr=lolaAsuPercentileErrBars, linewidth=2, elinewidth=2, capsize=6)
-    for cap in capsLola:
+    for cap in capsLola:  # These loops make the error bar caps thicker
         cap.set_markeredgewidth(4)
     for cap in capsAsu:
         cap.set_markeredgewidth(4)
     plt.grid(color='gray', linestyle='dashed')
     plt.ylim(yMin, yMax)
-    plt.ylabel('Difference in meters')
+    plt.ylabel('Difference in meters with ' + str(PLOT_PERCENTAGE) + '% error bars')
     plt.xlabel('Percent of pixels less than difference')
     plt.title('Cumulative pixel percentiles averaged across DEMs')
     plt.legend(loc='upper left')
