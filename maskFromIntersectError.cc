@@ -44,27 +44,46 @@ using namespace vw;
 /// \file maskFromIntersectError.cc Generates a good pixel mask of all pixels with
 ///                                 intersection error below a threshold.
 
-
 /// Functor to evaluate if the sum squared value of a pixel is below a threshold
 /// - In this program it is evaluating intersection error and generating a mask.
 class SumSquaredThreshFunctor  : public ReturnFixedType<PixelGray<uint8> >
 {
 public:
-  /// Construct with the threshold.
-  SumSquaredThreshFunctor(float maxErrorSquared) : m_maxErrorSquared(maxErrorSquared) {}
+  /// Construct with the thresholds.
+  SumSquaredThreshFunctor(const std::vector<float> &thresholdValues, bool scale=false) : m_scaleVal(1.0)
+  {
+    // Record squared copies of each threshold value
+    m_ValsSquared.resize(thresholdValues.size());
+    for (size_t i=0; i<m_ValsSquared.size(); ++i)
+      m_ValsSquared[i] = thresholdValues[i]*thresholdValues[i];
 
-  /// Return 255 if pixel value is below a threshold, 0 otherwise.
+
+    // Compute scale value
+    // - Number of output levels = 1 + number of thresholds
+    // - Outputs will be 0, 1*m_scaleVal, 2*m_scaleVal, ...
+    if (scale)
+      m_scaleVal = 255.0f / float(thresholdValues.size());
+  }
+
+  /// Assign each pixel a value based on the threshold values.
   inline PixelGray<uint8> operator() (PixelRGB<float> const &p) const
   {
-    float errorSquared = p[0]*p[0] + p[1]*p[1] + p[2]*p[2];
-    if (errorSquared < m_maxErrorSquared)
-      return PixelGray<uint8>(255);
-    else    // Error above a threshold
-      return PixelGray<uint8>(0);
+    float valueSquared = p[0]*p[0] + p[1]*p[1] + p[2]*p[2];
+    uint8 bin = 0;
+    for (size_t i=0; i<m_ValsSquared.size(); ++i)
+    {
+      if (valueSquared >= m_ValsSquared[i]) // Value exceeds this threshold
+        bin = i+1;  // Set it to threshold index
+      else  // Get out of the loop
+        break;
+    }
+    // Now apply the scale value to the output
+    return PixelGray<uint8>(bin*m_scaleVal);
   }
 
 private:
-  float m_maxErrorSquared; ///< Squared error pixels will be compared to.
+  std::vector<float> m_ValsSquared;
+  float m_scaleVal;
 };
 
 
@@ -72,11 +91,14 @@ int main( int argc, char *argv[] ) {
 
   std::string inputImagePath="", outputImagePath="";
 
-  float errorThreshold;
+  std::vector<float> thresholdValues;
+  bool scaleOutput;
   po::options_description general_options("Options");
   general_options.add_options()
-    ("help,h",           "Display this help message")
-    ("errorThreshold,e", po::value<float      >(&errorThreshold)->default_value(5), "Set value over which pixels are flagged as invalid");
+    ("help,h",         "Display this help message")
+    ("scaleOutput,s",  po::bool_switch(&scaleOutput)->default_value(false),  "Scale output up to 255")
+    ("thresholds",     po::value<std::vector<float> >(&thresholdValues)->multitoken(),
+                         "Set one or more pixel threshold values (must be >0 and increasing value)");
 
   po::options_description positional("");
   positional.add_options()
@@ -101,11 +123,18 @@ int main( int argc, char *argv[] ) {
                   << e.what() << "\n" << usage << general_options );
   }
 
-  if ( !vm.count("input-image") || !vm.count("output-image"))
-    vw_throw( vw::ArgumentErr() << "Requires <input-image> and <output-image> inputs in order to proceed.\n\n"
+  if ( !vm.count("input-image") || !vm.count("output-image") || !vm.count("thresholds"))
+    vw_throw( vw::ArgumentErr() << "Requires <input-image>, <output-image>, and threshold inputs in order to proceed.\n\n"
               << usage << general_options );
 
-  float errorThresholdSquared = errorThreshold*errorThreshold;
+  // Verify that the threshold values are sorted and > 0
+  float lastVal = 0;
+  for (size_t i=0; i<thresholdValues.size(); ++i)
+  {
+    if (thresholdValues[i] <= lastVal)
+      vw_throw( vw::ArgumentErr() << "Threshold values must be greater than zero and in increasing order.\n\n");
+    lastVal = thresholdValues[i];
+  }
 
   try {
   
@@ -115,8 +144,8 @@ int main( int argc, char *argv[] ) {
 
     // Set up thresholding function
     ImageViewRef<PixelGray<vw::uint8> > mask = vw::per_pixel_filter(inputImage,
-                                                                    SumSquaredThreshFunctor(errorThresholdSquared));
-
+                                                                    SumSquaredThreshFunctor(thresholdValues,
+                                                                                            scaleOutput));
 
     // Set up output file
     boost::scoped_ptr<DiskImageResource> r(DiskImageResource::create(outputImagePath, mask.format()));

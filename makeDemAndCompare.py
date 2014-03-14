@@ -193,7 +193,7 @@ def main(argsIn):
         stereoOutputFolder = os.path.join(tempFolder, 'stereoWorkDir')
         pointCloudPath     = stereoOutputPrefix + '-PC.tif'
         
-        stereoOptionString = ('--corr-timeout 400 --alignment affineepipolar --subpixel-mode 2 ' +
+        stereoOptionString = ('--corr-timeout 400 --alignment-method AffineEpipolar --subpixel-mode 2 ' +
                               options.leftPath + ' ' + options.rightPath + 
                               ' ' + stereoOutputPrefix + ' --processes 8 --threads-multiprocess 4' +
                               ' --threads-singleprocess 32 --compute-error-vector' + ' --filter-mode 1' +
@@ -301,7 +301,7 @@ def main(argsIn):
         # TODO: How to set this threshold?
         accuratePixelMask = os.path.join(outputFolder, 'accuratePixelMask.tif')
         if not os.path.exists(accuratePixelMask):
-            cmd = 'maskFromIntersectError ' + intErrorPath + ' ' + accuratePixelMask + ' --errorThreshold 5'
+            cmd = 'maskFromIntersectError ' + intErrorPath + ' ' + accuratePixelMask + ' --thresholds 5 --scaleOutput'
             print cmd
             os.system(cmd)
 
