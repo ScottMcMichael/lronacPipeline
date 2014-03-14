@@ -120,6 +120,8 @@ do
                 echo "Running script for $PRETTY_NAME"
       
                 # Submit the job using a westmere (cheap) CPU
+                echo qsub -q long -N ${JOB_NAME} -l walltime="40:00:00" -W group_list=s1219 -j oe -e $ERR_OUT_PATH -o $STD_OUT_PATH -S /bin/bash -V -C $PWD -l select=1:ncpus=12:model=wes -m eb -- /u/smcmich1/projects/lronacPipeline/jobWrapperV2.sh $FULL_DIRECTORY       
+
                 qsub -q long -N ${JOB_NAME} -l walltime="40:00:00" -W group_list=s1219 -j oe -e $ERR_OUT_PATH -o $STD_OUT_PATH -S /bin/bash -V -C $PWD -l select=1:ncpus=12:model=wes -m eb -- /u/smcmich1/projects/lronacPipeline/jobWrapperV2.sh $FULL_DIRECTORY       
 
                exit #DEBUG!!!!!!!!!

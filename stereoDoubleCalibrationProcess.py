@@ -302,10 +302,33 @@ def getInterestPointPairs(leftInputPath, rightInputPath, outputPath, surfaceElev
 
         # Generate intermediate binary file
         binaryPath = outputPath + '.bin'
-        cmd = ('stereoIpFind '+ leftInputPath + ' ' + rightInputPath + ' ' + binaryPath +
-                              ' --elevationGuess ' + str(surfaceElevation))
+        #cmd =  ('stereoIpFind '+ leftInputPath + ' ' + rightInputPath + ' ' + binaryPath +
+        #                      ' --elevationGuess ' + str(surfaceElevation))
+        cmd = ['stereoIpFind', leftInputPath, rightInputPath, binaryPath,
+                              '--elevationGuess', str(surfaceElevation)]
         print cmd
-        os.system(cmd)
+        # Call and record the output text
+	p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+        textOut, err = p.communicate()
+        print textOut
+
+        # Find the triangulation error in the output text
+        basePos  = textOut.find('Triangulation Err:')
+        startPos = textOut.find(':', basePos)
+        splitPos = textOut.find('+-', basePos)
+        endPos   = textOut.find('meters', startPos)
+
+        baseError = float(textOut[startPos+1:splitPos-1])
+        variance  = float(textOut[splitPos+2:endPos-1])
+
+        # Check that the error is reasonable
+        BASE_ERROR_LIMIT = 200.0
+        VARIANCE_LIMIT   = 200.0
+        if (baseError > BASE_ERROR_LIMIT) or (variance > VARIANCE_ERROR_LIMIT):
+           #raise Exception(' stereoIpFind returned very high error: ' + textOut[basePos:endPos+6])
+           print 'Warning: stereoIpFind returned very high error: ' + textOut[basePos:endPos+6]
+           logging.info('Warning: stereoIpFind file '+ outputPath  + ' has very high error: ' + textOut[basePos:endPos+6])
+
 
         if not os.path.exists(binaryPath):
             raise Exception('stereoIpFind failed to create output file ' + outputPath + 
@@ -598,6 +621,14 @@ def main(argsIn):
         pixelPairsLeftSmall  = extractPixelPairsFromStereoResults(disparityImageLeft, tempFolder, 
                                                                   'stereoPixelPairsLeftSmall.csv', 
                                                                   800, carry)
+
+        # Make sure we found enough pixels here
+        MIN_SMALL_LEFT_PIXELS = 100
+        numPixelPairsLeftSmall = getFileLineCount(pixelPairsLeftSmall)
+        if numPixelPairsLeftSmall < MIN_SMALL_LEFT_PIXELS:
+           print  'WARNING: Only found ' + numPixelPairsLeftSmall + ' left small pixel pairs!'
+           logging.info('WARNING: Only found %s left small pixel pairs!', str(numPixelPairsLeftSmall))
+
 
 
         # Get small number of matching pixels for the right side quickly
