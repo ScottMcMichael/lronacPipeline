@@ -198,11 +198,9 @@ def main():
         tempFolder    = outputFolder + '/' + inputBaseName + '_stereoCalibrationTemp/'
         if (options.workDir):
             tempFolder = options.workDir
-        if not os.path.exists(outputFolder):
-            os.mkdir(outputFolder) 
+        IsisTools.createFolder(outputFolder)
         hadToCreateTempFolder = not os.path.exists(tempFolder)
-        if not os.path.exists(tempFolder):
-            os.mkdir(tempFolder) 
+        IsisTools.createFolder(tempFolder)
 
 
         # Set up logging

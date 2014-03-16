@@ -415,7 +415,6 @@ def makeSpkSetupFile(leapSecondFilePath, outputPath):
     f.close()
 
 
-# TODO: Merge this with IsisTools functions
 def getPixelLocInCube(cubePath, sample, line, workDir=''):
     """Returns the BodyFixedCoordinate of a pixel from a cube"""
 
@@ -438,15 +437,20 @@ def getPixelLocInCube(cubePath, sample, line, workDir=''):
     if os.path.exists(tempTextPath):
         os.remove(tempTextPath) # Make sure any existing file is removed!
         
+    # TODO: Instead of writing temporary file, just parse the output!
     # Use subprocess to suppress the command output
     cmd = ['campt', 'from=', cubePath, 'to=', tempTextPath, 'sample=', str(sample), 'line=', str(line)]
     FNULL = open(os.devnull, 'w')
-    subprocess.call(cmd, stdout=FNULL, stderr=subprocess.STDOUT)
-    #subprocess.call(cmd)
+    #subprocess.call(cmd, stdout=FNULL, stderr=subprocess.STDOUT)
+    p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+    cmdOut, err = p.communicate()
 
-    # Check that we created the temporary file
+
+    # Check that we created the temporary file and if not return the error message.
     if not os.path.exists(tempTextPath):
-        raise Exception('campt failed to create temporary file ' + tempTextPath)
+        raise Exception('campt failed to create temporary file ' + tempTextPath +
+                        '\nWith parameters: ' + str(cmd) +
+                        '\nOutput: ' + cmdOut)
     
     infoFile = open(tempTextPath, 'r')
         

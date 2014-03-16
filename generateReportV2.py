@@ -507,17 +507,17 @@ def generatePlots(dataFolder):
     lolaAsuPercentileErrBars = np.row_stack((asuLowErrPlots,  asuHighErrPlots))    
     
     # Plot the mean percentiles on one chart
-    (_, capsLola, _) = plt.errorbar(xAxis, lolaMeanPercentile   , color='r', label='us vs LOLA',  yerr=lolaPercentileErrBars,    linewidth=3, elinewidth=4, capsize=6)
-    (_, capsAsu,  _) = plt.errorbar(xAxis, lolaAsuMeanPercentile, color='b', label='ASU vs LOLA', yerr=lolaAsuPercentileErrBars, linewidth=2, elinewidth=2, capsize=6)
+    (_, capsLola, _) = plt.errorbar(xAxis, lolaMeanPercentile   , color='r', label='AMES vs LOLA',  yerr=lolaPercentileErrBars,    linewidth=3, elinewidth=4, capsize=6)
+    (_, capsAsu,  _) = plt.errorbar(xAxis, lolaAsuMeanPercentile, color='b', label='ASU  vs LOLA', yerr=lolaAsuPercentileErrBars, linewidth=2, elinewidth=2, capsize=6)
     for cap in capsLola:  # These loops make the error bar caps thicker
         cap.set_markeredgewidth(4)
     for cap in capsAsu:
         cap.set_markeredgewidth(4)
     plt.grid(color='gray', linestyle='dashed')
     plt.ylim(yMin, yMax)
-    plt.ylabel('Difference in meters with ' + str(PLOT_PERCENTAGE) + '% error bars')
-    plt.xlabel('Percent of pixels less than difference')
-    plt.title('Cumulative pixel percentiles averaged across DEMs')
+    plt.ylabel('Mean of mean distances from DTM across data sets in meters\n (10-90% of data set mean distances fall within error bars)')
+    plt.xlabel('Cumulative percentage of LOLA data points over DTM')
+    plt.title('Summary of percentage of LOLA points\n within distance across data sets')
     plt.legend(loc='upper left')
     plt.savefig(dataFolder + '/meanPercentiles.png')
     plt.clf()
@@ -532,13 +532,14 @@ def generatePlots(dataFolder):
     zippedValues = zip(lolaAsuMeanList, lolaMeanList, usedFolderList)
     zippedValues.sort()
     lolaAsuMeanList, lolaMeanList, usedFolderList = zip(*zippedValues)
-    plt.bar(xAxis+1*barwidth, lolaMeanList,    barwidth, linewidth=0, color='r', label='us vs LOLA')
-    plt.bar(xAxis+2*barwidth, lolaAsuMeanList, barwidth, linewidth=0, color='b', label='ASU vs LOLA')
+    plt.bar(xAxis+1*barwidth, lolaMeanList,    barwidth, linewidth=0, color='r', label='AMES vs LOLA')
+    plt.bar(xAxis+2*barwidth, lolaAsuMeanList, barwidth, linewidth=0, color='b', label='ASU  vs LOLA')
     #plt.xticks(xAxis+.5, usedFolderList, size='small', rotation='vertical')
+    plt.xlabel('Data sets sorted by ASU-LOLA error')
     plt.ylim(yMin, yMax)
-    plt.ylabel('Difference in meters')
+    plt.ylabel('Mean distance of LOLA from DTM in meters')
     lgd = plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-    plt.title('Mean difference between DEMs')
+    plt.title('Comparison of data set DTM mean distance from LOLA')
     plt.savefig(dataFolder + '/means.png', bbox_extra_artists=[lgd], bbox_inches='tight')
     plt.clf()
 
@@ -549,7 +550,7 @@ def main():
 
     try:
         try:
-            usage = "usage: lronacPipeline.py [--help][--manual]\n  "
+            usage = "usage: generateReportV2.py [--help][--manual]\n  "
             parser = optparse.OptionParser(usage=usage)
             parser.add_option("--manual", action="callback", callback=man,
                               help="Read the manual.")

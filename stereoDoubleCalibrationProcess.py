@@ -115,21 +115,68 @@ def applyInterCameraPositionOffset(inputCubePath, outputCubePath, workingDirecto
     return True
 
 
+def extractAffinesFromStereoPprcLog(logPath):
+    """Returns the affine transforms used in a stereo_pprc call in text format"""
+
+    # Make sure the log file exists
+    if not os.path.exists(logPath):
+        raise Exception('Error: stereo_pprc log file ' + logPath + ' not found!')
+    
+    leftAffine  = '' # Default is no transforms used
+    rightAffine = ''
+    
+    f = open(logPath, 'r') # Open the log file
+    count = -1
+    for line in f:
+            
+        if (count > 0): # Reading the next four lines
+            start   = line.rfind('(') # Last of these
+            stop    = line.find (')') # First of these
+            numbers = line[start+1:stop] # Get the number string
+            if (count == 4):
+                leftAffine = numbers
+            elif (count == 3):
+                leftAffine = leftAffine + ', ' + numbers
+            elif (count == 2):
+                rightAffine = numbers
+            else:
+                rightAffine = rightAffine + ', ' + numbers
+            count = count - 1
+        elif (count == 0): # Finished reading the transform lines
+            return (leftAffine, rightAffine)
+        elif 'Aligning left and right images using affine matrices' in line:
+            count = 4 # Read the next four lines
+
+    return (leftAffine, rightAffine)
 
 # Samples pixels pairs for bundle adjustment from the output of the stereo command.
 # - Returns the output path.
-def extractPixelPairsFromStereoResults(disparityImagePath, outputDirectory, outputFileName, 
+def extractPixelPairsFromStereoResults(disparityImagePath, outputPixelPath, 
                                        sampleInterval, forceOperation):
 
     # Quit immediately if the output file already exists
-    outputPixelPath = os.path.join(outputDirectory, outputFileName)
     if (not forceOperation) and (os.path.exists(outputPixelPath)):
         print 'File ' + outputPixelPath + ' already exists, skipping pixel pair sampling.'
         return outputPixelPath
 
+    # TODO: Move this out to a function?
+    # Determine the affine transforms which were used (stored in the log file)
+    leftAffine  = '1 0 0 0 1 0 0 0 1' # Default both transforms to identity.
+    rightAffine = '1 0 0 0 1 0 0 0 1'
+    stereoFolder = os.path.dirname(disparityImagePath)
+    stereoFiles  = os.listdir(stereoFolder)
+    logFile = None
+    for f in stereoFiles:
+        if 'log-stereo_pprc' in f: # We want the last log pprc log file in the directory
+            logFile = os.path.join(stereoFolder, f)
+    if (logFile):
+        leftAffine, rightAffine = extractAffinesFromStereoPprcLog(logFile)
+        leftAffine  = leftAffine.replace (',', ' ') # Strip out the commas
+        rightAffine = rightAffine.replace(',', ' ')
+
     # Run the process
     cmd = ('pixelPairsFromStereo ' + disparityImagePath + ' ' + outputPixelPath + 
-          ' -p ' + str(sampleInterval))
+          ' -pointSpacing ' + str(sampleInterval) + ' --leftAffine ' + leftAffine + ' --rightAffine ' + rightAffine)
     print cmd
     os.system(cmd)
 
@@ -141,7 +188,7 @@ def extractPixelPairsFromStereoResults(disparityImagePath, outputDirectory, outp
     numPairs = getFileLineCount(outputPixelPath)
     logging.info('In stereo file %s found %d point pairs', disparityImagePath, numPairs)
 
-    return outputPixelPath
+    return numPairs
 
 
 # Applies a planet-centered rotation and correction to the nav data of a cube
@@ -259,19 +306,19 @@ def callStereoCorrelation(leftInputPath, rightInputPath, outputPrefix, correlati
     # Call only the initial stereo stages to cut down on processing time
 
     # Stage 0 (fast)
-    cmd = ('stereo_pprc --corr-max-levels 3 --compute-error-vector --cost-mode 0 --alignment none' + 
+    cmd = ('stereo_pprc --corr-max-levels 3 --compute-error-vector --cost-mode 0 --alignment AffineEpipolar' + 
                       ' --subpixel-mode 1 --disable-fill-holes --corr-timeout ' + str(correlationTimeout) + 
                       ' ' + leftInputPath + ' ' + rightInputPath + ' ' + outputPrefix)
     print cmd
     os.system(cmd)
     # Stage 1 (slow!)
-    cmd = ('stereo_corr --corr-max-levels 3 --compute-error-vector --cost-mode 0 --alignment none' + 
+    cmd = ('stereo_corr --corr-max-levels 3 --compute-error-vector --cost-mode 0 --alignment AffineEpipolar' + 
                       ' --subpixel-mode 1 --disable-fill-holes --corr-timeout ' + str(correlationTimeout) + 
                       ' ' + leftInputPath + ' ' + rightInputPath + ' ' + outputPrefix)
     print cmd
     os.system(cmd)
 
-
+    print '*******'
 
     # Generate disparity images for debugging
     #cmd = 'disparitydebug ' + disparityImagePath
@@ -302,13 +349,11 @@ def getInterestPointPairs(leftInputPath, rightInputPath, outputPath, surfaceElev
 
         # Generate intermediate binary file
         binaryPath = outputPath + '.bin'
-        #cmd =  ('stereoIpFind '+ leftInputPath + ' ' + rightInputPath + ' ' + binaryPath +
-        #                      ' --elevationGuess ' + str(surfaceElevation))
         cmd = ['stereoIpFind', leftInputPath, rightInputPath, binaryPath,
                               '--elevationGuess', str(surfaceElevation)]
         print cmd
         # Call and record the output text
-	p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
         textOut, err = p.communicate()
         print textOut
 
@@ -317,17 +362,22 @@ def getInterestPointPairs(leftInputPath, rightInputPath, outputPath, surfaceElev
         startPos = textOut.find(':', basePos)
         splitPos = textOut.find('+-', basePos)
         endPos   = textOut.find('meters', startPos)
-
+    
+        # Quit if we didn't find the output error
+        if (startPos < 0) or (splitPos < 0) or (endPos < 0):
+            raise Exception('stereoIpFind call for file ' + outputPath + ' failed')
+            
         baseError = float(textOut[startPos+1:splitPos-1])
         variance  = float(textOut[splitPos+2:endPos-1])
 
         # Check that the error is reasonable
-        BASE_ERROR_LIMIT = 200.0
+        BASE_ERROR_LIMIT = 400.0
         VARIANCE_LIMIT   = 200.0
-        if (baseError > BASE_ERROR_LIMIT) or (variance > VARIANCE_ERROR_LIMIT):
-           #raise Exception(' stereoIpFind returned very high error: ' + textOut[basePos:endPos+6])
-           print 'Warning: stereoIpFind returned very high error: ' + textOut[basePos:endPos+6]
-           logging.info('Warning: stereoIpFind file '+ outputPath  + ' has very high error: ' + textOut[basePos:endPos+6])
+        if (baseError > BASE_ERROR_LIMIT) or (variance > VARIANCE_LIMIT):
+           logging.info('Error: stereoIpFind file '+ outputPath  + ' has very high error: ' + textOut[basePos:endPos+6])
+           raise Exception('Error: stereoIpFind returned very high error: ' + textOut[basePos:endPos+6])
+           #print 'Warning: stereoIpFind returned very high error: ' + textOut[basePos:endPos+6]
+           
 
 
         if not os.path.exists(binaryPath):
@@ -363,6 +413,7 @@ def evaluateAccuracy(leftCubePath, rightCubePath, ipFindOutputPath, workDir='', 
     if savePoints:
         leftPointPath  = os.path.join(workDir, 'leftEvalPoints.csv')
         rightPointPath = os.path.join(workDir, 'rightEvalPoints.csv')
+        IsisTools.createFolder(workDir)
         leftFile  = open(leftPointPath, 'w')
         rightFile = open(rightPointPath, 'w')
 
@@ -574,10 +625,6 @@ def main(argsIn):
         # Get the expected surface elevation in meters
         expectedSurfaceElevation = IsisTools.getCubeElevationEstimate(spiceInitLeftPath, tempFolder)
 
-        # DEBUG: Check angle solver on input LE/RE images!
-#        checkAdjacentPairAlignment(spiceInitLeftPath, spiceInitRightPath, 
-#                                   os.path.join(tempFolder, 'initialGdcCheck'), 
-#                                   expectedSurfaceElevation, carry)
 
         # Apply LE/RE LRONAC position offsets to each of the input files
         posOffsetCorrectedLeftPath = os.path.join(tempFolder, leftBaseName + '.posOffsetCorrected.cub')
@@ -598,148 +645,117 @@ def main(argsIn):
         applyInterCameraPositionOffset(spiceInitStereoRightPath, posOffsetCorrectedStereoRightPath,  
                                        stereoRightPosCorrectWorkDir, carry)
 
-        # DEBUG: Check angle solver on input LE/RE images!
-#        checkAdjacentPairAlignment(posOffsetCorrectedLeftPath, posOffsetCorrectedRightPath, 
-#                                   os.path.join(tempFolder, 'posCorrectGdcCheck'), 
-#                                   expectedSurfaceElevation, carry)
-#        checkAdjacentPairAlignment(posOffsetCorrectedStereoLeftPath, posOffsetCorrectedStereoRightPath, 
-#                                   os.path.join(tempFolder, 'posCorrectStereoGdcCheck'), 
-#                                   expectedSurfaceElevation, carry)
-
         positionTime = time.time()
         logging.info('Position offset complete in %f seconds', positionTime - initTime)
 
-        print '\n-------------------------------------------------------------------------\n'
-
-        # Perform initial stereo step on two LE cubes to generate a large number of point correspondences
-        stereoPrefixLeft   = os.path.join(tempFolder, 'stereoOutputLeft/out')
-        disparityImageLeft = callStereoCorrelation(posOffsetCorrectedLeftPath, 
-                                                   posOffsetCorrectedStereoLeftPath, 
-                                                   stereoPrefixLeft, 400, carry)
-
-        # Extract a small number of matching pixel locations from the LE disparity image ( < 300 pairs)
-        pixelPairsLeftSmall  = extractPixelPairsFromStereoResults(disparityImageLeft, tempFolder, 
-                                                                  'stereoPixelPairsLeftSmall.csv', 
-                                                                  800, carry)
-
-        # Make sure we found enough pixels here
-        MIN_SMALL_LEFT_PIXELS = 100
-        numPixelPairsLeftSmall = getFileLineCount(pixelPairsLeftSmall)
-        if numPixelPairsLeftSmall < MIN_SMALL_LEFT_PIXELS:
-           print  'WARNING: Only found ' + numPixelPairsLeftSmall + ' left small pixel pairs!'
-           logging.info('WARNING: Only found %s left small pixel pairs!', str(numPixelPairsLeftSmall))
+        print '\n-------------------------------------------------------------------------\n' # -------------------------------------------------
 
 
+        # Use stereoIpFind to find a small (<500) set of paired pixels from each pair of images relatively quickly
+        # - Image pairs that do not yield enough matched pixels will have all their matched pixels thrown out.
 
-        ## Get small number of matching pixels for the right side quickly
-        #pixelPairsRightSmall = os.path.join(tempFolder, 'stereoPixelPairsRightSmall.csv')
-        #getInterestPointPairs(posOffsetCorrectedRightPath, posOffsetCorrectedStereoRightPath, 
-        #                      pixelPairsRightSmall, expectedSurfaceElevation, carry)
-
-
-        # Perform initial stereo step on two RE cubes to generate a large number of point correspondences
-        stereoPrefixRight   = os.path.join(tempFolder, 'stereoOutputRight/out')
-        disparityImageRight = callStereoCorrelation(posOffsetCorrectedRightPath, 
-                                                   posOffsetCorrectedStereoRightPath, 
-                                                   stereoPrefixRight, 400, carry)
-
-        # Extract a small number of matching pixel locations from the RE disparity image ( < 300 pairs)
-        pixelPairsRightSmall  = extractPixelPairsFromStereoResults(disparityImageRight, tempFolder, 
-                                                                  'stereoPixelPairsRightSmall.csv', 
-                                                                  800, carry)
-
-
-        print '\n-------------------------------------------------------------------------\n'
-
-        # Perform cross-stereo matching of LE/RE cubes from opposite pairs
-
-        # Crop each input cube to half its width
-        # - Take the right half of the LE cubes and the left half of the RE cubes
-        leftPosCorrectedCropped        = os.path.join(tempFolder, leftBaseName        + '.cropped.cub')
-        rightPosCorrectedCropped       = os.path.join(tempFolder, rightBaseName       + '.cropped.cub')
-        leftStereoPosCorrectedCropped  = os.path.join(tempFolder, leftStereoBaseName  + '.cropped.cub')
-        rightStereoPosCorrectedCropped = os.path.join(tempFolder, rightStereoBaseName + '.cropped.cub')
-
-        # Check the image size and determine if it is full resolution
-        imageSize     = IsisTools.getCubeSize(posOffsetCorrectedLeftPath)
-        print 'Input image size = ' + str(imageSize)
-        logging.info('Image size = %s', str(imageSize))
-        if (imageSize[0] < 5000):
-            logging.info('This data is half-width!')
+        MIN_NUM_SMALL_PIXELS = 50  # Must have at least this many matches between images, otherwise they are all probably junk
         
-        cropWidth     = imageSize[0] / 2
-        isisCropStart = cropWidth + 1 # One-based starting pixel for ISIS LE crop
-
-        if not os.path.exists(leftPosCorrectedCropped):
-            cmd = ('crop sample=' + str(isisCropStart) + ' from= ' + posOffsetCorrectedLeftPath + 
-                       ' to= ' + leftPosCorrectedCropped)
-            print cmd
-            os.system(cmd)
-        if not os.path.exists(rightPosCorrectedCropped):
-            cmd = ('crop nsamples=' + str(cropWidth) + ' from= ' + posOffsetCorrectedRightPath + 
-                       ' to= ' + rightPosCorrectedCropped)
-            print cmd
-            os.system(cmd)
-        if not os.path.exists(leftStereoPosCorrectedCropped):
-            cmd = ('crop sample=' + str(isisCropStart) + ' from= ' + posOffsetCorrectedStereoLeftPath + 
-                       ' to= ' + leftStereoPosCorrectedCropped)
-            print cmd
-            os.system(cmd)
-        if not os.path.exists(rightStereoPosCorrectedCropped):
-            cmd = ('crop nsamples=' + str(cropWidth) + ' from= ' + posOffsetCorrectedStereoRightPath + 
-                       ' to= ' + rightStereoPosCorrectedCropped)
-            print cmd
-            os.system(cmd)
-
-        # Get small numbers of pixels for the two cross pairs quickly
-
-#        # Use stereo command on two cross-pair cubes
-#        # - Timeouts are shorter on these since there is probably less image overlap
-        
-        # First is left in main pair to right in the stereo pair
-        numLeftCrossPairs = 0
-        pixelPairsLeftCrossSmall = os.path.join(tempFolder, 'stereoPixelPairsLeftCrossSmall.csv')
-        tempLeftCrossPixelPairs  = os.path.join(tempFolder, 'tempLeftCrossPixelPairs.csv')
-        try:
-            numLeftCrossPairs  = getInterestPointPairs(leftPosCorrectedCropped, rightStereoPosCorrectedCropped, 
-                                                       tempLeftCrossPixelPairs, expectedSurfaceElevation, carry)
-
-            # Add in offset to the LE image so that the pixel coordinates are in the full, not cropped, frame
-            IsisTools.modifyPixelPairs(tempLeftCrossPixelPairs, pixelPairsLeftCrossSmall, cropWidth, 0, 0, 0)
-            usingLeftCross = True
-        except:
-            print 'Failed to find left-cross match, ignoring this data source.'
-            usingLeftCross = False
-
-        # Next is left in the stereo pair to right in the main pair
-        numRightCrossPairs = 0
+        numMainPairsSmall         = 0
+        numStereoPairsSmall       = 0
+        numLeftCrossPairsSmall    = 0
+        numRightCrossPairsSmall   = 0
+        leftPixelsCmdParams       = []
+        rightPixelsCmdParams      = []
+        leftCrossPixelsCmdParams  = []
+        rightCrossPixelsCmdParams = []
+        pixelPairsLeftSmall       = os.path.join(tempFolder, 'stereoPixelPairsLeftSmall.csv')
+        pixelPairsRightSmall      = os.path.join(tempFolder, 'stereoPixelPairsRightSmall.csv')
+        pixelPairsLeftCrossSmall  = os.path.join(tempFolder, 'stereoPixelPairsLeftCrossSmall.csv')
         pixelPairsRightCrossSmall = os.path.join(tempFolder, 'stereoPixelPairsRightCrossSmall.csv')
-        tempRightCrossPixelPairs  = os.path.join(tempFolder, 'tempRightCrossPixelPairs.csv')
-        try:
-            numRightCrossPairs = getInterestPointPairs(leftStereoPosCorrectedCropped, rightPosCorrectedCropped, 
-                                                       tempRightCrossPixelPairs, expectedSurfaceElevation, carry)
-            # Add in offset to the LE image so that the pixel coordinates are in the full, not cropped, frame
-            IsisTools.modifyPixelPairs(tempRightCrossPixelPairs, pixelPairsRightCrossSmall, cropWidth, 0, 0, 0)
-            usingRightCross = True
-        except:
-            print 'Failed to find right-cross match, ignoring this data source.'
-            usingRightCross = False
+        pixelPairsLeftFail        = os.path.join(tempFolder, 'stereoPixelPairsLeftFail.txt') # Flag files
+        pixelPairsRightFail       = os.path.join(tempFolder, 'stereoPixelPairsRightFail.txt')
+        pixelPairsLeftCrossFail   = os.path.join(tempFolder, 'stereoPixelPairsLeftCrossFail.txt')
+        pixelPairsRightCrossFail  = os.path.join(tempFolder, 'stereoPixelPairsRightCrossFail.txt')
+        usingLeftPixels           = False
+        usingRightPixels          = False
+        usingLeftCrossPixels      = False
+        usingRightCrossPixels     = False
 
-        # Left and right cross pixels may not be used depending on the image overlap
-        # - If a small number of pixel pairs was found that suggests we may have a high ratio of bad pixels
-        leftCrossElems   = []
-        rightCrossElems  = []
-        if usingLeftCross and (numLeftCrossPairs > 50):
-            leftCrossElems   = ['--matchingPixelsLeftCrossPath', pixelPairsLeftCrossSmall]
-        if usingRightCross and (numRightCrossPairs > 50):
-            rightCrossElems  = ['--matchingPixelsRightCrossPath', pixelPairsRightCrossSmall]
+        #TODO: Move this into a function
+        if os.path.exists(pixelPairsLeftFail):
+            print 'Already failed to find left pixel matches, skipping this step'
+        else:
+            try:  # Left in main pair to right in main pair
+                print '--> Looking for Left-LeftStereo point matches...'
+                numLeftPairsSmall  = getInterestPointPairs(posOffsetCorrectedLeftPath, posOffsetCorrectedStereoLeftPath, 
+                                                           pixelPairsLeftSmall, expectedSurfaceElevation, carry)
+                usingLeftPixels = (numLeftPairsSmall > MIN_NUM_SMALL_PIXELS)
+            except Exception, e:
+                print str(e)
+                print 'Failed to find LE-LE match, ignoring this data source.'
+                os.system('touch ' + pixelPairsLeftFail) # Set failure flag in case we need to re-run the script
+
+        if os.path.exists(pixelPairsRightFail):
+            print 'Already failed to find right pixel matches, skipping this step'
+        else:
+            try:  # Right in main pair to right in the stereo pair
+                print '--> Looking for Right-RightStereo point matches...'
+                numRightPairsSmall  = getInterestPointPairs(posOffsetCorrectedRightPath, posOffsetCorrectedStereoRightPath, 
+                                                            pixelPairsRightSmall, expectedSurfaceElevation, carry)
+                usingRightPixels = (numRightPairsSmall > MIN_NUM_SMALL_PIXELS)
+            except Exception, e:
+                print str(e)
+                os.system('touch ' + pixelPairsRightFail) # Set failure flag in case we need to re-run the script
+                print 'Failed to find RE-RE match, ignoring this data source.'
+            
+        if os.path.exists(pixelPairsLeftCrossFail):
+            print 'Already failed to find left cross pixel matches, skipping this step'
+        else:
+            try:  # Left in main pair to right in the stereo pair
+                print '--> Looking for Left-RightStereo point matches...'
+                numLeftCrossPairsSmall  = getInterestPointPairs(posOffsetCorrectedLeftPath, posOffsetCorrectedStereoRightPath, 
+                                                                pixelPairsLeftCrossSmall, expectedSurfaceElevation, carry)
+                usingLeftCrossPixels = (numLeftCrossPairsSmall > MIN_NUM_SMALL_PIXELS)
+            except Exception, e:
+                print str(e)
+                os.system('touch ' + pixelPairsLeftCrossFail) # Set failure flag in case we need to re-run the script
+                print 'Failed to find left-cross match, ignoring this data source.'
+            
+        if os.path.exists(pixelPairsRightCrossFail):
+            print 'Already failed to find right cross pixel matches, skipping this step'
+        else:
+            try:  # Left in the stereo pair to right in the main pair
+                print '--> Looking for LeftStereo-Right point matches...'
+                numRightCrossPairsSmall = getInterestPointPairs(posOffsetCorrectedStereoLeftPath, posOffsetCorrectedRightPath, 
+                                                                pixelPairsRightCrossSmall, expectedSurfaceElevation, carry)
+                usingRightCrossPixels = (numRightCrossPairsSmall > MIN_NUM_SMALL_PIXELS)
+            except Exception, e:
+                print str(e)
+                os.system('touch ' + pixelPairsRightCrossFail) # Set failure flag in case we need to re-run the script
+                print 'Failed to find right-cross match, ignoring this data source.'
+
+
+        # Quit if we did not find enough matching pixels in any of the image pairs!
+        if not (usingLeftPixels or usingRightPixels or usingLeftCrossPixels or usingRightCrossPixels):
+            raise Exception('ERROR: No image pair had the minimum number of matching pixels found!')
+
+        # If we are using each set of matching pixels, set up the command line parameters for it
+        if usingLeftPixels:
+            leftPixelsCmdParams        = ['--matchingPixelsLeftPath',       pixelPairsLeftSmall]
+        if usingRightPixels:
+            rightPixelsCmdParams       = ['--matchingPixelsRightPath',      pixelPairsRightSmall]
+        if usingLeftCrossPixels:
+            leftCrossPixelsCmdParams   = ['--matchingPixelsLeftCrossPath',  pixelPairsLeftCrossSmall]
+        if usingRightCrossPixels:
+            rightCrossPixelsCmdParams  = ['--matchingPixelsRightCrossPath', pixelPairsRightCrossSmall]
+
+        #TODO: Log this to file
+        print '\n<<< Pixel pair count summary >>>'
+        print 'Left  to stereo left : ' + str(numLeftPairsSmall)
+        print 'Right to stereo right: ' + str(numRightPairsSmall)
+        print 'Left  to stereo right: ' + str(numLeftCrossPairsSmall)
+        print 'Right to stereo left : ' + str(numRightCrossPairsSmall)
 
         pixelTime = time.time()
         logging.info('Pixel pair finding complete in %f seconds', pixelTime - positionTime)
 
-        print '\n-------------------------------------------------------------------------\n'
-
-
+        print '\n-------------------------------------------------------------------------\n' # -------------------------------------------------
 
  
 #        meanLeftError   = evaluateAccuracy(posOffsetCorrectedLeftPath,       posOffsetCorrectedStereoLeftPath,
@@ -767,14 +783,12 @@ def main(argsIn):
         stereoIpFindPath    = sbaOutputPrefix + "-stereoIpFindPixels.csv"
         if (not os.path.exists(globalTransformPath)) or carry:
             cmd = ['lronacAngleDoubleSolver',  '--outputPrefix',            sbaOutputPrefix, 
-                                               '--matchingPixelsLeftPath',  pixelPairsLeftSmall, 
-                                               '--matchingPixelsRightPath', pixelPairsRightSmall, 
                                                '--leftCubePath',            posOffsetCorrectedLeftPath, 
                                                '--rightCubePath',           posOffsetCorrectedRightPath, 
                                                '--leftStereoCubePath',      posOffsetCorrectedStereoLeftPath, 
                                                '--rightStereoCubePath',     posOffsetCorrectedStereoRightPath, 
                                                '--elevation',               str(expectedSurfaceElevation)]
-            cmd = cmd + leftCrossElems + rightCrossElems
+            cmd = cmd + leftPixelsCmdParams + rightPixelsCmdParams + leftCrossPixelsCmdParams + rightCrossPixelsCmdParams
             print cmd
             print '-------'
             p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
@@ -839,17 +853,50 @@ def main(argsIn):
 #        print '=====> Mean left   pair error = %.4f meters' % meanLeftError
 #        print '=====> Mean right  pair error = %.4f meters' % meanRightError
 
-        print '\n-------------------------------------------------------------------------\n'
+        print '\n-------------------------------------------------------------------------\n' # ----------------------------------------------------
 
-        # Extract a large number of matching pixel locations (many thousands) from the LE/LE stereo output.
-        # - The skip number is a row and column skip.
-        pixelPairsLeftLarge = extractPixelPairsFromStereoResults(disparityImageLeft, tempFolder, 
-                                                                 'stereoPixelPairsLeftLarge.csv', 12, carry)
+        # Now we need a large number of matching pixels to generate a point cloud to align with the LOLA points
+        # - In order to do this we use the initial disparity generating steps of the ASP stereo process.
 
-        # Extract a large number of matching pixel locations (many thousands) from the RE/RE stereo output.
+        # Choose the image pair with the largest number of matching pixels (in the small step) to do this with.
+        # - TODO: Do this for all pairs above a threshold?
+        CORRELATION_TIMEOUT = 400 # Max number of seconds to spend on each tile before giving up.
+        if ( (numLeftPairsSmall > numRightPairsSmall) and (numLeftPairsSmall > numLeftCrossPairsSmall) and (numLeftPairsSmall > numRightCrossPairsSmall) ): # Test left
+            # Perform initial stereo step on two LE cubes to generate a large number of point correspondences
+            largePixelCmdParam = ' --matchingPixelsLeftPath '
+            stereoPrefixLeft   = os.path.join(tempFolder, 'stereoOutputLeft/out')
+            disparityImage     = callStereoCorrelation(posOffsetCorrectedLeftPath, posOffsetCorrectedStereoLeftPath, 
+                                                       stereoPrefixLeft, CORRELATION_TIMEOUT, carry)
+            
+        elif ( (numRightPairsSmall > numLeftCrossPairsSmall) and (numRightPairsSmall > numRightCrossPairsSmall)): # Test right
+            # Perform initial stereo step on two RE cubes to generate a large number of point correspondences
+            largePixelCmdParam = ' --matchingPixelsRightPath '
+            stereoPrefixRight  = os.path.join(tempFolder, 'stereoOutputRight/out')
+            disparityImage     = callStereoCorrelation(posOffsetCorrectedRightPath, posOffsetCorrectedStereoRightPath, 
+                                                       stereoPrefixRight, CORRELATION_TIMEOUT, carry)
+            
+        elif (numLeftCrossPairsSmall > numRightCrossPairsSmall): # Test left cross
+            # Perform initial stereo step on LE to stereo RE cubes to generate a large number of point correspondences
+            largePixelCmdParam    = ' --matchingPixelsLeftCrossPath '
+            stereoPrefixLeftCross = os.path.join(tempFolder, 'stereoOutputLeftCross/out')
+            disparityImage        = callStereoCorrelation(posOffsetCorrectedLeftPath, posOffsetCorrectedStereoRightPath, 
+                                                          stereoPrefixLeftCross, CORRELATION_TIMEOUT, carry)
+            
+        else: # Right cross is largest
+            # Perform initial stereo step on stereo LE to RE cubes to generate a large number of point correspondences
+            largePixelCmdParam     = ' --matchingPixelsRightCrossPath '
+            stereoPrefixRightCross = os.path.join(tempFolder, 'stereoOutputRightCross/out')
+            disparityImage         = callStereoCorrelation(posOffsetCorrectedStereoLeftPath, posOffsetCorrectedRightPath, 
+                                                           stereoPrefixRightCross, CORRELATION_TIMEOUT, carry)
+
+        # TODO: Allow this to happen from more than one input source?
+        # Extract a large number of matching pixel locations (many thousands) from the stereo output.
         # - The skip number is a row and column skip.
-        pixelPairsRightLarge = extractPixelPairsFromStereoResults(disparityImageRight, tempFolder, 
-                                                                 'stereoPixelPairsRightLarge.csv', 12, carry)
+        pixelPairsLarge = os.path.join(tempFolder, 'stereoPixelPairsLarge.csv')
+        numPixelPairsLarge = extractPixelPairsFromStereoResults(disparityImage, pixelPairsLarge, 8, carry)
+
+        print '\n-------------------------------------------------------------------------\n' # --------------------------------------------------
+
         
         # Compute the 3d coordinates for each pixel pair using the rotation and offset computed earlier
         # - All this step does is use stereo intersection to determine a lat/lon/alt coordinate for each pixel pair in the large data set.  No optimization is performed.
@@ -860,8 +907,7 @@ def main(argsIn):
         largeGdcFile   = largeGdcPrefix + '-initialGdcPoints.csv'
         if (not os.path.exists(largeGdcFile)) or carry:
             cmd = ('lronacAngleDoubleSolver --outputPrefix '            + largeGdcPrefix + 
-                                          ' --matchingPixelsLeftPath '  + pixelPairsLeftLarge +
-                                          ' --matchingPixelsRightPath ' + pixelPairsRightLarge + 
+                                          largePixelCmdParam            + pixelPairsLarge +
                                           ' --leftCubePath '            + posOffsetCorrectedLeftPath + 
                                           ' --leftStereoCubePath '      + posOffsetCorrectedStereoLeftPath +
                                           ' --rightCubePath '           + posOffsetCorrectedRightPath + 
@@ -876,27 +922,57 @@ def main(argsIn):
         prepTime = time.time()
         logging.info('pc_align prep finished in %f seconds', prepTime - sbaTime)
 
-        # TODO: Why does rotation always move the points somewhere else?
+
         # Use pc-align to compare points to LOLA DEM, compute rotation and offset
+        
+        # The max-displacement threshold will be adjusted until we are either using a certain number of LOLA points
+        #  or until we are using a certain percentage of the input points.
+        MIN_NUM_LOLA_POINTS    = 5000
+        MIN_LOLA_PERCENTAGE    = 0.01
+        STARTING_DISPLACEMENT  = 200
+        MAX_MAX_DISPLACEMENT   = 2000
+        DISPLACEMENT_INCREMENT = 180
+
+        # Determine the number of points we want
+        numLolaPoints         = getFileLineCount(options.lolaPath) - 1        
+        currentMaxDisplacement = STARTING_DISPLACEMENT
+        minNumPointsToUse      = min(MIN_NUM_LOLA_POINTS, MIN_LOLA_PERCENTAGE*float(numLolaPoints))
+        
+        print 'Starting pc_align, looking for ' + str(minNumPointsToUse) + ' lola point matches.' 
+        logging.info('Starting pc_align, looking for %d lola point matches.', minNumPointsToUse)
+        
         pcAlignOutputPrefix   = os.path.join(tempFolder, 'pcAlignOutput/dem')
-        #largeGdcTransformedFile = os.path.joint(tempFolder, 'gdcPointsTransformedLarge.csv')
-        #transformedPointsFile = os.path.join(tempFolder, 'pcAlignOutput-trans_source.csv')
         pcAlignTransformPath  = pcAlignOutputPrefix + '-inverse-transform.txt'
         pcAlignFolder         = os.path.dirname(pcAlignOutputPrefix)
+        endErrorPath          = pcAlignOutputPrefix + '-end_errors.csv'
         if (not os.path.exists(pcAlignTransformPath)) or carry:
-            # TODO: Confirm which input order works best
-            #cmd = 'pc_align --highest-accuracy --max-displacement 1500 --datum D_MOON --max-num-reference-points 25000000 --save-transformed-source-points ' + options.lolaPath + ' ' + largeGdcFile + ' -o ' + pcAlignOutputPrefix + ' --compute-translation-only'
-            cmd = ('pc_align --highest-accuracy --max-displacement 200 --datum D_MOON ' + 
-                   '--save-inv-transformed-reference-points ' + largeGdcFile + 
-                   ' ' + options.lolaPath + ' -o ' + pcAlignOutputPrefix)# + ' --compute-translation-only')
-            print cmd
-            os.system(cmd)
+            
+            while(True):
+                print '-------------'
+                cmd = ('pc_align --highest-accuracy --max-displacement ' + str(currentMaxDisplacement) + ' --datum D_MOON ' + 
+                       '--save-inv-transformed-reference-points ' + largeGdcFile + 
+                       ' ' + options.lolaPath + ' -o ' + pcAlignOutputPrefix)# + ' --compute-translation-only')
+                print cmd
+                os.system(cmd)
+                
+                #TODO: Retry this step with higher max displacement until the number of points used is a minimum number!
+                numLolaPointsUsed = getFileLineCount(endErrorPath) - 1
+            
+                if (numLolaPointsUsed >= minNumPointsToUse):
+                    break # Success!
+                elif (currentMaxDisplacement >= MAX_MAX_DISPLACEMENT): # Hit the maximum max limit!
+                    raise Exception('Error! Unable to find a good value for max-displacement in pc_align.  Wanted '
+                                    + str(minNumPointsToUse) + ' points, only found ' + str(numLolaPointsUsed))
+                else: # Try again with a higher max limit
+                    print ('Trying pc_align again, only got ' + str(numLolaPointsUsed)
+                           + ' lola point matches with value ' + str(currentMaxDisplacement))
+                    currentMaxDisplacement = currentMaxDisplacement + DISPLACEMENT_INCREMENT            
+            
         else:
             print 'Skipping pc_align step'
 
         if not os.path.exists(pcAlignTransformPath):
             raise Exception('pc_align call failed!')
-
 
         # Copy the pc_align log to the output folder
         pcAlignLogPath = findOutputLog(pcAlignFolder)
@@ -1037,6 +1113,7 @@ def main(argsIn):
 
 
 #DEBUG: Now that the LE and RE images are fully corrected, see if our points match the pc_align transformed points
+        print '==== Running  check to look at moved large points ===='
         # Compute the 3d coordinates for each pixel pair using the rotation and offset computed earlier
         # - All this step does is use stereo intersection to determine a lat/lon/alt coordinate for each pixel pair in the large data set.  No optimization is performed.
         largeGdcTestFolder = os.path.join(tempFolder, 'gdcPointsLargeTest/')
@@ -1047,8 +1124,7 @@ def main(argsIn):
         zeroParamsPath = '/home/smcmich1/data/zeroParamsFile.csv'
         if (not os.path.exists(largeGdcTestFile)) or carry:
             cmd = ('lronacAngleDoubleSolver --outputPrefix '            + largeGdcTestPrefix + 
-                                          ' --matchingPixelsLeftPath '  + pixelPairsLeftLarge +
-                                          ' --matchingPixelsRightPath ' + pixelPairsRightLarge + 
+                                          largePixelCmdParam            + pixelPairsLarge +
                                           ' --leftCubePath '            + outputPathLeft + 
                                           ' --leftStereoCubePath '      + outputPathStereoLeft +
                                           ' --rightCubePath '           + outputPathRight + 
@@ -1064,79 +1140,114 @@ def main(argsIn):
             cmd = 'calibrationReport.py --size tiny --skip 80 --name movedPtsCheck --input ' + largeGdcTestFile + ' --output ' + testKmlFile
             print cmd
             os.system(cmd)
-
             
         else:
             print 'Skipping large GDC TEST file creation step'
 # ----------------
 
 
-
-
         print '\n-------------------------------------------------------------------------\n'
+        print 'Starting last set of geocorrection accuracy checks...'
 
-        # One last pair of checks to compute accuracy
-        # - This calls campt for pixel pairs and finds the GCC location difference
+        # One last pair of checks to compute accuracy.
+        # - This calls campt for pixel pairs and finds the GCC location difference.
+        # - This is done for each image pairing that was used.
         medianMainError   = evaluateAccuracy(outputPathLeft,       outputPathRight, 
                                            mainIpFindPath,       os.path.join(tempFolder, 'finalGdcCheckMain'), True)
         medianStereoError = evaluateAccuracy(outputPathStereoLeft, outputPathStereoRight, 
                                            stereoIpFindPath,     os.path.join(tempFolder, 'finalGdcCheckStereo'), True)
-        medianLeftError   = evaluateAccuracy(outputPathLeft,       outputPathStereoLeft,
-                                           pixelPairsLeftSmall,  os.path.join(tempFolder, 'finalGdcCheckLeft'), True)
-        medianRightError  = evaluateAccuracy(outputPathRight,      outputPathStereoRight, 
-                                           pixelPairsRightSmall, os.path.join(tempFolder, 'finalGdcCheckRight'), True)
- 
-        print '=====> Median main   pair error = %.4f meters' % medianMainError
-        print '=====> Median stereo pair error = %.4f meters' % medianStereoError
-        print '=====> Median left   pair error = %.4f meters' % medianLeftError
-        print '=====> Median right  pair error = %.4f meters' % medianRightError
 
+        print        '=====> Median main   pair error = %.4f meters' % medianMainError
+        print        '=====> Median stereo pair error = %.4f meters' % medianStereoError
         logging.info('=====> Median main   pair error = %.4f meters' % medianMainError)
         logging.info('=====> Median stereo pair error = %.4f meters' % medianStereoError)
-        logging.info('=====> Median left   pair error = %.4f meters' % medianLeftError)
-        logging.info('=====> Median right  pair error = %.4f meters' % medianRightError)
 
-        
-        leftKmlFile = os.path.join(tempFolder, 'finalGdcCheckMain/leftEvalPoints.kml')
+        # DEBUG!!!!!!
+        # Generate KML files to display the points
         leftCsvFile = os.path.join(tempFolder, 'finalGdcCheckMain/leftEvalPoints.csv')
+        leftKmlFile = os.path.join(tempFolder, 'finalGdcCheckMain/leftEvalPoints.kml')
         cmd = 'calibrationReport.py --color red --size tiny --skip 1 --name leftMainEvalPoints --input ' + leftCsvFile + ' --output ' + leftKmlFile
         os.system(cmd)
-        rightKmlFile = os.path.join(tempFolder, 'finalGdcCheckMain/rightEvalPoints.kml')
         rightCsvFile = os.path.join(tempFolder, 'finalGdcCheckMain/rightEvalPoints.csv')
+        rightKmlFile = os.path.join(tempFolder, 'finalGdcCheckMain/rightEvalPoints.kml')
         cmd = 'calibrationReport.py --color blue --size tiny --skip 1 --name rightMainEvalPoints --input ' + rightCsvFile + ' --output ' + rightKmlFile
         os.system(cmd)
-        
-        
-        leftKmlFile = os.path.join(tempFolder, 'finalGdcCheckStereo/leftEvalPoints.kml')
+
         leftCsvFile = os.path.join(tempFolder, 'finalGdcCheckStereo/leftEvalPoints.csv')
+        leftKmlFile = os.path.join(tempFolder, 'finalGdcCheckStereo/leftEvalPoints.kml')
         cmd = 'calibrationReport.py --color red --size tiny --skip 1 --name leftStereoEvalPoints --input ' + leftCsvFile + ' --output ' + leftKmlFile
         os.system(cmd)
-        rightKmlFile = os.path.join(tempFolder, 'finalGdcCheckStereo/rightEvalPoints.kml')
         rightCsvFile = os.path.join(tempFolder, 'finalGdcCheckStereo/rightEvalPoints.csv')
+        rightKmlFile = os.path.join(tempFolder, 'finalGdcCheckStereo/rightEvalPoints.kml')
         cmd = 'calibrationReport.py --color blue --size tiny --skip 1 --name rightStereoEvalPoints --input ' + rightCsvFile + ' --output ' + rightKmlFile
         os.system(cmd)
+
+
+ 
+        # The next four checks are not used in every case
+        if usingLeftPixels:
+            medianLeftError   = evaluateAccuracy(outputPathLeft,       outputPathStereoLeft,
+                                                pixelPairsLeftSmall,  os.path.join(tempFolder, 'finalGdcCheckLeft'), True)
+            print        '=====> Median left  pair error = %.4f meters' % medianLeftError
+            logging.info('=====> Median left  pair error = %.4f meters' % medianLeftError)            
+
+            leftCsvFile = os.path.join(tempFolder, 'finalGdcCheckLeft/leftEvalPoints.csv')
+            leftKmlFile = os.path.join(tempFolder, 'finalGdcCheckLeft/leftEvalPoints.kml')
+            cmd = 'calibrationReport.py --color red --size tiny --skip 1 --name leftLeftEvalPoints --input ' + leftCsvFile + ' --output ' + leftKmlFile
+            os.system(cmd)
+            rightCsvFile = os.path.join(tempFolder, 'finalGdcCheckLeft/rightEvalPoints.csv')
+            rightKmlFile = os.path.join(tempFolder, 'finalGdcCheckLeft/rightEvalPoints.kml')
+            cmd = 'calibrationReport.py --color blue --size tiny --skip 1 --name rightLeftEvalPoints --input ' + rightCsvFile + ' --output ' + rightKmlFile
+            os.system(cmd)
+
+        if usingRightPixels:
+            medianRightError  = evaluateAccuracy(outputPathRight,      outputPathStereoRight, 
+                                               pixelPairsRightSmall, os.path.join(tempFolder, 'finalGdcCheckRight'), True)
+            print        '=====> Median right pair error = %.4f meters' % medianRightError
+            logging.info('=====> Median right pair error = %.4f meters' % medianRightError)
+    
+            leftCsvFile = os.path.join(tempFolder, 'finalGdcCheckRight/leftEvalPoints.csv')
+            leftKmlFile = os.path.join(tempFolder, 'finalGdcCheckRight/leftEvalPoints.kml')
+            cmd = 'calibrationReport.py --color red --size tiny --skip 1 --name leftRightEvalPoints --input ' + leftCsvFile + ' --output ' + leftKmlFile
+            os.system(cmd)
+            rightCsvFile = os.path.join(tempFolder, 'finalGdcCheckRight/rightEvalPoints.csv')
+            rightKmlFile = os.path.join(tempFolder, 'finalGdcCheckRight/rightEvalPoints.kml')
+            cmd = 'calibrationReport.py --color blue --size tiny --skip 1 --name rightRightEvalPoints --input ' + rightCsvFile + ' --output ' + rightKmlFile
+            os.system(cmd)
+
+        if usingLeftCrossPixels:
+            medianLeftCrossError  = evaluateAccuracy(outputPathLeft,           outputPathStereoRight,
+                                                    pixelPairsLeftCrossSmall,  os.path.join(tempFolder, 'finalGdcCheckLeftCross'), True)
+            print        '=====> Median left  cross pair error = %.4f meters' % medianLeftCrossError
+            logging.info('=====> Median left  cross pair error = %.4f meters' % medianLeftCrossError)
+
+            leftCsvFile = os.path.join(tempFolder, 'finalGdcCheckLeftCross/leftEvalPoints.csv')
+            leftKmlFile = os.path.join(tempFolder, 'finalGdcCheckLeftCross/leftEvalPoints.kml')
+            cmd = 'calibrationReport.py --color red --size tiny --skip 1 --name leftLeftCrossEvalPoints --input ' + leftCsvFile + ' --output ' + leftKmlFile
+            os.system(cmd)
+            rightCsvFile = os.path.join(tempFolder, 'finalGdcCheckLeftCross/rightEvalPoints.csv')
+            rightKmlFile = os.path.join(tempFolder, 'finalGdcCheckLeftCross/rightEvalPoints.kml')
+            cmd = 'calibrationReport.py --color blue --size tiny --skip 1 --name rightLeftCrossEvalPoints --input ' + rightCsvFile + ' --output ' + rightKmlFile
+            os.system(cmd)
+
+
+        if usingRightCrossPixels:
+            medianRightCrossError = evaluateAccuracy(outputPathStereoLeft,     outputPathRight,
+                                                    pixelPairsRightCrossSmall, os.path.join(tempFolder, 'finalGdcCheckRightCross'), True)
+            print        '=====> Median right cross pair error = %.4f meters' % medianRightCrossError
+            logging.info('=====> Median right cross pair error = %.4f meters' % medianRightCrossError)
+        
+            leftCsvFile = os.path.join(tempFolder, 'finalGdcCheckRightCross/leftEvalPoints.csv')
+            leftKmlFile = os.path.join(tempFolder, 'finalGdcCheckRightCross/leftEvalPoints.kml')
+            cmd = 'calibrationReport.py --color red --size tiny --skip 1 --name leftRightCrossEvalPoints --input ' + leftCsvFile + ' --output ' + leftKmlFile
+            os.system(cmd)
+            rightCsvFile = os.path.join(tempFolder, 'finalGdcCheckRightCross/rightEvalPoints.csv')
+            rightKmlFile = os.path.join(tempFolder, 'finalGdcCheckRightCross/rightEvalPoints.kml')
+            cmd = 'calibrationReport.py --color blue --size tiny --skip 1 --name rightRightCrossEvalPoints --input ' + rightCsvFile + ' --output ' + rightKmlFile
+            os.system(cmd)
         
         
-        leftKmlFile = os.path.join(tempFolder, 'finalGdcCheckLeft/leftEvalPoints.kml')
-        leftCsvFile = os.path.join(tempFolder, 'finalGdcCheckLeft/leftEvalPoints.csv')
-        cmd = 'calibrationReport.py --color red --size tiny --skip 1 --name leftLeftEvalPoints --input ' + leftCsvFile + ' --output ' + leftKmlFile
-        os.system(cmd)
-        rightKmlFile = os.path.join(tempFolder, 'finalGdcCheckLeft/rightEvalPoints.kml')
-        rightCsvFile = os.path.join(tempFolder, 'finalGdcCheckLeft/rightEvalPoints.csv')
-        cmd = 'calibrationReport.py --color blue --size tiny --skip 1 --name rightLeftEvalPoints --input ' + rightCsvFile + ' --output ' + rightKmlFile
-        os.system(cmd)
-        
-        
-        leftKmlFile = os.path.join(tempFolder, 'finalGdcCheckRight/leftEvalPoints.kml')
-        leftCsvFile = os.path.join(tempFolder, 'finalGdcCheckRight/leftEvalPoints.csv')
-        cmd = 'calibrationReport.py --color red --size tiny --skip 1 --name leftRightEvalPoints --input ' + leftCsvFile + ' --output ' + leftKmlFile
-        os.system(cmd)
-        rightKmlFile = os.path.join(tempFolder, 'finalGdcCheckRight/rightEvalPoints.kml')
-        rightCsvFile = os.path.join(tempFolder, 'finalGdcCheckRight/rightEvalPoints.csv')
-        cmd = 'calibrationReport.py --color blue --size tiny --skip 1 --name rightRightEvalPoints --input ' + rightCsvFile + ' --output ' + rightKmlFile
-        os.system(cmd)
-        
-        raise Exception('Stopping after  test!')
+        raise Exception('askdjaslkjdlsakjdlksajdlksajldkajs')
         
         # All finished!  We should have a fully calibrated version of each of the four input files.
 
@@ -1165,12 +1276,6 @@ def main(argsIn):
             #IsisTools.removeIfExists(pixelPairsRightSmall)
             #IsisTools.removeIfExists(pixelPairsLeftCrossSmall)
             #IsisTools.removeIfExists(pixelPairsRightCrossSmall)
-            IsisTools.removeIfExists(tempLeftCrossPixelPairs)
-            IsisTools.removeIfExists(tempRightCrossPixelPairs)
-            IsisTools.removeIfExists(leftPosCorrectedCropped)
-            IsisTools.removeIfExists(rightPosCorrectedCropped)
-            IsisTools.removeIfExists(leftStereoPosCorrectedCropped)
-            IsisTools.removeIfExists(rightStereoPosCorrectedCropped)
 
             ## Remove all the SBA files
             #fileList = [ f for f in os.listdir(tempFolder) if f.startswith("SBA_solution") ]
@@ -1183,7 +1288,7 @@ def main(argsIn):
             IsisTools.removeIfExists(rightStereoAdjustedPath)
             IsisTools.removeFolderIfExists(rightSteroCorrectWorkDir)
             # Clean pc_align steps
-            IsisTools.removeIfExists(pixelPairsLeftLarge)
+            IsisTools.removeIfExists(pixelPairsLarge)   # TODO: Update some of these for recent changes!
             #IsisTools.removeFolderIfExists(largeGdcFolder)
             #IsisTools.removeFolderIfExists(pcAlignFolder)
             # Clean out final file correction
