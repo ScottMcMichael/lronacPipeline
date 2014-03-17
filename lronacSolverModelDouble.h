@@ -91,6 +91,7 @@ private: // Variables ----------------------------------------------------------
   IsisInterfaceLineScanRot* _leftStereoCameraModel;
   IsisInterfaceLineScanRot* _rightStereoCameraModel;
 
+  mutable AdjustedCameraModelRot* _rightCameraRotatedModel;
   mutable AdjustedCameraModelRot* _leftStereoCameraRotatedModel;
   mutable AdjustedCameraModelRot* _rightStereoCameraRotatedModel;
 
@@ -112,6 +113,7 @@ LrocPairModel()
   _rightCameraModel       = 0;
   _leftStereoCameraModel  = 0;
   _rightStereoCameraModel = 0;
+  _rightCameraRotatedModel = 0;
   _leftStereoCameraRotatedModel  = 0;
   _rightStereoCameraRotatedModel = 0;
 }
@@ -124,6 +126,8 @@ LrocPairModel()
     delete _leftStereoCameraRotatedModel;
   if (!_rightStereoCameraRotatedModel)
     delete _rightStereoCameraRotatedModel;
+  if (!_rightCameraRotatedModel)
+    delete _rightCameraRotatedModel;
   if (!_leftStereoCameraModel)
     delete _leftStereoCameraModel;
   if (!_rightStereoCameraModel)
@@ -147,7 +151,11 @@ bool loadRightCamera(const std::string &cubePath)
 {
   printf("Loading right camera model from file %s\n", cubePath.c_str());
   _rightCameraModel = new IsisInterfaceLineScanRot(cubePath);
-  return (_rightCameraModel != 0);
+  if (!_rightCameraModel)
+    return false;
+  _rightCameraRotatedModel = new AdjustedCameraModelRot(boost::shared_ptr<IsisInterfaceLineScanRot>(_rightCameraModel,
+                                                                             boost::serialization::null_deleter()) );
+  return true;
 }
 
 bool loadLeftStereoCamera(const std::string &cubePath)
@@ -248,6 +256,42 @@ bool computePointLocation(const LocalRotCameraModel *cam1,
   return true;
 }
 
+/// Set up the internal cameras to match a set of state parameters
+void setCamerasForState(const double* stateParams)
+{
+
+  // Set up initial state vectors
+  //vw::Vector3 globalRotVec(stateParams[3], stateParams[4], stateParams[5]); // Now just applies to stereo LE
+  vw::Vector3 globalPosVec(stateParams[6], stateParams[7], stateParams[8]);
+
+  // Testing a seperate global rot vec for all floating cameras
+  vw::Vector3 rightRotVec(stateParams[0], stateParams[1], stateParams[2]);
+  vw::Vector3 stereoLeftRotVec(stateParams[3], stateParams[4], stateParams[5]);
+  vw::Vector3 stereoRightRotVec(stateParams[9], stateParams[10], stateParams[11]);
+
+  vw::Vector3 nullVec(0, 0, 0);
+
+
+  // Apply global transformation to the stereo pair
+  if (_rightCameraRotatedModel)
+  {
+    _rightCameraRotatedModel->set_axis_angle_rotation(rightRotVec);
+    _rightCameraRotatedModel->set_translation(nullVec); // No translation here
+  }
+  if (_leftStereoCameraRotatedModel)
+  {
+    printf("Rotating stereo left model...\n");
+    _leftStereoCameraRotatedModel->set_axis_angle_rotation(stereoLeftRotVec);
+    _leftStereoCameraRotatedModel->set_translation(globalPosVec); // Still a shared translation
+  }
+  if (_rightStereoCameraRotatedModel)
+  {
+    _rightStereoCameraRotatedModel->set_axis_angle_rotation(stereoRightRotVec);
+    _rightStereoCameraRotatedModel->set_translation(globalPosVec);
+  }
+
+}
+
 /// Given the pixel pair observations, compute the initial state estimate.
 /// - This also loads the observation vectors and returns a packed version of them.
 bool getInitialStateEstimate(const PointObsList  &leftRight,   // Main pair
@@ -272,16 +316,16 @@ bool getInitialStateEstimate(const PointObsList  &leftRight,   // Main pair
   _leftSRight  = &leftSRight;  // LE_S to RE
 
   /* Input parameter set:
-   0  rotationOffsetX (local rotations applied to RE camera)
+   0  rotationOffsetX (Planet-centered rotations applied to RE camera)
    1  rotationOffsetY
    2  rotationOffsetZ
-   3  rotationOffsetSX (planet-centered rotations applied to both stereo cameras)
+   3  rotationOffsetSX (Planet-centered rotations applied to stereo LE camera)
    4  rotationOffsetSY
    5  rotationOffsetSZ
    6  positionOffsetX  (Position offset applied to the stereo pair)
    7  positionOffsetY
    8  positionOffsetZ
-   9  rotationOffsetSRX (additional local rotations applied to stereo RE camera)
+   9  rotationOffsetSRX (Planet-centered rotations applied to stereo RE camera)
    10 rotationOffsetSRY
    11 rotationOffsetSRZ
       x                 [In planet coordinates, repeated for every correspondence point]
@@ -323,27 +367,26 @@ bool getInitialStateEstimate(const PointObsList  &leftRight,   // Main pair
       stateEstimate[i] = inputState[i];
   }
 
+  /*
   // Set up initial state vectors
-  vw::Vector3 globalRotVec(stateEstimate[3], stateEstimate[4], stateEstimate[5]);
+  //vw::Vector3 globalRotVec(stateEstimate[3], stateEstimate[4], stateEstimate[5]); // Now just applies to stereo LE
   vw::Vector3 globalPosVec(stateEstimate[6], stateEstimate[7], stateEstimate[8]);
 
-  vw::Vector3 localRotVec      (stateEstimate[0], stateEstimate[1], stateEstimate[2]);
-  vw::Vector3 localRotVecStereo(stateEstimate[9], stateEstimate[10], stateEstimate[11]);
+  // Testing a seperate global rot vec for all floating cameras
+  vw::Vector3 rightRotVec(stateEstimate[0], stateEstimate[1], stateEstimate[2]);
+  vw::Vector3 stereoLeftRotVec(stateEstimate[3], stateEstimate[4], stateEstimate[5]);
+  vw::Vector3 stereoRightRotVec(stateEstimate[9], stateEstimate[10], stateEstimate[11]);
+  */
+
+  //vw::Vector3 localRotVec      (stateEstimate[0], stateEstimate[1], stateEstimate[2]);
+  //vw::Vector3 localRotVecStereo(stateEstimate[9], stateEstimate[10], stateEstimate[11]);
+  vw::Vector3 localRotVec      (0, 0, 0); // Testing with everything done by global tranforms!
+  vw::Vector3 localRotVecStereo(0, 0, 0);
   vw::Vector3 nullVec(0, 0, 0);
 
-  
-  // Apply global transformation to the stereo pair
-  if (_leftStereoCameraRotatedModel)
-  {
-    printf("Rotating stereo left model...\n");
-    _leftStereoCameraRotatedModel->set_axis_angle_rotation (globalRotVec);
-    _leftStereoCameraRotatedModel->set_translation (globalPosVec);
-  }
-  if (_rightStereoCameraRotatedModel)
-  {
-    _rightStereoCameraRotatedModel->set_axis_angle_rotation(globalRotVec);
-    _rightStereoCameraRotatedModel->set_translation(globalPosVec);
-  }
+  // Set up the class camera parameters for the input state
+  setCamerasForState(&(stateEstimate[0]));
+
 
   //DEBUG
   // Set up georeference class with default moon datum
@@ -366,7 +409,7 @@ bool getInitialStateEstimate(const PointObsList  &leftRight,   // Main pair
   {
     vw::Vector2 leftPixel  = leftRight.leftObsList[i];
     vw::Vector2 rightPixel = leftRight.rightObsList[i];
-    computePointLocation(_leftCameraModel, _rightCameraModel,
+    computePointLocation(_leftCameraModel, _rightCameraRotatedModel,
                          nullVec, localRotVec, leftPixel, rightPixel,
                          expectedSurfaceElevation, useStereo, pointLoc, locationError);
 
@@ -442,7 +485,7 @@ bool getInitialStateEstimate(const PointObsList  &leftRight,   // Main pair
   {
     vw::Vector2 leftPixel  = rightRightS.leftObsList[i];
     vw::Vector2 rightPixel = rightRightS.rightObsList[i];
-    computePointLocation(_rightCameraModel, _rightStereoCameraRotatedModel,
+    computePointLocation(_rightCameraRotatedModel, _rightStereoCameraRotatedModel,
                          localRotVec, localRotVecStereo, leftPixel, rightPixel,
                          expectedSurfaceElevation, useStereo, pointLoc, locationError);
 
@@ -478,7 +521,7 @@ bool getInitialStateEstimate(const PointObsList  &leftRight,   // Main pair
   {
     vw::Vector2 leftPixel  = leftSRight.leftObsList[i];
     vw::Vector2 rightPixel = leftSRight.rightObsList[i];
-    computePointLocation(_leftStereoCameraRotatedModel, _rightCameraModel,
+    computePointLocation(_leftStereoCameraRotatedModel, _rightCameraRotatedModel,
                          nullVec, localRotVec, leftPixel, rightPixel,
                          expectedSurfaceElevation, useStereo, pointLoc, locationError);
 
@@ -517,23 +560,20 @@ std::vector<double> computeError(domain_type const& x)
   const size_t numCamParams       = 12;
 
   // Set up initial state vectors
+  /*
   vw::Vector3 localRotVec      (x[0], x[1], x[2]);
   vw::Vector3 globalRotVec     (x[3], x[4], x[5]);
   vw::Vector3 globalPosVec     (x[6], x[7], x[8]);
   vw::Vector3 stereoLocalRotVec(x[9], x[10], x[11]);
   vw::Vector3 nullVec(0,0,0); // Just to use our custom rotation function
+  */
 
-  // Apply global transformation to the stereo pair
-  if (_leftStereoCameraRotatedModel)
-  {
-    _leftStereoCameraRotatedModel->set_axis_angle_rotation (globalRotVec);
-    _leftStereoCameraRotatedModel->set_translation (globalPosVec);
-  }
-  if (_rightStereoCameraRotatedModel)
-  {
-    _rightStereoCameraRotatedModel->set_axis_angle_rotation(globalRotVec);
-    _rightStereoCameraRotatedModel->set_translation(globalPosVec);
-  }
+  vw::Vector3 localRotVec      (0, 0, 0); // Testing with everything done by global tranforms!
+  vw::Vector3 stereoLocalRotVec(0, 0, 0);
+  vw::Vector3 nullVec(0, 0, 0);
+
+  // Set up the class camera parameters for the input state
+  setCamerasForState(&(x[0]));
 
   const int PARAMS_PER_POINT = 3;
 
@@ -548,8 +588,8 @@ std::vector<double> computeError(domain_type const& x)
                           x[pointOffset + i*PARAMS_PER_POINT + 2]);
 
     // Project to pixel locations
-    vw::Vector2 leftProjection  = _leftCameraModel->point_to_pixel_rotated (thisPoint, nullVec,     _leftRight->leftObsList[i][1]);
-    vw::Vector2 rightProjection = _rightCameraModel->point_to_pixel_rotated(thisPoint, localRotVec, _leftRight->rightObsList[i][1]); // This treats the angles as euler angles!
+    vw::Vector2 leftProjection  = _leftCameraModel->point_to_pixel_rotated        (thisPoint, nullVec,     _leftRight->leftObsList[i][1]);
+    vw::Vector2 rightProjection = _rightCameraRotatedModel->point_to_pixel_rotated(thisPoint, localRotVec, _leftRight->rightObsList[i][1]); // This treats the angles as euler angles!
 
     // Compare to observed pixel locations
     vw::Vector2 leftDiff      = leftProjection  - _leftRight->leftObsList [i];
@@ -618,7 +658,7 @@ std::vector<double> computeError(domain_type const& x)
                       x[pointOffset + i*PARAMS_PER_POINT + 2]);
 
     // Project to pixel locations
-    vw::Vector2 leftProjection  = _rightCameraModel->point_to_pixel_rotated             (thisPoint, localRotVec,       _rightRightS->leftObsList[i][1]);
+    vw::Vector2 leftProjection  = _rightCameraRotatedModel->point_to_pixel_rotated      (thisPoint, localRotVec,       _rightRightS->leftObsList[i][1]);
     vw::Vector2 rightProjection = _rightStereoCameraRotatedModel->point_to_pixel_rotated(thisPoint, stereoLocalRotVec, _rightRightS->rightObsList[i][1]); // This treats the angles as euler angles!
 
     // Compare to observed pixel locations
@@ -670,7 +710,7 @@ std::vector<double> computeError(domain_type const& x)
 
       // Project to pixel locations
       vw::Vector2 leftProjection  = _leftStereoCameraRotatedModel->point_to_pixel_rotated(thisPoint, nullVec,     _leftSRight->leftObsList[i][1]);
-      vw::Vector2 rightProjection = _rightCameraModel->point_to_pixel_rotated            (thisPoint, localRotVec, _leftSRight->rightObsList[i][1]); // This treats the angles as euler angles!
+      vw::Vector2 rightProjection = _rightCameraRotatedModel->point_to_pixel_rotated     (thisPoint, localRotVec, _leftSRight->rightObsList[i][1]); // This treats the angles as euler angles!
 
       // Compare to observed pixel locations
       vw::Vector2 leftDiff      = leftProjection  - _leftSRight->leftObsList [i];
@@ -720,14 +760,23 @@ bool getRightObservation(const double* const rotAngleParams, const double* const
   // This function returns an error vector for a given set of parameters
 
   // Apply the rotations from the state vector to the right LROC camera model
-  vw::Vector3 localRotVec(rotAngleParams[0], rotAngleParams[1], rotAngleParams[2]);
+  vw::Vector3 rotVec(rotAngleParams[0], rotAngleParams[1], rotAngleParams[2]);
+  vw::Vector3 localRotVec(0,0,0);
+  vw::Vector3 nullVec(0,0,0);
+
+  if (!_rightCameraRotatedModel)
+    {
+      throw("Error! left stereo camera not initialized!");
+    }
+  _rightCameraRotatedModel->set_axis_angle_rotation(rotVec);
+  _rightCameraRotatedModel->set_translation(nullVec);
 
   // Create a point object
   vw::Vector3 thisPoint(pointParams[0], pointParams[1], pointParams[2]);
   vw::Vector2 projection;
   try // Project the point into the camera
   {
-    projection = _rightCameraModel->point_to_pixel_rotated(thisPoint, localRotVec, guessRow);
+    projection = _rightCameraRotatedModel->point_to_pixel_rotated(thisPoint, localRotVec, guessRow);
   }
   catch(std::exception& e)
   {
@@ -788,7 +837,6 @@ bool getLeftStereoObservation(const double* const rotParams, const double* const
 /// - localRotParams points to parameters 9-11
 bool getRightStereoObservation(const double* const rotParams, 
                                const double* const posParams,
-                               const double* const localRotParams,
                                const double* const pointParams, double *observation, int guessRow=-1)
 {
   // This function returns an error vector for a given set of parameters
@@ -796,7 +844,8 @@ bool getRightStereoObservation(const double* const rotParams,
   // Apply the rotations from the state vector to the right LROC camera model
   vw::Vector3 rotVec     (rotParams[0],      rotParams[1],      rotParams[2]);
   vw::Vector3 offsetVec  (posParams[0],      posParams[1],      posParams[2]);
-  vw::Vector3 localRotVec(localRotParams[0], localRotParams[1], localRotParams[2]);
+  //vw::Vector3 localRotVec(localRotParams[0], localRotParams[1], localRotParams[2]);
+  vw::Vector3 localRotVec(0, 0, 0);
   if (!_rightStereoCameraRotatedModel)
   {
     throw("Error! right stereo camera not initialized!");
@@ -878,10 +927,10 @@ public:  // Functions
   }
   
   /// Wrapper for right observation function
-  bool operator()(const double* const camera, const double* const point, double* residuals) const 
+  bool operator()(const double* const rotParams, const double* const point, double* residuals) const
   {
     double observations[2];
-    if (!_baseModel->getRightObservation(camera, point, observations, _observation[1]))
+    if (!_baseModel->getRightObservation(rotParams, point, observations, _observation[1]))
       return false;
     residuals[0] = observations[0] - _observation[0];
     residuals[1] = observations[1] - _observation[1];
@@ -907,16 +956,10 @@ public:  // Functions
   
   /// Wrapper for left stereo observation function
   bool operator()(const double* const rotParams, const double* const posParams, const double* const point, double* residuals) const
-  //bool operator()(const double* const rotParams, const double* const point, double* residuals) const
   {
-    //const double* const posParams = &(rotParams[3]);
     double observations[2];
     if (!_baseModel->getLeftStereoObservation(rotParams, posParams, point, observations, _observation[1]))
       return false;
-    //std::ofstream file("/home/smcmich1/logDoubleLS.csv", std::ofstream::app);
-    ////printf("observations = %lf, %lf\n", observations[0], observations[1]);
-    //file << observations[0] << ", " << observations[1] << std::endl;
-    //file.close();
     residuals[0] = observations[0] - _observation[0];
     residuals[1] = observations[1] - _observation[1];
     return true;
@@ -943,11 +986,10 @@ public:  // Functions
   /// Wrapper for right stereo observation function
   bool operator()(const double* const rotParams, 
                   const double* const posParams, 
-                  const double* const localRotParams, 
                   const double* const point, double* residuals) const 
   {
     double observations[2];
-    if (!_baseModel->getRightStereoObservation(rotParams, posParams, localRotParams, point, observations, _observation[1]))
+    if (!_baseModel->getRightStereoObservation(rotParams, posParams, point, observations, _observation[1]))
       return false;
     residuals[0] = observations[0] - _observation[0];
     residuals[1] = observations[1] - _observation[1];
