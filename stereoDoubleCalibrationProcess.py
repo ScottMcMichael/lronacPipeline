@@ -933,6 +933,8 @@ def main(argsIn):
         MAX_MAX_DISPLACEMENT   = 2000
         DISPLACEMENT_INCREMENT = 180
 
+        carry = True
+
         # Determine the number of points we want
         numLolaPoints         = getFileLineCount(options.lolaPath) - 1        
         currentMaxDisplacement = STARTING_DISPLACEMENT
@@ -951,7 +953,7 @@ def main(argsIn):
                 print '-------------'
                 cmd = ('pc_align --highest-accuracy --max-displacement ' + str(currentMaxDisplacement) + ' --datum D_MOON ' + 
                        '--save-inv-transformed-reference-points ' + largeGdcFile + 
-                       ' ' + options.lolaPath + ' -o ' + pcAlignOutputPrefix)# + ' --compute-translation-only')
+                       ' ' + options.lolaPath + ' -o ' + pcAlignOutputPrefix + ' --compute-translation-only')
                 print cmd
                 os.system(cmd)
                 
@@ -989,7 +991,7 @@ def main(argsIn):
         # - This step corrects the four camera positions relative to the LOLA data.
         leftCkPath       = os.path.join(tempFolder, 'leftFinalCk.bc')
         leftSpkPath      = os.path.join(tempFolder, 'leftFinalSpk.bsp')
-        leftFinalWorkDir = os.path.join(tempFolder, 'leftFullCorrection')
+        leftFinalWorkDir = os.path.join(tempFolder, 'leftFullCorrection/')
         applyNavTransform(posOffsetCorrectedLeftPath, outputPathLeft, 
                           pcAlignTransformPath, leftFinalWorkDir, leftCkPath, leftSpkPath, True, carry)
 
@@ -1002,7 +1004,7 @@ def main(argsIn):
 
         leftStereoCkPath       = os.path.join(tempFolder, 'leftStereoFinalCk.bc') 
         leftStereoSpkPath      = os.path.join(tempFolder, 'leftStereoFinalSpk.bsp')
-        leftStereoFinalWorkDir = os.path.join(tempFolder, 'leftStereoFullCorrection')
+        leftStereoFinalWorkDir = os.path.join(tempFolder, 'leftStereoFullCorrection/')
         applyNavTransform(leftStereoAdjustedPath, outputPathStereoLeft, 
                           pcAlignTransformPath, leftStereoFinalWorkDir, 
                           leftStereoCkPath, leftStereoSpkPath, True, carry)
@@ -1019,60 +1021,10 @@ def main(argsIn):
         # At this point the left images are hopefully in the correct position and we can apply the offset of the RE cameras
 
 
-##DEBUG: Now that the LE images are fully corrected, see if our points match the pc_align transformed points
-#        # Compute the 3d coordinates for each pixel pair using the rotation and offset computed earlier
-#        # - All this step does is use stereo intersection to determine a lat/lon/alt coordinate for each pixel pair in the large data set.  No optimization is performed.
-#        largeGdcTestFolder = os.path.join(tempFolder, 'gdcPointsLargeTest/')
-#        if not os.path.exists(largeGdcTestFolder):
-#            os.mkdir(largeGdcTestFolder)
-#        largeGdcTestPrefix = os.path.join(tempFolder, 'gdcPointsLargeTest/out')
-#        largeGdcTestFile   = largeGdcTestPrefix + '-initialGdcPoints.csv'
-#        zeroParamsPath = '/home/smcmich1/data/zeroParamsFile.csv'
-#        if (not os.path.exists(largeGdcTestFile)) or carry:
-#            cmd = ('lronacAngleDoubleSolver --outputPrefix '           + largeGdcTestPrefix + 
-#                                          ' --matchingPixelsLeftPath ' + pixelPairsLeftLarge + 
-#                                          ' --leftCubePath '           + outputPathLeft + 
-#                                          ' --leftStereoCubePath '     + outputPathStereoLeft + 
-#                                          ' --initialOnly --initialValues ' + zeroParamsPath + 
-#                                          ' --elevation ' + str(expectedSurfaceElevation))
-#            print cmd
-#            os.system(cmd)
-#            
-#        # Generate KML for the output!
-#        testKmlFile = os.path.join(tempFolder, 'testLargeGdc.kml')
-#        if (not os.path.exists(testKmlFile)) or carry:
-#            cmd = 'calibrationReport.py --size tiny --skip 80 --name movedPtsCheck --input ' + largeGdcTestFile + ' --output ' + testKmlFile
-#            print cmd
-#            os.system(cmd)
-#
-#            
-#        else:
-#            print 'Skipping large GDC TEST file creation step'
-#            
-#        raise Exception('oeunthoeun')
-## ----------------
-
-
-#        meanMainError   = evaluateAccuracy(outputPathLeft,       partialCorrectedRightPath, 
-#                                           mainIpFindPath,       os.path.join(tempFolder, 'finalGdcCheck'))
-#        meanStereoError = evaluateAccuracy(outputPathStereoLeft, partialCorrectedStereoRightPath, 
-#                                           stereoIpFindPath,     os.path.join(tempFolder, 'finalGdcCheck'))
-#        meanLeftError   = evaluateAccuracy(outputPathLeft,       outputPathStereoLeft,
-#                                           pixelPairsLeftSmall,  os.path.join(tempFolder, 'finalGdcCheck'))
-#        meanRightError  = evaluateAccuracy(partialCorrectedRightPath,      partialCorrectedStereoRightPath, 
-#                                           pixelPairsRightSmall, os.path.join(tempFolder, 'finalGdcCheck'))
- 
-
-#        print '-----> ALL GLOBAL'
-#        print '=====> Mean main   pair error = %.4f meters' % meanMainError
-#        print '=====> Mean stereo pair error = %.4f meters' % meanStereoError
-#        print '=====> Mean left   pair error = %.4f meters' % meanLeftError
-#        print '=====> Mean right  pair error = %.4f meters' % meanRightError
-
-        # DEBUG: Check angle solver on stereo adjusted LE/RE images!
-        checkAdjacentPairAlignment(outputPathStereoLeft, partialCorrectedStereoRightPath, 
-                                   os.path.join(tempFolder, 'pcAlignStereoGdcCheck'), 
-                                   expectedSurfaceElevation, carry)
+        ## DEBUG: Check angle solver on stereo adjusted LE/RE images!
+        #checkAdjacentPairAlignment(outputPathStereoLeft, partialCorrectedStereoRightPath, 
+        #                           os.path.join(tempFolder, 'pcAlignStereoGdcCheck'), 
+        #                           expectedSurfaceElevation, carry)
 
 
         navTime = time.time()
@@ -1096,15 +1048,15 @@ def main(argsIn):
                                      rightStereoCkPath, rightStereoSpkPath, stereoLocalWorkDir, carry)
 
 
-        # DEBUG: Check angle solver on adjusted LE/RE images!
-        checkAdjacentPairAlignment(outputPathLeft, outputPathRight, 
-                                   os.path.join(tempFolder, 'finalGdcCheck'), 
-                                   expectedSurfaceElevation, carry)
-
-        # DEBUG: Check angle solver on stereo adjusted LE/RE images!
-        checkAdjacentPairAlignment(outputPathStereoLeft, outputPathStereoRight, 
-                                   os.path.join(tempFolder, 'finalStereoGdcCheck'), 
-                                   expectedSurfaceElevation, carry)
+        ## DEBUG: Check angle solver on adjusted LE/RE images!
+        #checkAdjacentPairAlignment(outputPathLeft, outputPathRight, 
+        #                           os.path.join(tempFolder, 'finalGdcCheck'), 
+        #                           expectedSurfaceElevation, carry)
+        #
+        ## DEBUG: Check angle solver on stereo adjusted LE/RE images!
+        #checkAdjacentPairAlignment(outputPathStereoLeft, outputPathStereoRight, 
+        #                           os.path.join(tempFolder, 'finalStereoGdcCheck'), 
+        #                           expectedSurfaceElevation, carry)
 
         localTime = time.time()
         logging.info('Local transforms finished in %f seconds', localTime - navTime)
@@ -1121,7 +1073,7 @@ def main(argsIn):
             os.mkdir(largeGdcTestFolder)
         largeGdcTestPrefix = os.path.join(tempFolder, 'gdcPointsLargeTest/out')
         largeGdcTestFile   = largeGdcTestPrefix + '-initialGdcPoints.csv'
-        zeroParamsPath = '/home/smcmich1/data/zeroParamsFile.csv'
+        zeroParamsPath = '/home/smcmich1/data/zeroParamsFile.csv' #TODO: Remove this!
         if (not os.path.exists(largeGdcTestFile)) or carry:
             cmd = ('lronacAngleDoubleSolver --outputPrefix '            + largeGdcTestPrefix + 
                                           largePixelCmdParam            + pixelPairsLarge +
@@ -1137,7 +1089,7 @@ def main(argsIn):
         # Generate KML for the output!
         testKmlFile = os.path.join(tempFolder, 'testLargeGdc.kml')
         if (not os.path.exists(testKmlFile)) or carry:
-            cmd = 'calibrationReport.py --size tiny --skip 80 --name movedPtsCheck --input ' + largeGdcTestFile + ' --output ' + testKmlFile
+            cmd = 'calibrationReport.py --size tiny --skip 200 --name largeGdcTestMovedPts --input ' + largeGdcTestFile + ' --output ' + testKmlFile
             print cmd
             os.system(cmd)
             
@@ -1145,6 +1097,7 @@ def main(argsIn):
             print 'Skipping large GDC TEST file creation step'
 # ----------------
 
+        raise Exception('Test finished!----------')
 
         print '\n-------------------------------------------------------------------------\n'
         print 'Starting last set of geocorrection accuracy checks...'
@@ -1246,8 +1199,6 @@ def main(argsIn):
             cmd = 'calibrationReport.py --color blue --size tiny --skip 1 --name rightRightCrossEvalPoints --input ' + rightCsvFile + ' --output ' + rightKmlFile
             os.system(cmd)
         
-        
-        raise Exception('askdjaslkjdlsakjdlksajdlksajldkajs')
         
         # All finished!  We should have a fully calibrated version of each of the four input files.
 

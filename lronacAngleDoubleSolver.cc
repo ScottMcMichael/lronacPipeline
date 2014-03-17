@@ -577,7 +577,7 @@ bool optimizeRotations(Parameters & params)
   // Load the inital points into the solver
   printf("Initializing solver state...\n");
   Vector<double> initialState;
-  std::vector<double> initialErrorVector;
+  std::vector<double> initialErrorMeters;
   if (!lrocClass.getInitialStateEstimate(overlapPairs,        stereoOverlapPairs,
                                          leftPixelPairs,      rightPixelPairs,
                                          leftCrossPixelPairs, rightCrossPixelPairs,

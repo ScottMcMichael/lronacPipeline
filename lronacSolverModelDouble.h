@@ -184,9 +184,9 @@ size_t getNumPoints() const
 bool computePointLocation(const LocalRotCameraModel *cam1,
                           const LocalRotCameraModel *cam2,
                           const vw::Vector3 cam1LocalRot, const vw::Vector3 cam2LocalRot,
-                          const vw::Vector2 pixel1, const vw::Vector2 pixel2,
+                          const vw::Vector2 pixel1,       const vw::Vector2 pixel2,
                           const double surfaceElevation,
-                          const bool useStereo, // This is only used when we have initial camera params
+                          const bool   useStereo, // This is only used when we have initial camera params
                           vw::Vector3 &pointLocation,
                           double &error)
 {

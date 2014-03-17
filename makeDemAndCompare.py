@@ -59,10 +59,10 @@ def compareDemToLola(lolaPath, demPath, outputPath, csvPath, force):
 def mapProjectImage(inputImage, demPath, outputPath, resolution, centerLat, force):
     
     if (not os.path.exists(outputPath)) or force:
-        cmd = ('parallel_mapproject ' + demPath         + ' ' + inputImage + ' ' + outputPath +
-                                    ' --tr ' + str(resolution) + ' --t_srs "+proj=eqc +lat_ts=' + str(centerLat) + 
-                                    ' +lat_0=0 +a=1737400 +b=1737400 +units=m" --nodata -32767' +
-                                    ' --suppress-output --num-threads 24')
+        cmd = ('parallel_mapproject.py ' + demPath         + ' ' + inputImage + ' ' + outputPath +
+                                       ' --tr ' + str(resolution) + ' --t_srs "+proj=eqc +lat_ts=' + str(centerLat) + 
+                                       ' +lat_0=0 +a=1737400 +b=1737400 +units=m" --nodata -32767' +
+                                       ' --suppress-output --num-threads 24')
         
         print cmd
         os.system(cmd)
@@ -173,12 +173,14 @@ def main(argsIn):
         if options.cropAmount and (options.cropAmount > 0):
             if (not os.path.exists(mainMosaicCroppedPath)) or carry:
                 cmd = ('crop from= ' + options.leftPath   + ' to= ' + mainMosaicCroppedPath + 
-                           ' nlines= ' + str(options.cropAmount))
+                           #' nlines= ' + str(options.cropAmount) + ' line=24200')
+                           ' line=24200')
                 print cmd
                 os.system(cmd)
             if (not os.path.exists(stereoMosaicCroppedPath) or carry):
                 cmd = ('crop from= ' + options.rightPath + ' to= ' + stereoMosaicCroppedPath + 
-                           ' nlines= ' + str(options.cropAmount))
+                           #' nlines= ' + str(options.cropAmount) + ' line=24200')
+                           ' line=24200')
                 print cmd
                 os.system(cmd)
             options.leftPath  = mainMosaicCroppedPath
@@ -193,7 +195,7 @@ def main(argsIn):
         stereoOutputFolder = os.path.join(tempFolder, 'stereoWorkDir')
         pointCloudPath     = stereoOutputPrefix + '-PC.tif'
         
-        stereoOptionString = ('--corr-timeout 400 --alignment-method AffineEpipolar --subpixel-mode 2 ' +
+        stereoOptionString = ('--corr-timeout 400 --alignment-method AffineEpipolar --subpixel-mode 1 ' +
                               options.leftPath + ' ' + options.rightPath + 
                               ' ' + stereoOutputPrefix + ' --processes 8 --threads-multiprocess 4' +
                               ' --threads-singleprocess 32 --compute-error-vector' + ' --filter-mode 1' +
@@ -284,9 +286,9 @@ def main(argsIn):
         intersectionViewPathX = os.path.join(outputFolder, 'intersectionErrorX.tif')
         intersectionViewPathY = os.path.join(outputFolder, 'intersectionErrorY.tif')
         intersectionViewPathZ = os.path.join(outputFolder, 'intersectionErrorZ.tif')
-        cmdX = 'gdal_translate -ot byte -scale 0 10 0 255 -outsize 50 50 -b 1 ' + intErrorPath + ' ' + intersectionViewPathX
-        cmdY = 'gdal_translate -ot byte -scale 0 10 0 255 -outsize 50 50 -b 2 ' + intErrorPath + ' ' + intersectionViewPathY
-        cmdZ = 'gdal_translate -ot byte -scale 0 10 0 255 -outsize 50 50 -b 3 ' + intErrorPath + ' ' + intersectionViewPathZ
+        cmdX = 'gdal_translate -ot byte -scale 0 10 0 255 -outsize 50% 50% -b 1 ' + intErrorPath + ' ' + intersectionViewPathX
+        cmdY = 'gdal_translate -ot byte -scale 0 10 0 255 -outsize 50% 50% -b 2 ' + intErrorPath + ' ' + intersectionViewPathY
+        cmdZ = 'gdal_translate -ot byte -scale 0 10 0 255 -outsize 50% 50% -b 3 ' + intErrorPath + ' ' + intersectionViewPathZ
         if not os.path.exists(intersectionViewPathX) or carry:
             print cmdX
             os.system(cmdX)
