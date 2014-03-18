@@ -289,18 +289,18 @@ void setCamerasForState(const double* stateParams)
 
 }
 
-/// Given the pixel pair observations, compute the initial state estimate.
+/// Given the pixel pair observations, compute the initial state estimate (all the point locations).
 /// - This also loads the observation vectors and returns a packed version of them.
-bool getInitialStateEstimate(const PointObsList  &leftRight,   // Main pair
-                             const PointObsList  &leftSRightS, // Stereo pair
-                             const PointObsList  &leftLeftS,   // LE to LE
-                             const PointObsList  &rightRightS, // RE to RE
-                             const PointObsList  &leftRightS,  // LE to RE_S
-                             const PointObsList  &leftSRight,  // LE_S to RE
-                             vw::Vector<double>  &stateEstimate, //Vector<double> &packedObsVector,
-                             std::vector<double> &pointError,
-                             const double        expectedSurfaceElevation=0,
-                             const std::vector<double> &inputState = std::vector<double>())
+bool estimatePointLocations(const PointObsList  &leftRight,   // Main pair
+                            const PointObsList  &leftSRightS, // Stereo pair
+                            const PointObsList  &leftLeftS,   // LE to LE
+                            const PointObsList  &rightRightS, // RE to RE
+                            const PointObsList  &leftRightS,  // LE to RE_S
+                            const PointObsList  &leftSRight,  // LE_S to RE
+                            vw::Vector<double>  &stateEstimate, //Vector<double> &packedObsVector,
+                            std::vector<double> &pointError,
+                            const double        expectedSurfaceElevation=0,
+                            const std::vector<double> &inputState = std::vector<double>())
 { 
   const size_t PARAMS_PER_POINT = 3;
   
@@ -539,9 +539,9 @@ bool getInitialStateEstimate(const PointObsList  &leftRight,   // Main pair
 } // end getInitialStateEstimate()
 
 
-/// Generates a vector containing the stereo intersection distance for each pixel pair
+/// Generates a vector containing the mean pixel distance error for each observation
 /// - This gives a good indication of how accurate the current correction is
-std::vector<double> computeError(domain_type const& x)
+std::vector<double> computeObservationErrors(domain_type const& x)
 {    
   // Determine the number of state elements
   const size_t numPoints = this->getNumPoints();

@@ -744,7 +744,6 @@ def main(argsIn):
 
         print '\n-------------------------------------------------------------------------\n' # -------------------------------------------------
 
-
         # Compute all rotations and translations between the four cubes
         # - Computes the following transforms:
         #   = main   LE   to main   RE   (camera rotation offset in IK file)
@@ -821,6 +820,55 @@ def main(argsIn):
         #checkAdjacentPairAlignment(leftStereoAdjustedPath, rightStereoAdjustedPath, 
         #                           os.path.join(tempFolder, 'stereoGlobalAdjustGdcCheck'), 
         #                           expectedSurfaceElevation, carry)
+
+
+        #
+        ##DEBUG: Now that the LE and RE images are corrected relative to each other, verify that our intersection error is still the same
+        #print 'Running  check to look at moved small points'
+        ## Compute the 3d coordinates for each pixel pair using the rotation and offset computed earlier
+        ## - All this step does is use stereo intersection to determine a lat/lon/alt coordinate for each pixel pair in the large data set.  No optimization is performed.
+        #smallGdcTestFolder = os.path.join(tempFolder, 'gdcPointsSmallTest/')
+        #if not os.path.exists(smallGdcTestFolder):
+        #    os.mkdir(smallGdcTestFolder)
+        #smallGdcTestPrefix = os.path.join(tempFolder, 'gdcPointsSmallTest/out')
+        #smallGdcTestFile   = smallGdcTestPrefix + '-initialGdcPoints.csv'
+        #zeroParamsPath     = os.path.join(tempFolder, 'zeroParamsPath.csv')
+        #if (not os.path.exists(smallGdcTestFile)) or True:#carry:
+        #    makeZeroParamsPath(zeroParamsPath)
+        #    # What are initial error computations using the files we just fixed?
+        #    cmd = ['lronacAngleDoubleSolver',  '--outputPrefix',            smallGdcTestPrefix, 
+        #                                       '--leftCubePath',            posOffsetCorrectedLeftPath, 
+        #                                       '--rightCubePath',           rightAdjustedPath, 
+        #                                       '--leftStereoCubePath',      leftStereoAdjustedPath, 
+        #                                       '--rightStereoCubePath',     rightStereoAdjustedPath,
+        #                                       '--initialOnly', '--initialValues', zeroParamsPath,
+        #                                       '--elevation',               str(expectedSurfaceElevation)]
+        #    cmd = cmd + leftPixelsCmdParams + rightPixelsCmdParams + leftCrossPixelsCmdParams + rightCrossPixelsCmdParams
+        #
+        #    ## What are initial error computations using the parameters and files we just solved for?
+        #    #cmd = ['lronacAngleDoubleSolver',  '--outputPrefix',            smallGdcTestPrefix, 
+        #    #                                   '--leftCubePath',            posOffsetCorrectedLeftPath, 
+        #    #                                   '--rightCubePath',           posOffsetCorrectedRightPath, 
+        #    #                                   '--leftStereoCubePath',      posOffsetCorrectedStereoLeftPath, 
+        #    #                                   '--rightStereoCubePath',     posOffsetCorrectedStereoRightPath,
+        #    #                                   '--initialOnly', '--initialValues', solvedParamsPath, 
+        #    #                                   '--elevation',               str(expectedSurfaceElevation)]
+        #    #cmd = cmd + leftPixelsCmdParams + rightPixelsCmdParams + leftCrossPixelsCmdParams + rightCrossPixelsCmdParams
+        #    
+        #    print cmd
+        #    p = subprocess.call(cmd)
+        #    
+        ## Generate KML for the output!
+        #testKmlFile = os.path.join(tempFolder, 'testSmallGdc.kml')
+        #if (not os.path.exists(testKmlFile)) or carry:
+        #    cmd = 'calibrationReport.py --size tiny --skip 10 --name smallGdcTestMovedPts --input ' + smallGdcTestFile + ' --output ' + testKmlFile
+        #    print cmd
+        #    os.system(cmd)
+        #    
+        #else:
+        #    print 'Skipping small GDC TEST file creation step'
+
+
 
         print '\n-------------------------------------------------------------------------\n' # ----------------------------------------------------
 
