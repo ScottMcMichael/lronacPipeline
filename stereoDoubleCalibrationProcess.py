@@ -757,16 +757,6 @@ def main(argsIn):
 
         print '\n-------------------------------------------------------------------------\n' # -------------------------------------------------
 
- 
-#        meanLeftError   = evaluateAccuracy(posOffsetCorrectedLeftPath,       posOffsetCorrectedStereoLeftPath,
-#                                           pixelPairsLeftSmall,  os.path.join(tempFolder, 'finalGdcCheck'))
-#        meanRightError  = evaluateAccuracy(posOffsetCorrectedRightPath,      posOffsetCorrectedStereoRightPath, 
-#                                           pixelPairsRightSmall, os.path.join(tempFolder, 'finalGdcCheck'))
- 
-#        print '-----> POS OFFSET'
-#        print '=====> Mean left   pair error = %.4f meters' % meanLeftError
-#        print '=====> Mean right  pair error = %.4f meters' % meanRightError
-
 
         # Compute all rotations and translations between the four cubes
         # - Computes the following transforms:
@@ -819,39 +809,31 @@ def main(argsIn):
         sbaTime = time.time()
         logging.info('SBA complete in %f seconds', sbaTime - pixelTime)
 
+
+        # --> Update this documentation
         # Apply the planet-centered rotation/translation to both cameras in the stereo pair.
         # - This corrects the stereo pair relative to the main pair.
         # - The RE relative to LE corrections are performed later for convenience.
+        
+        rightAdjustedPath   = os.path.join(tempFolder, rightBaseName + '.stereoAdjusted.cub')
+        rightCorrectWorkDir = os.path.join(tempFolder, 'rightStereoCorrection/')
+        applyNavTransform(posOffsetCorrectedRightPath, rightAdjustedPath, 
+                          localRotationPath, rightCorrectWorkDir, '', '', False, carry)
+
         leftStereoAdjustedPath  = os.path.join(tempFolder, leftStereoBaseName + '.stereoAdjusted.cub')
         leftSteroCorrectWorkDir = os.path.join(tempFolder, 'stereoLeftStereoCorrection/')
         applyNavTransform(posOffsetCorrectedStereoLeftPath, leftStereoAdjustedPath, 
                           globalTransformPath, leftSteroCorrectWorkDir, '', '', False, carry)
 
-
         rightStereoAdjustedPath  = os.path.join(tempFolder, rightStereoBaseName + '.stereoAdjusted.cub')
         rightSteroCorrectWorkDir = os.path.join(tempFolder, 'stereoRightStereoCorrection/')
         applyNavTransform(posOffsetCorrectedStereoRightPath, rightStereoAdjustedPath, 
-                          globalTransformPath, rightSteroCorrectWorkDir, '', '', False, carry)
+                          stereoRotationPath, rightSteroCorrectWorkDir, '', '', False, carry)
 
-        # DEBUG: Check angle solver on stereo adjusted LE/RE images!
-        checkAdjacentPairAlignment(leftStereoAdjustedPath, rightStereoAdjustedPath, 
-                                   os.path.join(tempFolder, 'stereoGlobalAdjustGdcCheck'), 
-                                   expectedSurfaceElevation, carry)
-
-#        meanMainError   = evaluateAccuracy(posOffsetCorrectedLeftPath,       posOffsetCorrectedRightPath, 
-#                                           mainIpFindPath,       os.path.join(tempFolder, 'finalGdcCheck'))
-#        meanStereoError = evaluateAccuracy(leftStereoAdjustedPath, rightStereoAdjustedPath, 
-#                                           stereoIpFindPath,     os.path.join(tempFolder, 'finalGdcCheck'))
-#        meanLeftError   = evaluateAccuracy(posOffsetCorrectedLeftPath,       leftStereoAdjustedPath,
-#                                           pixelPairsLeftSmall,  os.path.join(tempFolder, 'finalGdcCheck'))
-#        meanRightError  = evaluateAccuracy(posOffsetCorrectedRightPath,      rightStereoAdjustedPath, 
-#                                           pixelPairsRightSmall, os.path.join(tempFolder, 'finalGdcCheck'))
- 
-#        print '-----> STEREO CORRECTED'
-#        print '=====> Mean main   pair error = %.4f meters' % meanMainError
-#        print '=====> Mean stereo pair error = %.4f meters' % meanStereoError
-#        print '=====> Mean left   pair error = %.4f meters' % meanLeftError
-#        print '=====> Mean right  pair error = %.4f meters' % meanRightError
+        ## DEBUG: Check angle solver on stereo adjusted LE/RE images!
+        #checkAdjacentPairAlignment(leftStereoAdjustedPath, rightStereoAdjustedPath, 
+        #                           os.path.join(tempFolder, 'stereoGlobalAdjustGdcCheck'), 
+        #                           expectedSurfaceElevation, carry)
 
         print '\n-------------------------------------------------------------------------\n' # ----------------------------------------------------
 
@@ -892,12 +874,11 @@ def main(argsIn):
         # TODO: Allow this to happen from more than one input source?
         # Extract a large number of matching pixel locations (many thousands) from the stereo output.
         # - The skip number is a row and column skip.
-        pixelPairsLarge = os.path.join(tempFolder, 'stereoPixelPairsLarge.csv')
+        pixelPairsLarge    = os.path.join(tempFolder, 'stereoPixelPairsLarge.csv')
         numPixelPairsLarge = extractPixelPairsFromStereoResults(disparityImage, pixelPairsLarge, 8, carry)
 
         print '\n-------------------------------------------------------------------------\n' # --------------------------------------------------
 
-        
         # Compute the 3d coordinates for each pixel pair using the rotation and offset computed earlier
         # - All this step does is use stereo intersection to determine a lat/lon/alt coordinate for each pixel pair in the large data set.  No optimization is performed.
         largeGdcFolder = os.path.join(tempFolder, 'gdcPointsLargeComp/')
@@ -932,8 +913,6 @@ def main(argsIn):
         STARTING_DISPLACEMENT  = 200
         MAX_MAX_DISPLACEMENT   = 2000
         DISPLACEMENT_INCREMENT = 180
-
-        carry = True
 
         # Determine the number of points we want
         numLolaPoints         = getFileLineCount(options.lolaPath) - 1        
@@ -984,7 +963,6 @@ def main(argsIn):
         alignTime = time.time()
         logging.info('pc_align finished in %f seconds', alignTime - prepTime)
 
-
         print '\n-------------------------------------------------------------------------\n'
 
         # Now go back and apply the pc_align computed transform to all four cameras.
@@ -993,14 +971,15 @@ def main(argsIn):
         leftSpkPath      = os.path.join(tempFolder, 'leftFinalSpk.bsp')
         leftFinalWorkDir = os.path.join(tempFolder, 'leftFullCorrection/')
         applyNavTransform(posOffsetCorrectedLeftPath, outputPathLeft, 
-                          pcAlignTransformPath, leftFinalWorkDir, leftCkPath, leftSpkPath, True, carry)
+                          pcAlignTransformPath, leftFinalWorkDir, leftCkPath,
+                          leftSpkPath, True, carry)
 
-        partialCorrectedRightPath = os.path.join(tempFolder, rightBaseName + '.partial_corrected.cub')
         rightCkPath               = os.path.join(tempFolder, 'rightFinalCk.bc') 
         rightSpkPath              = os.path.join(tempFolder, 'rightFinalSpk.bsp')
         rightFinalWorkDir          = os.path.join(tempFolder, 'rightFullCorrection/')
-        applyNavTransform(posOffsetCorrectedRightPath, partialCorrectedRightPath, 
-                          pcAlignTransformPath, rightFinalWorkDir, rightCkPath, rightSpkPath, True, carry)
+        applyNavTransform(rightAdjustedPath, outputPathRight, 
+                          pcAlignTransformPath, rightFinalWorkDir,
+                          rightCkPath, rightSpkPath, True, carry)
 
         leftStereoCkPath       = os.path.join(tempFolder, 'leftStereoFinalCk.bc') 
         leftStereoSpkPath      = os.path.join(tempFolder, 'leftStereoFinalSpk.bsp')
@@ -1010,11 +989,10 @@ def main(argsIn):
                           leftStereoCkPath, leftStereoSpkPath, True, carry)
 
 
-        partialCorrectedStereoRightPath = os.path.join(tempFolder, rightStereoBaseName + '.partial_corrected.cub')
         rightStereoCkPath               = os.path.join(tempFolder, 'rightStereoFinalCk.bc')
         rightStereoSpkPath              = os.path.join(tempFolder, 'rightStereoFinalSpk.bsp')
         rightStereoFinalWorkDir         = os.path.join(tempFolder, 'rightStereoFullCorrection/')
-        applyNavTransform(rightStereoAdjustedPath, partialCorrectedStereoRightPath, 
+        applyNavTransform(rightStereoAdjustedPath, outputPathStereoRight, 
                           pcAlignTransformPath, rightStereoFinalWorkDir, 
                           rightStereoCkPath, rightStereoSpkPath, True, carry)
 
@@ -1033,19 +1011,19 @@ def main(argsIn):
 
         print '\n-------------------------------------------------------------------------\n'
 
-        # Apply local transforms to both pairs of images!
-
-        # Apply the local rotation to the adjusted RE cube
-        mainLocalWorkDir = os.path.join(tempFolder, 'mainLocalCorrection')
-        applyInterCameraPairRotation(outputPathLeft, partialCorrectedRightPath, 
-                                    localRotationPath, outputPathRight, 
-                                    rightCkPath, rightSpkPath, mainLocalWorkDir, carry)
-
-        # Apply the local rotation to the adjusted stereo RE cube
-        stereoLocalWorkDir = os.path.join(tempFolder, 'stereoLocalCorrection')
-        applyInterCameraPairRotation(outputPathStereoLeft, partialCorrectedStereoRightPath, 
-                                     stereoRotationPath, outputPathStereoRight, 
-                                     rightStereoCkPath, rightStereoSpkPath, stereoLocalWorkDir, carry)
+        ## Apply local transforms to both pairs of images!
+        #
+        ## Apply the local rotation to the adjusted RE cube
+        #mainLocalWorkDir = os.path.join(tempFolder, 'mainLocalCorrection')
+        #applyInterCameraPairRotation(outputPathLeft, partialCorrectedRightPath, 
+        #                            localRotationPath, outputPathRight, 
+        #                            rightCkPath, rightSpkPath, mainLocalWorkDir, carry)
+        #
+        ## Apply the local rotation to the adjusted stereo RE cube
+        #stereoLocalWorkDir = os.path.join(tempFolder, 'stereoLocalCorrection')
+        #applyInterCameraPairRotation(outputPathStereoLeft, partialCorrectedStereoRightPath, 
+        #                             stereoRotationPath, outputPathStereoRight, 
+        #                             rightStereoCkPath, rightStereoSpkPath, stereoLocalWorkDir, carry)
 
 
         ## DEBUG: Check angle solver on adjusted LE/RE images!
@@ -1096,8 +1074,6 @@ def main(argsIn):
         else:
             print 'Skipping large GDC TEST file creation step'
 # ----------------
-
-        raise Exception('Test finished!----------')
 
         print '\n-------------------------------------------------------------------------\n'
         print 'Starting last set of geocorrection accuracy checks...'
@@ -1198,7 +1174,6 @@ def main(argsIn):
             rightKmlFile = os.path.join(tempFolder, 'finalGdcCheckRightCross/rightEvalPoints.kml')
             cmd = 'calibrationReport.py --color blue --size tiny --skip 1 --name rightRightCrossEvalPoints --input ' + rightCsvFile + ' --output ' + rightKmlFile
             os.system(cmd)
-        
         
         # All finished!  We should have a fully calibrated version of each of the four input files.
 

@@ -820,7 +820,7 @@ bool optimizeRotations(Parameters & params)
     // Add the function and residual block for the right camera (slightly more complex)
     ceres::CostFunction* costFunctionRight = 
             new ceres::NumericDiffCostFunction<RightStereoCostFunctor, ceres::CENTRAL, NUM_PARAMS_PER_OBSERVATION, NUM_PARAMS_CAMERA_SECTION, NUM_PARAMS_CAMERA_SECTION, NUM_PARAMS_PER_POINT>(
-                  new RightStereoCostFunctor(&lrocClass, stereoOverlapPairs.rightObsList[i]));
+                  new RightStereoCostFunctor(&lrocClass, rightPixelPairs.rightObsList[i]));
 
     problem.AddResidualBlock(costFunctionRight, lossFunction, localStereoRotation, globalPosition, pointParams);
     
@@ -847,7 +847,7 @@ bool optimizeRotations(Parameters & params)
     // Add the function and residual block for the right camera (slightly more complex)
     ceres::CostFunction* costFunctionRight =
             new ceres::NumericDiffCostFunction<RightStereoCostFunctor, ceres::CENTRAL, NUM_PARAMS_PER_OBSERVATION, NUM_PARAMS_CAMERA_SECTION, NUM_PARAMS_CAMERA_SECTION, NUM_PARAMS_PER_POINT>(
-                  new RightStereoCostFunctor(&lrocClass, stereoOverlapPairs.rightObsList[i]));
+                  new RightStereoCostFunctor(&lrocClass, leftCrossPixelPairs.rightObsList[i]));
 
     problem.AddResidualBlock(costFunctionRight, lossFunction, localStereoRotation, globalPosition, pointParams);
 
@@ -884,7 +884,7 @@ bool optimizeRotations(Parameters & params)
        
   // TODO: Select solver options
   ceres::Solver::Options solverOptions;
-  solverOptions.max_num_iterations           = 150;
+  solverOptions.max_num_iterations           = 80; //TODO: Change back to 150!
   solverOptions.linear_solver_type           = ceres::SPARSE_SCHUR;
   solverOptions.minimizer_progress_to_stdout = true;
   solverOptions.max_num_line_search_direction_restarts = 8;
@@ -1105,53 +1105,6 @@ int main(int argc, char* argv[])
       printf("Failed to parse input parameters!\n");
       return false;
     }
-
-    if (params.debug)
-    {
-      IsisInterfaceLineScanRot leftStereoCam(params.leftStereoFilePath);
-      AdjustedCameraModelRot rotCam(boost::shared_ptr<IsisInterfaceLineScanRot>(&leftStereoCam, boost::serialization::null_deleter()));
-      Vector3 rotVec(0.00323453, -0.0112794, -0.0145248);
-      Vector3 offsetVec(3.22023, -4.80386, 23.8804);
-      rotCam.set_axis_angle_rotation(rotVec);
-      rotCam.set_translation(offsetVec);
-
-      Vector3 nullVec(0,0,0);
-      int line   = 500;
-      int sample = 500;
-      Vector2 pixel(sample, line);
-      double et = 318930609.91952;
-      printf("et = %lf\n", et);
-
-      Matrix3x3 instMatrix, bodyMatrix;
-      leftStereoCam.getMatricesAtTime(et, instMatrix, bodyMatrix);
-      for (int r=0; r<3; ++r)
-      {
-        for (int c=0; c<3; ++c)
-        {
-          printf("%lf, ", instMatrix[r][c]);
-        }
-        printf("\n");
-      }
-
-      // Input pixel pair: 3200,800    3430,997
-      // Computed GDC coordinate: 31.3108323222, -67.1141237031, 255.905626238
-      // Computed GCC coordinate: 577350, -1.36772e+06, 903026
-
-
-      /*
-      Vector3 point(577350, -1.36772e+06, 903026);
-      Vector2 pixel, idealPixel(3430,997);
-      pixel = rotCam.point_to_pixel(point);
-      std::cout << "pixel = " << pixel << std::endl;
-      std::cout << "pixel diff = " << pixel  - idealPixel << std::endl;
-      
-      pixel = rotCam.point_to_pixel_rotated(point, nullVec, 997);
-      std::cout << "pixel 2= " << pixel << std::endl;
-      std::cout << "pixel 2 diff = " << pixel  - idealPixel << std::endl;
-      */
-      return 0;
-    }
-
     
     optimizeRotations(params);
   } ASP_STANDARD_CATCHES;

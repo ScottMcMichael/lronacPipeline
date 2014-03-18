@@ -261,12 +261,9 @@ void setCamerasForState(const double* stateParams)
 {
 
   // Set up initial state vectors
-  //vw::Vector3 globalRotVec(stateParams[3], stateParams[4], stateParams[5]); // Now just applies to stereo LE
-  vw::Vector3 globalPosVec(stateParams[6], stateParams[7], stateParams[8]);
-
-  // Testing a seperate global rot vec for all floating cameras
-  vw::Vector3 rightRotVec(stateParams[0], stateParams[1], stateParams[2]);
-  vw::Vector3 stereoLeftRotVec(stateParams[3], stateParams[4], stateParams[5]);
+  vw::Vector3 rightRotVec      (stateParams[0], stateParams[1],  stateParams[2]);
+  vw::Vector3 stereoLeftRotVec (stateParams[3], stateParams[4],  stateParams[5]);
+  vw::Vector3 globalPosVec     (stateParams[6], stateParams[7],  stateParams[8]);
   vw::Vector3 stereoRightRotVec(stateParams[9], stateParams[10], stateParams[11]);
 
   vw::Vector3 nullVec(0, 0, 0);
@@ -765,9 +762,9 @@ bool getRightObservation(const double* const rotAngleParams, const double* const
   vw::Vector3 nullVec(0,0,0);
 
   if (!_rightCameraRotatedModel)
-    {
-      throw("Error! left stereo camera not initialized!");
-    }
+  {
+    throw("Error! right camera not initialized!");
+  }
   _rightCameraRotatedModel->set_axis_angle_rotation(rotVec);
   _rightCameraRotatedModel->set_translation(nullVec);
 
@@ -795,7 +792,9 @@ bool getRightObservation(const double* const rotAngleParams, const double* const
 /// - Returns false if the point is not visible.
 /// - rotParams points to parameters 3-5
 /// - posParams points to parameters 6-8
-bool getLeftStereoObservation(const double* const rotParams, const double* const posParams, const double* const pointParams, double *observation, int guessRow=-1)
+bool getLeftStereoObservation(const double* const rotParams,
+                              const double* const posParams,
+                              const double* const pointParams, double *observation, int guessRow=-1)
 {
   // This function returns an error vector for a given set of parameters
 
