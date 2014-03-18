@@ -23,7 +23,7 @@ import os, glob, optparse, re, shutil, subprocess, string, time, math, logging, 
 
 import IsisTools
 
-import positionCorrector, rotationCorrector, lronacCameraRotationCorrector
+import positionCorrector, rotationCorrector
 
 def man(option, opt, value, parser):
     print >>sys.stderr, parser.usage
@@ -261,31 +261,6 @@ def checkAdjacentPairAlignment(leftInputPath, rightInputPath, outputDirectory,  
     return True
 
 
-# Generate a modified IK kernel to adjust the rotation between an LE/RE camera pair.
-def applyInterCameraPairRotation(leftInputPath, rightInputPath, newRotationPath, outputCubePath, 
-                                 ckPath, spkPath, workDir, forceOperation):
-
-    # Quit immediately if the output file already exists
-    if (not forceOperation) and (os.path.exists(outputCubePath)):
-        print 'File ' + outputCubePath + ' already exists, skipping nav transform.'
-        return True
-
-    # Generate the new file
-    cmdArgs = ['--keep', '--output', outputCubePath, 
-               '--rotation', newRotationPath, '--left', leftInputPath, 
-               '--right', rightInputPath, '--ck', ckPath, '--spk', spkPath,
-               '--workDir', workDir]
-    print cmdArgs
-    lronacCameraRotationCorrector.main(cmdArgs)
-
-    # Check to make sure we actually created the file
-    if not os.path.exists(outputCubePath):
-        raise Exception('Inter-camera rotation failed to create output file ' + outputCubePath + 
-                        ' from input files ' + leftInputPath + ' and ' + rightInputPath)
-
-    return True
-
-
 # Calls stereo functions to generate a disparity image and returns the path to it.
 def callStereoCorrelation(leftInputPath, rightInputPath, outputPrefix, correlationTimeout, forceOperation):
 
@@ -460,6 +435,28 @@ def evaluateAccuracy(leftCubePath, rightCubePath, ipFindOutputPath, workDir='', 
     # Return the median distance
     return numpy.median(distanceList)
 
+def makeZeroParamsPath(outputPath):
+    """Generates an all-zero parameter file for lronacAngleDoubleSolver to be used
+       as an initial state for debugging checks"""
+    
+    NUM_PARAMS = 12   
+    fakeLog = open(outputPath, 'r')
+    for i in range(0, 12):
+        fakeLog.write('0.0')
+    fakeLog.close()
+    
+    return os.path.exists(outputPath)
+    
+
+
+# Looks in the pc_align output folder for the variably-named log file
+def findLatestPcAlignOutputLog(folder):
+
+    for root, dirs, files in os.walk(folder):
+        for f in files:
+            if 'log' in f:
+                return os.path.join(folder, f)
+    return False
 
 # Makes sure all needed functions are found in the PATH
 def functionStartupCheck():
@@ -474,21 +471,11 @@ def functionStartupCheck():
     IsisTools.checkIfToolExists('positionCorrector.py')
     IsisTools.checkIfToolExists('pixelPairsFromStereo')
     IsisTools.checkIfToolExists('rotationCorrector.py')
-    IsisTools.checkIfToolExists('lronacCameraRotationCorrector.py')
     IsisTools.checkIfToolExists('stereo_corr')
     IsisTools.checkIfToolExists('stereo_pprc')
     IsisTools.checkIfToolExists('crop')
 
     return True
-
-# Looks in the pc_align output folder for the variably-named log file
-def findOutputLog(folder):
-
-    for root, dirs, files in os.walk(folder):
-        for f in files:
-            if 'log' in f:
-                return os.path.join(folder, f)
-    return False
 
 #==========================================================================================
 
@@ -956,7 +943,7 @@ def main(argsIn):
             raise Exception('pc_align call failed!')
 
         # Copy the pc_align log to the output folder
-        pcAlignLogPath = findOutputLog(pcAlignFolder)
+        pcAlignLogPath = findLatestPcAlignOutputLog(pcAlignFolder)
         shutil.copyfile(pcAlignLogPath, os.path.join(outputFolder, 'pcAlignLog.txt'))
         
 
@@ -996,14 +983,6 @@ def main(argsIn):
                           pcAlignTransformPath, rightStereoFinalWorkDir, 
                           rightStereoCkPath, rightStereoSpkPath, True, carry)
 
-        # At this point the left images are hopefully in the correct position and we can apply the offset of the RE cameras
-
-
-        ## DEBUG: Check angle solver on stereo adjusted LE/RE images!
-        #checkAdjacentPairAlignment(outputPathStereoLeft, partialCorrectedStereoRightPath, 
-        #                           os.path.join(tempFolder, 'pcAlignStereoGdcCheck'), 
-        #                           expectedSurfaceElevation, carry)
-
 
         navTime = time.time()
         logging.info('Nav transforms finished in %f seconds', navTime - alignTime)
@@ -1011,38 +990,8 @@ def main(argsIn):
 
         print '\n-------------------------------------------------------------------------\n'
 
-        ## Apply local transforms to both pairs of images!
-        #
-        ## Apply the local rotation to the adjusted RE cube
-        #mainLocalWorkDir = os.path.join(tempFolder, 'mainLocalCorrection')
-        #applyInterCameraPairRotation(outputPathLeft, partialCorrectedRightPath, 
-        #                            localRotationPath, outputPathRight, 
-        #                            rightCkPath, rightSpkPath, mainLocalWorkDir, carry)
-        #
-        ## Apply the local rotation to the adjusted stereo RE cube
-        #stereoLocalWorkDir = os.path.join(tempFolder, 'stereoLocalCorrection')
-        #applyInterCameraPairRotation(outputPathStereoLeft, partialCorrectedStereoRightPath, 
-        #                             stereoRotationPath, outputPathStereoRight, 
-        #                             rightStereoCkPath, rightStereoSpkPath, stereoLocalWorkDir, carry)
 
-
-        ## DEBUG: Check angle solver on adjusted LE/RE images!
-        #checkAdjacentPairAlignment(outputPathLeft, outputPathRight, 
-        #                           os.path.join(tempFolder, 'finalGdcCheck'), 
-        #                           expectedSurfaceElevation, carry)
-        #
-        ## DEBUG: Check angle solver on stereo adjusted LE/RE images!
-        #checkAdjacentPairAlignment(outputPathStereoLeft, outputPathStereoRight, 
-        #                           os.path.join(tempFolder, 'finalStereoGdcCheck'), 
-        #                           expectedSurfaceElevation, carry)
-
-        localTime = time.time()
-        logging.info('Local transforms finished in %f seconds', localTime - navTime)
-
-
-
-
-#DEBUG: Now that the LE and RE images are fully corrected, see if our points match the pc_align transformed points
+        #DEBUG: Now that the LE and RE images are fully corrected, see if our points match the pc_align transformed points
         print '==== Running  check to look at moved large points ===='
         # Compute the 3d coordinates for each pixel pair using the rotation and offset computed earlier
         # - All this step does is use stereo intersection to determine a lat/lon/alt coordinate for each pixel pair in the large data set.  No optimization is performed.
@@ -1051,7 +1000,8 @@ def main(argsIn):
             os.mkdir(largeGdcTestFolder)
         largeGdcTestPrefix = os.path.join(tempFolder, 'gdcPointsLargeTest/out')
         largeGdcTestFile   = largeGdcTestPrefix + '-initialGdcPoints.csv'
-        zeroParamsPath = '/home/smcmich1/data/zeroParamsFile.csv' #TODO: Remove this!
+        zeroParamsPath     = os.path.join(tempFolder, 'zeroParamsPath.csv')
+        makeZeroParamsPath(zeroParamsPath)
         if (not os.path.exists(largeGdcTestFile)) or carry:
             cmd = ('lronacAngleDoubleSolver --outputPrefix '            + largeGdcTestPrefix + 
                                           largePixelCmdParam            + pixelPairsLarge +
@@ -1209,6 +1159,7 @@ def main(argsIn):
             #    IsisTools.removeIfExists(os.path.join(tempFolder, f))
 
             # Remove stereo corrected files
+            IsisTools.removeIfExists(rightAdjustedPath)
             IsisTools.removeIfExists(leftStereoAdjustedPath)
             IsisTools.removeFolderIfExists(leftSteroCorrectWorkDir)
             IsisTools.removeIfExists(rightStereoAdjustedPath)
@@ -1221,14 +1172,12 @@ def main(argsIn):
             IsisTools.removeIfExists(leftCkPath)
             IsisTools.removeIfExists(leftSpkPath)
             IsisTools.removeFolderIfExists(leftFinalWorkDir)
-            IsisTools.removeIfExists(partialCorrectedRightPath)
             IsisTools.removeIfExists(rightCkPath)
             IsisTools.removeIfExists(rightSpkPath)
             IsisTools.removeFolderIfExists(rightFinalWorkDir)
             IsisTools.removeIfExists(leftStereoCkPath)
             IsisTools.removeIfExists(leftStereoSpkPath)
             IsisTools.removeFolderIfExists(leftStereoFinalWorkDir)
-            IsisTools.removeIfExists(partialCorrectedStereoRightPath)
             IsisTools.removeIfExists(rightStereoCkPath)
             IsisTools.removeIfExists(rightStereoSpkPath)
             IsisTools.removeFolderIfExists(rightStereoFinalWorkDir)
@@ -1240,6 +1189,7 @@ def main(argsIn):
             #IsisTools.removeFolderIfExists(os.path.join(tempFolder, 'stereoGlobalAdjustGdcCheck'))
             #IsisTools.removeFolderIfExists(os.path.join(tempFolder, 'finalGdcCheck'))
             #IsisTools.removeFolderIfExists(os.path.join(tempFolder, 'finalStereoGdcCheck'))
+            IsisTools.removeIfExists(zeroParamsPath)
 
             #if (hadToCreateTempFolder):
             #    IsisTools.removeFolderIfExists(tempFolder)

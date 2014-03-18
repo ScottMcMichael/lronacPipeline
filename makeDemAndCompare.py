@@ -34,6 +34,15 @@ class Usage(Exception):
 
 #--------------------------------------------------------------------------------
 
+MAP_PROJECT_METERS_PER_PIXEL  = 0.5 # Map resolution in meters
+MAX_VALID_TRIANGULATION_ERROR = 15 # Meters
+DEM_METERS_PER_PIXEL          = 1.0
+
+DEM_NODATA    = -32767
+MOON_RADIUS   = 1737400
+SUBPIXEL_MODE = 1 # 1 = fast, 2 = accurate
+
+
 
 # Generate a comparison of a DEM to the LOLA point cloud
 def compareDemToLola(lolaPath, demPath, outputPath, csvPath, force):
@@ -61,7 +70,7 @@ def mapProjectImage(inputImage, demPath, outputPath, resolution, centerLat, forc
     if (not os.path.exists(outputPath)) or force:
         cmd = ('parallel_mapproject.py ' + demPath         + ' ' + inputImage + ' ' + outputPath +
                                        ' --tr ' + str(resolution) + ' --t_srs "+proj=eqc +lat_ts=' + str(centerLat) + 
-                                       ' +lat_0=0 +a=1737400 +b=1737400 +units=m" --nodata -32767' +
+                                       ' +lat_0=0 +a='+str(MOON_RADIUS)+' +b='+str(MOON_RADIUS)+' +units=m" --nodata ' + str(DEM_NODATA) +
                                        ' --suppress-output --num-threads 24')
         
         print cmd
@@ -195,11 +204,11 @@ def main(argsIn):
         stereoOutputFolder = os.path.join(tempFolder, 'stereoWorkDir')
         pointCloudPath     = stereoOutputPrefix + '-PC.tif'
         
-        stereoOptionString = ('--corr-timeout 400 --alignment-method AffineEpipolar --subpixel-mode 1 ' +
-                              options.leftPath + ' ' + options.rightPath + 
+        stereoOptionString = ('--corr-timeout 400 --alignment-method AffineEpipolar --subpixel-mode ' + str(SUBPIXEL_MODE) + 
+                              ' ' + options.leftPath + ' ' + options.rightPath + 
                               ' ' + stereoOutputPrefix + ' --processes 8 --threads-multiprocess 4' +
                               ' --threads-singleprocess 32 --compute-error-vector' + ' --filter-mode 1' +
-                              ' --erode-max-size 5000 --max-valid-triangulation-error 15')
+                              ' --erode-max-size 5000 --max-valid-triangulation-error ' + str(MAX_VALID_TRIANGULATION_ERROR))
   
         if (not os.path.exists(pointCloudPath)) or carry:
             cmd = ('parallel_stereo ' + stereoOptionString)
@@ -248,8 +257,8 @@ def main(argsIn):
         intErrorPath = demPrefix + '-IntersectionErr.tif'
         if (not os.path.exists(demPath)) or carry:
             cmd = ('point2dem --errorimage -o ' + demPrefix + ' ' + pointCloudPath + 
-                            ' -r moon --tr 1 --t_srs "+proj=eqc +lat_ts=' + str(centerLat) + 
-                            ' +lat_0=0 +a=1737400 +b=1737400 +units=m" --nodata -32767')
+                            ' -r moon --tr ' + str(DEM_METERS_PER_PIXEL) + ' --t_srs "+proj=eqc +lat_ts=' + str(centerLat) + 
+                            ' +lat_0=0 +a='+str(MOON_RADIUS)+' +b='+str(MOON_RADIUS)+' +units=m" --nodata ' + str(DEM_NODATA))
             print cmd
             os.system(cmd)
         else:
@@ -325,12 +334,12 @@ def main(argsIn):
 
 
         # Generate a map projected version of the left and right images
-        MAP_PROJECT_RESOLUTION = 0.5 # Map resolution in meters
+        # - This step is done last since it is so slow!
         mapProjectLeftPath     = os.path.join(outputFolder, 'mapProjLeft.tif')
         mapProjectRightPath    = os.path.join(outputFolder, 'mapProjRight.tif')
         
-        mapProjectImage(options.leftPath,  demPath, mapProjectLeftPath,  MAP_PROJECT_RESOLUTION, centerLat, carry)
-        mapProjectImage(options.rightPath, demPath, mapProjectRightPath, MAP_PROJECT_RESOLUTION, centerLat, carry)
+        mapProjectImage(options.leftPath,  demPath, mapProjectLeftPath,  MAP_PROJECT_METERS_PER_PIXEL, centerLat, carry)
+        mapProjectImage(options.rightPath, demPath, mapProjectRightPath, MAP_PROJECT_METERS_PER_PIXEL, centerLat, carry)
 
         mapProjectTime = time.time()
         logging.info('Map project finished in %f seconds', mapProjectTime - hillshadeTime)
