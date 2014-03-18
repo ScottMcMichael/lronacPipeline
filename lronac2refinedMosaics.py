@@ -329,9 +329,9 @@ def main(argsIn):
         #generateKmlFromGdcPoints(os.path.join(doubleCalWorkFolder, 'pcAlignStereoGdcCheck'),      tempFolder, 'SBA_check-outputGdcPoints.csv', 'pairGdcCheckPcAlign',            1,    'red',    'normal', carry)
         #generateKmlFromGdcPoints(os.path.join(doubleCalWorkFolder, 'finalGdcCheck'),              tempFolder, 'SBA_check-outputGdcPoints.csv', 'pairGdcCheckFinal',              1,    'white',  'normal', carry)
         #generateKmlFromGdcPoints(os.path.join(doubleCalWorkFolder, 'finalStereoGdcCheck'),        tempFolder, 'SBA_check-outputGdcPoints.csv', 'pairGdcCheckFinalStereo',        1,    'white',  'normal', carry)
-        generateKmlFromGdcPoints(os.path.join(doubleCalWorkFolder, 'gdcPointsLargeComp'),         tempFolder, 'out-initialGdcPoints.csv',      'inputGdcPoints',                 80,   'blue',   'tiny',   carry)
+        generateKmlFromGdcPoints(os.path.join(doubleCalWorkFolder, 'gdcPointsLargeComp'),         tempFolder, 'out-initialGdcPoints.csv',      'inputGdcPoints',                160,   'blue',   'tiny',   carry)
         #generateKmlFromGdcPoints(os.path.join(doubleCalWorkFolder, 'initialGdcCheck'),            tempFolder, 'dem-trans_source.csv', 'transformedPoints'              1000, 'blue', 'normal', , False)
-        generateKmlFromGdcPoints(os.path.join(doubleCalWorkFolder, 'pcAlignOutput'),              tempFolder, 'dem-trans_reference.csv',       'transformedGdcPoints',           80,   'red',    'tiny',   carry)
+        generateKmlFromGdcPoints(os.path.join(doubleCalWorkFolder, 'pcAlignOutput'),              tempFolder, 'dem-trans_reference.csv',       'transformedGdcPoints',          160,   'red',    'tiny',   carry)
         generateKmlFromGdcPoints(os.path.join(doubleCalWorkFolder, 'pcAlignOutput'),              tempFolder, 'dem-beg_errors.csv',            'beg-errors',                     2,    'yellow', 'tiny',   carry)
         generateKmlFromGdcPoints(os.path.join(doubleCalWorkFolder, 'pcAlignOutput'),              tempFolder, 'dem-end_errors.csv',            'end-errors',                     2,    'green',  'tiny',   carry)
 

@@ -182,8 +182,9 @@ def main(argsIn):
 
     # Make a temporary directory to store the tiles
     outputFolder = os.path.dirname(options.outputPath)
+    outputName   = os.path.basename(options.outputPath)
     IsisTools.createFolder(outputFolder)
-    tempFolder   = os.path.join(outputFolder, 'tiles')
+    tempFolder   = os.path.join(outputFolder, outputName + '_tiles')
     IsisTools.createFolder(tempFolder)
     
     

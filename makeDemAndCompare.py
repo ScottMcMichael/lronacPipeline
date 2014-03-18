@@ -182,14 +182,12 @@ def main(argsIn):
         if options.cropAmount and (options.cropAmount > 0):
             if (not os.path.exists(mainMosaicCroppedPath)) or carry:
                 cmd = ('crop from= ' + options.leftPath   + ' to= ' + mainMosaicCroppedPath + 
-                           #' nlines= ' + str(options.cropAmount) + ' line=24200')
-                           ' line=24200')
+                           ' nlines= ' + str(options.cropAmount) )#+ ' line=24200')
                 print cmd
                 os.system(cmd)
             if (not os.path.exists(stereoMosaicCroppedPath) or carry):
                 cmd = ('crop from= ' + options.rightPath + ' to= ' + stereoMosaicCroppedPath + 
-                           #' nlines= ' + str(options.cropAmount) + ' line=24200')
-                           ' line=24200')
+                           ' nlines= ' + str(options.cropAmount) )# + ' line=24200')
                 print cmd
                 os.system(cmd)
             options.leftPath  = mainMosaicCroppedPath
@@ -275,7 +273,7 @@ def main(argsIn):
 
         # Create a colorized version of the hillshade
         colormapPath = os.path.join(outputFolder, 'colormap.tif')
-        if (not os.path.exists(hillshadePath)) or carry:
+        if (not os.path.exists(colormapPath)) or carry:
             cmd = 'colormap ' + demPath + ' -o ' + colormapPath + ' -s ' + hillshadePath
             print cmd
             os.system(cmd)
