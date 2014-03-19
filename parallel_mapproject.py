@@ -105,6 +105,7 @@ def handleArguments(args):
 
 def main(argsIn):
 
+
     try:
         usage = "usage: parallel_mapproject.py [options] <dem> <camera-image> <output>"
         parser = IsisTools.PassThroughOptionParser(usage=usage) # Use parser that ignores unknown options
@@ -182,9 +183,11 @@ def main(argsIn):
 
     # Make a temporary directory to store the tiles
     outputFolder = os.path.dirname(options.outputPath)
+    if outputFolder == '':
+        outputFolder = './' # Handle calls in same directory
     outputName   = os.path.basename(options.outputPath)
     IsisTools.createFolder(outputFolder)
-    tempFolder   = os.path.join(outputFolder, outputName + '_tiles')
+    tempFolder   = os.path.join(outputFolder, outputName.replace('.', '_') + '_tiles/')
     IsisTools.createFolder(tempFolder)
     
     
@@ -239,7 +242,7 @@ def main(argsIn):
     
     # Build a gdal VRT file which is composed of all the processed tiles
     vrtPath = os.path.join(tempFolder, 'mosaic.vrt')
-    cmd = "gdalbuildvrt  -resolution highest " + vrtPath + " " + tempFolder + "/*_.tif";
+    cmd = "gdalbuildvrt  -resolution highest " + vrtPath + " " + tempFolder + "*_.tif";
     print cmd
     os.system(cmd)
 
