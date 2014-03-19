@@ -221,7 +221,7 @@ def main():
         stereoMosaicPath = os.path.join(tempFolder, os.path.basename(filename))
 
         # Call lronac2refinedMosaics.py
-        if True:#(not os.path.exists(mainMosaicPath) or not os.path.exists(stereoMosaicPath)):    
+        if (not os.path.exists(mainMosaicPath) or not os.path.exists(stereoMosaicPath)):    
             refineTemp = os.path.join(tempFolder, 'refinement')
             cmdArgs = ['--left',          options.leftPath,
                        '--right',         options.rightPath,
@@ -246,14 +246,14 @@ def main():
 
         # List of all the output files that will be created       
         demPath               = options.outputPrefix + '-DEM.tif'
-        intersectionErrorPath = options.outputPrefix + '-IntersectionError.tif'
+        intersectionErrorPath = options.outputPrefix + '-IntersectionErr.tif'
         hillshadePath         = options.outputPrefix + '-Hillshade.tif'
         colormapPath          = options.outputPrefix + '-Colormap.tif'
         mapProjectLeftPath    = options.outputPrefix + '-MapProjLeft.tif'
         mapProjectRightPath   = options.outputPrefix + '-MapProjRight.tif'
         compressedInputPath   = options.outputPrefix + '-CompressedInputs.tar.bz2'
         demLabelPath               = options.outputPrefix + '-DEM.LBL' # Each of these files gets an associated label file
-        intersectionErrorLabelPath = options.outputPrefix + '-IntersectionError.LBL'
+        intersectionErrorLabelPath = options.outputPrefix + '-IntersectionErr.LBL'
         hillshadeLabelPath         = options.outputPrefix + '-Hillshade.LBL'
         colormapLabelPath          = options.outputPrefix + '-Colormap.LBL'
         mapProjectLeftLabelPath    = options.outputPrefix + '-MapProjLeft.LBL'

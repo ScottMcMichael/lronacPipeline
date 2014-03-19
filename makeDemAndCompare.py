@@ -254,7 +254,7 @@ def main(argsIn):
         # Go ahead and set up all the output paths
         # -- Deliverables
         demPath               = options.prefix + '-DEM.tif'
-        intersectionErrorPath = options.prefix + '-IntersectionError.tif'
+        intersectionErrorPath = options.prefix + '-IntersectionErr.tif'
         hillshadePath         = options.prefix + '-Hillshade.tif'
         colormapPath          = options.prefix + '-Colormap.tif'
         mapProjectLeftPath    = options.prefix + '-MapProjLeft.tif'
