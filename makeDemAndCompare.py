@@ -42,6 +42,8 @@ DEM_NODATA    = -32767
 MOON_RADIUS   = 1737400
 SUBPIXEL_MODE = 1 # 1 = fast, 2 = accurate
 
+ACCURATE_PIXEL_LIMIT = 5
+
 
 
 # Generate a comparison of a DEM to the LOLA point cloud
@@ -249,12 +251,28 @@ def main(argsIn):
         # Find out the center latitude of the mosaic
         centerLat = IsisTools.getCubeCenterLatitude(options.leftPath, tempFolder)
 
+        # Go ahead and set up all the output paths
+        # -- Deliverables
+        demPath               = options.prefix + '-DEM.tif'
+        intersectionErrorPath = options.prefix + '-IntersectionError.tif'
+        hillshadePath         = options.prefix + '-Hillshade.tif'
+        colormapPath          = options.prefix + '-Colormap.tif'
+        mapProjectLeftPath    = options.prefix + '-MapProjLeft.tif'
+        mapProjectRightPath   = options.prefix + '-MapProjRight.tif'
+        # -- Diagnostic
+        accuratePixelMask     = options.prefix + '-AccuratePixelMask.tif'
+        intersectionViewPathX = options.prefix + '-IntersectionErrorX.tif'
+        intersectionViewPathY = options.prefix + '-IntersectionErrorY.tif'
+        intersectionViewPathZ = options.prefix + '-IntersectionErrorZ.tif'
+        lolaDiffStatsPath     = options.prefix + '-LOLA_diff_stats.txt'
+        lolaDiffPointsPath    = options.prefix + '-LOLA_diff_points.csv'
+        lolaAsuDiffStatsPath  = options.prefix + '-ASU_LOLA_diff_stats.txt'
+        lolaAsuDiffPointsPath = options.prefix + '-ASU_LOLA_diff_points.csv'
+
+
         # Generate a DEM
-        demPrefix    = options.prefix
-        demPath      = demPrefix + '-DEM.tif'
-        intErrorPath = demPrefix + '-IntersectionErr.tif'
         if (not os.path.exists(demPath)) or carry:
-            cmd = ('point2dem --errorimage -o ' + demPrefix + ' ' + pointCloudPath + 
+            cmd = ('point2dem --errorimage -o ' + options.prefix + ' ' + pointCloudPath + 
                             ' -r moon --tr ' + str(DEM_METERS_PER_PIXEL) + ' --t_srs "+proj=eqc +lat_ts=' + str(centerLat) + 
                             ' +lat_0=0 +a='+str(MOON_RADIUS)+' +b='+str(MOON_RADIUS)+' +units=m" --nodata ' + str(DEM_NODATA))
             print cmd
@@ -263,7 +281,6 @@ def main(argsIn):
             print 'DEM file ' + pointCloudPath + ' already exists, skipping point2dem step.'
 
         # Create a hillshade image to visualize the output
-        hillshadePath = os.path.join(outputFolder, 'outputHillshade.tif')
         if (not os.path.exists(hillshadePath)) or carry:
             cmd = 'hillshade ' + demPath + ' -o ' + hillshadePath
             print cmd
@@ -272,7 +289,6 @@ def main(argsIn):
             print 'Output file ' + hillshadePath + ' already exists, skipping hillshade step.'
 
         # Create a colorized version of the hillshade
-        colormapPath = os.path.join(outputFolder, 'colormap.tif')
         if (not os.path.exists(colormapPath)) or carry:
             cmd = 'colormap ' + demPath + ' -o ' + colormapPath + ' -s ' + hillshadePath
             print cmd
@@ -281,21 +297,18 @@ def main(argsIn):
             print 'Output file ' + colormapPath + ' already exists, skipping colormap step.'
 
 
-        # Create a 3d mesh of the point cloud
-        meshPath   = os.path.join(outputFolder, 'mesh.ive')
-        meshPrefix = os.path.join(outputFolder, 'mesh')
-        cmd = 'point2mesh ' + pointCloudPath + ' ' + options.leftPath + ' -o ' + meshPrefix
-        if not os.path.exists(meshPath):
-            print cmd
-            os.system(cmd)
+        ## Create a 3d mesh of the point cloud
+        #meshPath   = os.path.join(outputFolder, 'mesh.ive')
+        #meshPrefix = os.path.join(outputFolder, 'mesh')
+        #cmd = 'point2mesh ' + pointCloudPath + ' ' + options.leftPath + ' -o ' + meshPrefix
+        #if not os.path.exists(meshPath):
+        #    print cmd
+        #    os.system(cmd)
 
         # Convert the intersection error to a viewable format
-        intersectionViewPathX = os.path.join(outputFolder, 'intersectionErrorX.tif')
-        intersectionViewPathY = os.path.join(outputFolder, 'intersectionErrorY.tif')
-        intersectionViewPathZ = os.path.join(outputFolder, 'intersectionErrorZ.tif')
-        cmdX = 'gdal_translate -ot byte -scale 0 10 0 255 -outsize 50% 50% -b 1 ' + intErrorPath + ' ' + intersectionViewPathX
-        cmdY = 'gdal_translate -ot byte -scale 0 10 0 255 -outsize 50% 50% -b 2 ' + intErrorPath + ' ' + intersectionViewPathY
-        cmdZ = 'gdal_translate -ot byte -scale 0 10 0 255 -outsize 50% 50% -b 3 ' + intErrorPath + ' ' + intersectionViewPathZ
+        cmdX = 'gdal_translate -ot byte -scale 0 10 0 255 -outsize 50% 50% -b 1 ' + intersectionErrorPath + ' ' + intersectionViewPathX
+        cmdY = 'gdal_translate -ot byte -scale 0 10 0 255 -outsize 50% 50% -b 2 ' + intersectionErrorPath + ' ' + intersectionViewPathY
+        cmdZ = 'gdal_translate -ot byte -scale 0 10 0 255 -outsize 50% 50% -b 3 ' + intersectionErrorPath + ' ' + intersectionViewPathZ
         if not os.path.exists(intersectionViewPathX) or carry:
             print cmdX
             os.system(cmdX)
@@ -306,11 +319,10 @@ def main(argsIn):
             print cmdZ
             os.system(cmdZ)
 
-        # Generate a good pixel mask from the intersection error
-        # TODO: How to set this threshold?
-        accuratePixelMask = os.path.join(outputFolder, 'accuratePixelMask.tif')
+        # Generate a good pixel mask from the intersection error (all pixels below limit in white)
         if not os.path.exists(accuratePixelMask):
-            cmd = 'maskFromIntersectError ' + intErrorPath + ' ' + accuratePixelMask + ' --thresholds 5 --scaleOutput'
+            cmd = ('maskFromIntersectError ' + intersectionErrorPath + ' ' + accuratePixelMask +
+                                         ' --scaleOutput --thresholds ' + str(ACCURATE_PIXEL_LIMIT))
             print cmd
             os.system(cmd)
 
@@ -320,24 +332,17 @@ def main(argsIn):
 
         # Call script to compare LOLA data with the DEM
         if options.lolaPath:
-            lolaDiffStatsPath  = os.path.join(outputFolder, 'LOLA_diff_stats.txt')
-            lolaDiffPointsPath = os.path.join(outputFolder, 'LOLA_diff_points.csv')
             compareDemToLola(options.lolaPath, demPath, lolaDiffStatsPath, lolaDiffPointsPath, carry)
 
         # Call script to compare LOLA data with the ASU DEM
         if options.asuPath:
-            lolaAsuDiffStatsPath  = os.path.join(outputFolder, 'ASU_LOLA_diff_stats.txt')
-            lolaAsuDiffPointsPath = os.path.join(outputFolder, 'ASU_LOLA_diff_points.csv')
             compareDemToLola(options.lolaPath, options.asuPath, lolaAsuDiffStatsPath, lolaAsuDiffPointsPath, carry)
 
 
         # Generate a map projected version of the left and right images
         # - This step is done last since it is so slow!
-        mapProjectLeftPath     = os.path.join(outputFolder, 'mapProjLeft.tif')
-        mapProjectRightPath    = os.path.join(outputFolder, 'mapProjRight.tif')
-        
-        mapProjectImage(options.leftPath,  demPath, mapProjectLeftPath,  MAP_PROJECT_METERS_PER_PIXEL, centerLat, carry)
-        mapProjectImage(options.rightPath, demPath, mapProjectRightPath, MAP_PROJECT_METERS_PER_PIXEL, centerLat, carry)
+        #mapProjectImage(options.leftPath,  demPath, mapProjectLeftPath,  MAP_PROJECT_METERS_PER_PIXEL, centerLat, carry)
+        #mapProjectImage(options.rightPath, demPath, mapProjectRightPath, MAP_PROJECT_METERS_PER_PIXEL, centerLat, carry)
 
         mapProjectTime = time.time()
         logging.info('Map project finished in %f seconds', mapProjectTime - hillshadeTime)

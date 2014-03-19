@@ -38,11 +38,18 @@ class Usage(Exception):
 
 #--------------------------------------------------------------------------------
 
-def writeLabelFile(outputPath, dataSetName, versionId, imageSize, boundingBox):
+def writeLabelFile(imagePath, outputPath, dataSetName, versionId, description):
     """Write out a .LBL file formatted for the PDS"""
     
-    labelPath = os.path.join(outputFolder, 'labelFile.txt')
-    labelFile = open(labelPath, 'w')
+    # Call functions to automatically obtain some data from the referenced image
+    imageSize   = IsisTools.getCubeSize(imagePath)
+    try:
+        boundingBox = IsisTools.getCubeBoundingBox(imagePath)
+    except: # If we couldn't get the bounding box just fill in junk
+        boundingBox = (0, 0, 0, 0)
+        
+    
+    labelFile = open(outputPath, 'w')
     
     labelFile.write('PDS_VERSION_ID            = PDS3\n') #TODO
     
@@ -68,8 +75,8 @@ def writeLabelFile(outputPath, dataSetName, versionId, imageSize, boundingBox):
     labelFile.write("""RATIONALE_DESC            = "Created at the request of NASA's Exploration\n""") #TODO!!!!!!!!!!!!!
     labelFile.write('                            Systems Mission Directorate to support future\n')
     labelFile.write('                            human exploration"\n')
-    labelFile.write('SOFTWARE_NAME             = "ISIS 3.2.1 with SER enhancements | SOCET SET v5.5\n') #TODO!!!!!!!!!!!!!!
-    labelFile.write('DESCRIPTION               = "High-resolution NAC ditital terrain models in GeoTIFF format. DEM is IEEE floating point TIFF, 32 bits/sample, 1 samples/pixel in single image plane configuration. The NoDATA value is -3.40282266e+038."\n')
+    labelFile.write('SOFTWARE_NAME             = "ISIS 3.2.1 with SER enhancements | NASA Ames Stereo Pipeline\n') #TODO!!!!!!!!!!!!!!
+    labelFile.write('DESCRIPTION               = "' + description + '"\n')
     labelFile.write('\n')
     labelFile.write('/* Time Parameters */\n')
     labelFile.write('START_TIME                   = "N/A"\n')
@@ -111,10 +118,10 @@ def writeLabelFile(outputPath, dataSetName, versionId, imageSize, boundingBox):
     labelFile.write('    MAP_PROJECTION_ROTATION      = 0.0 <DEG>\n') #TODO
     labelFile.write('    MAP_RESOLUTION               = 15161.675 <PIX/DEG>\n') #TODO
     labelFile.write('    MAP_SCALE                    = 2.00 <METERS/PIXEL>\n') #TODO
-    labelFile.write('    MAXIMUM_LATITUDE             = ' + boundingBox[0] + ' <DEG>\n') #TODO!!!!!!!!!!!!!!!!!1
-    labelFile.write('    MINIMUM_LATITUDE             = ' + boundingBox[0] + ' <DEG>\n')
-    labelFile.write('    EASTERNMOST_LONGITUDE        = ' + boundingBox[0] + ' <DEG>\n')
-    labelFile.write('    WESTERNMOST_LONGITUDE        = ' + boundingBox[0] + ' <DEG>\n')
+    labelFile.write('    MAXIMUM_LATITUDE             = ' + str(boundingBox[3]) + ' <DEG>\n') 
+    labelFile.write('    MINIMUM_LATITUDE             = ' + str(boundingBox[2]) + ' <DEG>\n')
+    labelFile.write('    EASTERNMOST_LONGITUDE        = ' + str(boundingBox[0]) + ' <DEG>\n')
+    labelFile.write('    WESTERNMOST_LONGITUDE        = ' + str(boundingBox[1]) + ' <DEG>\n')
     labelFile.write('    LINE_PROJECTION_OFFSET       = 379713.5 <PIXEL>\n') #TOOO
     labelFile.write('    SAMPLE_PROJECTION_OFFSET     = -1802158.5 <PIXEL>\n') #TODO
     labelFile.write('END_OBJECT = IMAGE_MAP_PROJECTION\n')
@@ -162,7 +169,7 @@ def main():
             # The default working directory path is kind of ugly...
             parser.add_option("--workDir", dest="workDir",  help="Folder to store temporary files in")
 
-            parser.add_option("--output-folder",  dest="outputFolder",   help="Output folder.")
+            parser.add_option("--outputPrefix",  dest="outputPrefix",   help="Output prefix.")
 
             parser.add_option("--crop",  dest="cropAmount", 
                               help="Crops the output image to reduce processing time.")
@@ -183,8 +190,8 @@ def main():
                 parser.error("Need stereo right input path")
             if not options.lolaPath: 
                 parser.error("Need LOLA data path")
-            if not options.outputFolder: 
-                parser.error("Need output folder")
+            if not options.outputPrefix: 
+                parser.error("Need output prefix")
 
         except optparse.OptionError, msg:
             raise Usage(msg)
@@ -192,8 +199,7 @@ def main():
         startTime = time.time()
 
         # Set up the output folders
-        outputPrefix  = options.outputFolder + '/output'
-        outputFolder  = options.outputFolder
+        outputFolder  = os.path.dirname(options.outputPrefix)
         inputBaseName = os.path.basename(options.leftPath)
         tempFolder    = outputFolder + '/' + inputBaseName + '_stereoCalibrationTemp/'
         if (options.workDir):
@@ -204,7 +210,7 @@ def main():
 
 
         # Set up logging
-        logPath = outputPrefix + '-Log.txt'
+        logPath = options.outputPrefix + '-Log.txt'
         logging.basicConfig(filename=logPath,level=logging.INFO)
 
 
@@ -232,23 +238,39 @@ def main():
         
         # Copy the pc_align log file to the output folder
         pcAlignLogPath = os.path.join(tempFolder, 'pcAlignLog.txt')
-        shutil.copyfile(pcAlignLogPath, os.path.join(outputFolder, 'pcAlignLog.txt'))
+        shutil.copyfile(pcAlignLogPath, options.outputPrefix + '-PcAlignLog.txt')
 
         # Check that we successfully created the output files
         if (not os.path.exists(mainMosaicPath) or not os.path.exists(stereoMosaicPath)):
             raise Exception('lronac2refinedMosaics failed to produce mosaics!')
 
+        # List of all the output files that will be created       
+        demPath               = options.outputPrefix + '-DEM.tif'
+        intersectionErrorPath = options.outputPrefix + '-IntersectionError.tif'
+        hillshadePath         = options.outputPrefix + '-Hillshade.tif'
+        colormapPath          = options.outputPrefix + '-Colormap.tif'
+        mapProjectLeftPath    = options.outputPrefix + '-MapProjLeft.tif'
+        mapProjectRightPath   = options.outputPrefix + '-MapProjRight.tif'
+        compressedInputPath   = options.outputPrefix + '-CompressedInputs.tar.bz2'
+        demLabelPath               = options.outputPrefix + '-DEM.LBL' # Each of these files gets an associated label file
+        intersectionErrorLabelPath = options.outputPrefix + '-IntersectionError.LBL'
+        hillshadeLabelPath         = options.outputPrefix + '-Hillshade.LBL'
+        colormapLabelPath          = options.outputPrefix + '-Colormap.LBL'
+        mapProjectLeftLabelPath    = options.outputPrefix + '-MapProjLeft.LBL'
+        mapProjectRightLabelPath   = options.outputPrefix + '-MapProjRight.LBL'
+
         # Call makeDemAndCompare.py
-        outputDemPath = outputPrefix + '-DEM.tif'
         cmdArgs = ['--left',     mainMosaicPath, 
                    '--right',    stereoMosaicPath, 
                    '--lola',     options.lolaPath, 
-                   '--asu',      options.asuPath, 
                    '--workDir',  tempFolder, 
-                   '--prefix',   outputPrefix, 
+                   '--prefix',   options.outputPrefix, 
                    '--log-path', logPath]
         if options.keep:
             cmdArgs.append('--keep')
+        if options.asuPath:
+            cmdArgs.append('--asu')
+            cmdArgs.append(options.asuPath)
         if options.cropAmount:
             cmdArgs.append('--crop')
             cmdArgs.append(str(options.cropAmount))
@@ -261,25 +283,33 @@ def main():
             stopPos     = options.asuPath.rfind('.') - 1
             dataSetName = options.asuPath[startPos:endPos]
         else: # Generate a data set in format NAC_DTM_MXXXXXX_MXXXXXXX
-            dataSetName = IsisTools.getDataSetName(options.leftPath, options.leftStereoPath)
+            dataSetName = IsisTools.makeDataSetName(options.leftPath, options.stereoLeft)
 
         # Get some data for the label file
         thisFilePath = os.path.join( os.path.dirname(os.path.abspath(__file__)), 'lronac2dem.py')
-        versionId   = IsisTool.getLastGitTag(thisFilePath)
-        imageSize   = IsisTools.getCubeSize(outputDemPath)
-        boundingBox = IsisTools.getCubeBoundingBox(outputDemPath, tempFolder)
+        versionId   = IsisTools.getLastGitTag(thisFilePath)
 
-        # Generate label file
-        labelPath = os.path.join(outputFolder, 'labelFile.txt')
-        writeLabelFile(outputPath, dataSetName, versionId, imageSize, boundingBox)
+        # TODO: Need to get bounding boxes to work on these images!
+        # Generate label files for each of the output files
+        description = 'TODO'
+        writeLabelFile(demPath,               demLabelPath,               dataSetName, versionId, description)
+        writeLabelFile(intersectionErrorPath, intersectionErrorLabelPath, dataSetName, versionId, description)
+        writeLabelFile(hillshadePath,         hillshadeLabelPath,         dataSetName, versionId, description)
+        writeLabelFile(colormapPath,          colormapLabelPath,          dataSetName, versionId, description)
+        writeLabelFile(mapProjectLeftPath,    mapProjectLeftLabelPath,    dataSetName, versionId, description)
+        writeLabelFile(mapProjectRightPath,   mapProjectRightLabelPath,   dataSetName, versionId, description)
         
 
         # Compress the input files to save disk space
-        compressedPath = os.path.join(options.outputFolder, 'compressedInputs.tar.bz2')
-        if not os.path.exists(compressedPath):
-            cmd = ('tar -jcvf ' + compressedPath + ' ' + options.leftPath   + ' ' + options.rightPath
-                                                 + ' ' + options.stereoLeft + ' ' + options.stereoRight
-                                                 + ' ' + options.lolaPath   + ' ' + options.asuPath)
+        if not os.path.exists(compressedInputPath):
+            # This extra set of commands is needed to strip the absolute path name from each stored file
+            cmd = ('tar -jcvf ' + compressedInputPath + ' -C ' + os.path.dirname(options.leftPath) + ' ' + os.path.basename(options.leftPath   )
+                                                      + ' -C ' + os.path.dirname(options.rightPath) + ' ' + os.path.basename(options.rightPath  )
+                                                      + ' -C ' + os.path.dirname(options.stereoLeft) + ' ' + os.path.basename(options.stereoLeft )
+                                                      + ' -C ' + os.path.dirname(options.stereoRight) + ' ' + os.path.basename(options.stereoRight)
+                                                      + ' -C ' + os.path.dirname(options.lollaPath) + ' ' + os.path.basename(options.lolaPath   ))
+            if options.asuPath: # Handle optional input
+                cmd = cmd + ' ' + os.path.basename(options.asuPath) 
             print cmd
             os.system(cmd)
 

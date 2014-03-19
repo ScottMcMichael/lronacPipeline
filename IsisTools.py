@@ -415,7 +415,7 @@ def makeSpkSetupFile(leapSecondFilePath, outputPath):
     f.close()
 
 
-def getPixelLocInCube(cubePath, sample, line, workDir=''):
+def getPixelLocInCube(cubePath, sample, line):
     """Returns the BodyFixedCoordinate of a pixel from a cube"""
 
     DEFAULT_MOON_RADIUS = 1737400 # In meters
@@ -423,44 +423,20 @@ def getPixelLocInCube(cubePath, sample, line, workDir=''):
     # Make sure the input file exists
     if not os.path.exists(cubePath):
         raise Exception('Cube file ' + cubePath + ' not found!')
-
-    # Default working directory is the cubePath folder
-    outputFolder = workDir
-    if workDir == '':
-        outputFolder = os.path.dirname(cubePath)
        
-    if (len(outputFolder) > 1) and not os.path.exists(outputFolder):
-        os.mkdir(outputFolder)
-
-    # Call ISIS campt function to compute the pixel location
-    tempTextPath = os.path.join(outputFolder, 'camptOutput.txt')
-    if os.path.exists(tempTextPath):
-        os.remove(tempTextPath) # Make sure any existing file is removed!
-        
-    # TODO: Instead of writing temporary file, just parse the output!
-    # Use subprocess to suppress the command output
-    cmd = ['campt', 'from=', cubePath, 'to=', tempTextPath, 'sample=', str(sample), 'line=', str(line)]
-    FNULL = open(os.devnull, 'w')
-    #subprocess.call(cmd, stdout=FNULL, stderr=subprocess.STDOUT)
+    # Use subprocess to parse the command output
+    cmd = ['campt', 'from=', cubePath, 'sample=', str(sample), 'line=', str(line)]
     p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
     cmdOut, err = p.communicate()
 
 
-    # Check that we created the temporary file and if not return the error message.
-    if not os.path.exists(tempTextPath):
-        raise Exception('campt failed to create temporary file ' + tempTextPath +
-                        '\nWith parameters: ' + str(cmd) +
-                        '\nOutput: ' + cmdOut)
-    
-    infoFile = open(tempTextPath, 'r')
-        
     # Read in the output file to extract the pixel coordinates
     gccLine       = ''
     latLine       = ''
     lonLine       = ''
     radiusLine    = ''
     lineAfterBody = False
-    for line in infoFile:
+    for line in cmdOut.split('\n'):
         
         # GCC stuff
         if lineAfterBody: # BodyFixedCoordinate takes up two lines
@@ -483,17 +459,15 @@ def getPixelLocInCube(cubePath, sample, line, workDir=''):
             radiusLine = line
             #print line
 
-    os.remove(tempTextPath) # Remove the file to clean up
-
     # Make sure we found the desired lines
     if (gccLine == ''):
-        raise Exception("Unable to find BodyFixedCoordinate in file " + tempTextPath)
+        raise Exception("Unable to find BodyFixedCoordinate in file " + cubePath)
     if (latLine == ''):
-        raise Exception("Unable to find PlanetocentricLatitude in file " + tempTextPath)
+        raise Exception("Unable to find PlanetocentricLatitude in file " + cubePath)
     if (lonLine == ''):
-        raise Exception("Unable to find PositiveEast180Longitude in file " + tempTextPath)
+        raise Exception("Unable to find PositiveEast180Longitude in file " + cubePath)
     if (radiusLine == ''):
-        raise Exception("Unable to find LocalRadius in file " + tempTextPath)
+        raise Exception("Unable to find LocalRadius in file " + cubePath)
 
     # Extract GCC coordinates
     startParen = gccLine.find('(')
@@ -655,18 +629,20 @@ def getCubeSize(cubePath):
     size = [numSamples, numLines]
     return size
 
-def getCubeBoundingBox(cubePath, workDir):
+def getCubeBoundingBox(cubePath):
     """Returns (minLon, maxLon, minLat, maxLat)"""
+
+    # TODO: This function needs to handle geotiff images!
     
     # Get the cube size, then request the positions of the four corners
     cubeSize = getCubeSize(cubePath)
     
     # Note that the underlying ISIS tool is one-based
     points  = []
-    firstPt =     getPixelLocInCube(cubePath, 1,           1,           workDir)['gdc']
-    points.append(getPixelLocInCube(cubePath, cubeSize[0], 1,           workDir)['gdc'])
-    points.append(getPixelLocInCube(cubePath, 1,           cubeSize[1], workDir)['gdc'])
-    points.append(getPixelLocInCube(cubePath, cubeSize[0], cubeSize[1], workDir)['gdc'])
+    firstPt =     getPixelLocInCube(cubePath, 1,           1,         )['gdc']
+    points.append(getPixelLocInCube(cubePath, cubeSize[0], 1,         )['gdc'])
+    points.append(getPixelLocInCube(cubePath, 1,           cubeSize[1])['gdc'])
+    points.append(getPixelLocInCube(cubePath, cubeSize[0], cubeSize[1])['gdc'])
 
     # Go through the four corners and get the bounding box
     minLon = firstPt[0]
@@ -683,7 +659,8 @@ def getCubeBoundingBox(cubePath, workDir):
             minLat = p[1]
         if p[1] > maxLat:
             maxLat = p[1]
-            
+
+
     return (minLon, maxLon, minLat, maxLat)
 
 
