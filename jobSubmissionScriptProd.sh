@@ -99,7 +99,7 @@ do
  
     # Unfortunately the job name is limited to 15 characters!
     JOB_NAME=$(getShortName $PRETTY_NAME)
-    echo $JOB_NAME
+    echo "Job name = $JOB_NAME"
 
     STD_OUT_PATH=$FULL_DIRECTORY/stdOutLog.txt
     ERR_OUT_PATH=$FULL_DIRECTORY/errorLog.txt

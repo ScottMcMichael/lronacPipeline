@@ -50,7 +50,7 @@ LOLA_FILE_OUT="$INPUT_FOLDER/lolaRdrPoints.csv"
 
 # Set output directory options
 WORKDIR=$INPUT_FOLDER/workDir
-OUTPUT_FOLDER=$INPUT_FOLDER/results
+OUTPUT_PREFIX=$INPUT_FOLDER/results/output
 
 #echo $LEFT_IMG
 #echo $RIGHT_IMG
@@ -62,7 +62,7 @@ OUTPUT_FOLDER=$INPUT_FOLDER/results
 #echo $OUTPUT_FOLDER
 
 # Now call the lronac2dem.py function with the correct inputs
-lronac2dem.py --keep --left $LEFT_IMG --right $RIGHT_IMG --stereo-left $LEFT_S_IMG --stereo-right $RIGHT_S_IMG --lola $LOLA_FILE_OUT $ASU_TAG $ASU_FILE --workDir $WORKDIR --output-folder $OUTPUT_FOLDER --crop 4000
+lronac2dem.py --keep --left $LEFT_IMG --right $RIGHT_IMG --stereo-left $LEFT_S_IMG --stereo-right $RIGHT_S_IMG --lola $LOLA_FILE_OUT $ASU_TAG $ASU_FILE --workDir $WORKDIR --outputPrefix $OUTPUT_FOLDER --crop 4000
 
 
 

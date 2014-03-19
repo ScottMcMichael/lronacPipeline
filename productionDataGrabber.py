@@ -159,7 +159,7 @@ def retrieveData(inputFile, outputFolder, startLine=0):
         subprocess.call(cmd, stdout=FNULL, stderr=subprocess.STDOUT)
         
         # Get the bounding box of the cube's footprint
-        cubeBB = IsisTools.getCubeBoundingBox(cubePath, subFolder)
+        cubeBB = IsisTools.getCubeBoundingBox(cubePath)
          
         # Remove the temporary file
         os.remove(cubePath)
@@ -177,7 +177,7 @@ def retrieveData(inputFile, outputFolder, startLine=0):
         logFile.write('maxLon: ' + str(cubeBB[1]) + '\n')
         logFile.write('minLat: ' + str(cubeBB[2]) + '\n')
         logFile.write('maxLat: ' + str(cubeBB[3]) + '\n')
-        logFile.write('Finished downloading data: ' + time.strftime("%H:%M:%S"))     # Record the current date/time
+        logFile.write('Finished downloading data: ' + time.strftime("%c"))     # Record the current date/time
         logFile.close()
         
         # Quit after processing a line

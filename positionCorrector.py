@@ -154,7 +154,7 @@ def main(argsIn):
         if os.path.exists(tempSpkPath):
             os.remove(tempSpkPath)
 
-        #TODO: Need to make sure this is stored as an absolute path!!!!!!!!!!!!!
+        #TODO: Temp trick to make sure this works for long paths
 
         # Create new SPK file using modified data
         cmd = 'mkspk -setup ' + mkspkConfigPath + ' -input ' + spkDataPath + ' -output ' + tempSpkPath

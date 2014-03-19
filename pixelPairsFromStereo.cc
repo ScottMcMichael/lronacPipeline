@@ -116,6 +116,7 @@ int main( int argc, char *argv[] ) {
     vw::Matrix<double> affineTemp = vw::math::identity_matrix<3>();
     for (int i=0; i<NUM_AFFINE_ELEMENTS; ++i)
       affineTemp.data()[i] = leftAffineVals[i];
+    vw::vw_out() << "Read in left affine matrix:\n" << affineTemp << "\n";
     leftAffine = inverse(affineTemp);
   }
   if (vm.count("rightAffine"))
@@ -128,6 +129,7 @@ int main( int argc, char *argv[] ) {
     vw::Matrix<double> affineTemp = vw::math::identity_matrix<3>();
     for (int i=0; i<NUM_AFFINE_ELEMENTS; ++i)
       affineTemp.data()[i] = rightAffineVals[i];
+    vw::vw_out() << "Read in right affine matrix:\n" << affineTemp << "\n";
     rightAffine = inverse(affineTemp);
   }
 
