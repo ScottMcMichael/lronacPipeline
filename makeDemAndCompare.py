@@ -289,8 +289,11 @@ def main(argsIn):
             print 'Output file ' + hillshadePath + ' already exists, skipping hillshade step.'
 
         # Create a colorized version of the hillshade
+        # - Uses a blue-red color map from here: http://www.sandia.gov/~kmorel/documents/ColorMaps/
+        # - TODO: Modify colormap so we can save the legend file to the output directory!
         if (not os.path.exists(colormapPath)) or carry:
-            cmd = 'colormap ' + demPath + ' -o ' + colormapPath + ' -s ' + hillshadePath
+            lutFilePath = os.path.join( os.path.dirname(os.path.abspath(__file__)), 'colorProfileBlueRed.csv')
+            cmd = 'colormap ' + demPath + ' -o ' + colormapPath + ' -s ' + hillshadePath + ' --lut-file ' + lutFilePath
             print cmd
             os.system(cmd)
         else:
