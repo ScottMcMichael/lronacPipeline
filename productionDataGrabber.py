@@ -60,11 +60,11 @@ def retrieveLolaFile(minLat, maxLat, minLon, maxLon, outputFolder, padAmount=0.2
         return True
 
     queryUrl = lolaUrl + baseQuery + locationParams
-    print queryUrl
+    #print queryUrl
     
     # Parse the response
     parsedPage = BeautifulSoup(urllib2.urlopen((queryUrl)).read())
-    print parsedPage.prettify()
+    #print parsedPage.prettify()
 
     # Find the link containing '_pts_csv.csv' and download it
     found = False
@@ -72,7 +72,7 @@ def retrieveLolaFile(minLat, maxLat, minLon, maxLon, outputFolder, padAmount=0.2
     for url in parsedPage.findAll('url'):
         if (url.string.find('_pts_csv.csv') >= 0):
             cmd = "wget --output-document=" + outputPath + "  " + url.string
-            print cmd
+            #print cmd
             os.system(cmd)
             found = True
        
@@ -83,6 +83,10 @@ def retrieveLolaFile(minLat, maxLat, minLon, maxLon, outputFolder, padAmount=0.2
 
 def retrieveData(inputFile, outputFolder, startLine=0):
     
+    # Make sure the input file exists
+    if not os.path.exists(inputFile):
+        return -1
+
     # Make sure output folder exists
     if not os.path.exists(outputFolder):
         os.mkdir(outputFolder)
