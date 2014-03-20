@@ -44,7 +44,7 @@ def writeLabelFile(imagePath, outputPath, dataSetName, versionId, description):
     # Call functions to automatically obtain some data from the referenced image
     imageSize   = IsisTools.getCubeSize(imagePath)
     try:
-        boundingBox = IsisTools.getCubeBoundingBox(imagePath)
+        boundingBox = IsisTools.getImageBoundingBox(imagePath)
     except: # If we couldn't get the bounding box just fill in junk
         boundingBox = (0, 0, 0, 0)
         
@@ -289,15 +289,21 @@ def main():
         thisFilePath = os.path.join( os.path.dirname(os.path.abspath(__file__)), 'lronac2dem.py')
         versionId   = IsisTools.getLastGitTag(thisFilePath)
 
-        # TODO: Need to get bounding boxes to work on these images!
+        #TODO: Check these!
+        demDescription               = 'High-resolution NAC digital terrain models in GeoTIFF format. DEM is IEEE floating point TIFF, 32 bits/sample, 1 samples/pixel in single image plane configuration. The NoDATA value is -3.40282266e+038.'
+        #intersectionErrorDescription = 'TODO'
+        hillshadeDescription         = 'Shaded-relief derived from NAC digital terrain models. Image is a TIFF image, 8 bits/sample, 1 samples/pixel in single image plane configuration.'
+        colormapDescription          = 'Color shaded-relief derived from NAC digital terrain models. Image is 3-channel RGB TIFF, 8 bits/sample, 3 samples/pixel in single image plane configuration.'
+        mapProjectLeftDescription    = 'TODO'
+        mapProjectRightDescription   = 'TODO'
+
         # Generate label files for each of the output files
-        description = 'TODO'
-        writeLabelFile(demPath,               demLabelPath,               dataSetName, versionId, description)
-        writeLabelFile(intersectionErrorPath, intersectionErrorLabelPath, dataSetName, versionId, description)
-        writeLabelFile(hillshadePath,         hillshadeLabelPath,         dataSetName, versionId, description)
-        writeLabelFile(colormapPath,          colormapLabelPath,          dataSetName, versionId, description)
-        writeLabelFile(mapProjectLeftPath,    mapProjectLeftLabelPath,    dataSetName, versionId, description)
-        writeLabelFile(mapProjectRightPath,   mapProjectRightLabelPath,   dataSetName, versionId, description)
+        writeLabelFile(demPath,               demLabelPath,               dataSetName, versionId, demDescription)
+        #writeLabelFile(intersectionErrorPath, intersectionErrorLabelPath, dataSetName, versionId, intersectionErrorDescription)
+        writeLabelFile(hillshadePath,         hillshadeLabelPath,         dataSetName, versionId, hillshadeDescription)
+        writeLabelFile(colormapPath,          colormapLabelPath,          dataSetName, versionId, colormapDescription)
+        writeLabelFile(mapProjectLeftPath,    mapProjectLeftLabelPath,    dataSetName, versionId, mapProjectLeftDescription)
+        writeLabelFile(mapProjectRightPath,   mapProjectRightLabelPath,   dataSetName, versionId, mapProjectRightDescription)
         
 
         # Compress the input files to save disk space

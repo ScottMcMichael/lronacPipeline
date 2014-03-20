@@ -629,11 +629,32 @@ def getCubeSize(cubePath):
     size = [numSamples, numLines]
     return size
 
-def getCubeBoundingBox(cubePath):
-    """Returns (minLon, maxLon, minLat, maxLat)"""
 
-    # TODO: This function needs to handle geotiff images!
+
+def getGeoTiffBoundingBox(geoTiffPath):
+    """Returns (minLon, maxLon, minLat, maxLat) for a geotiff image"""
     
+    # Call command line tool silently
+    cmd = ['getLatLonBounds', geoTiffPath]
+    p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+    textOutput, err = p.communicate()
+
+    # Check that the call did not fail
+    if (textOutput.find('Failed') >= 0):
+        raise Exception('Error: getGeoTiffBoundingBox failed on input image: ' + geoTiffPath)
+    
+    # Parse the output
+    lines = textOutput.split('\n')
+    minLat = float( lines[0][ lines[0].find('=')+1 :] )
+    maxLat = float( lines[1][ lines[1].find('=')+1 :] )
+    minLon = float( lines[2][ lines[2].find('=')+1 :] )
+    maxLon = float( lines[3][ lines[3].find('=')+1 :] )
+    
+    return (minLon, maxLon, minLat, maxLat)
+
+def getIsisBoundingBox(cubePath):
+    """Returns (minLon, maxLon, minLat, maxLat) for an ISIS compatible object"""
+   
     # Get the cube size, then request the positions of the four corners
     cubeSize = getCubeSize(cubePath)
     
@@ -660,8 +681,18 @@ def getCubeBoundingBox(cubePath):
         if p[1] > maxLat:
             maxLat = p[1]
 
-
     return (minLon, maxLon, minLat, maxLat)
+
+def getImageBoundingBox(filePath):
+    """Returns (minLon, maxLon, minLat, maxLat) for a georeferenced image file"""
+
+    extension = os.path.splitext(filePath)[1]
+    if '.tif' in extension:
+        return getGeoTiffBoundingBox(filePath)
+    else:
+        return getIsisBoundingBox(filePath)
+    
+    # Any other file types will end up raising some sort of exception
 
 
 def modifyPixelPairs(inputPath, outputPath, leftOffsetX, leftOffsetY, rightOffsetX, rightOffsetY):
@@ -733,10 +764,13 @@ def readLolaCompareFile(filePath):
 def makeDataSetName(fileNameA, fileNameB):
     """Given two of the input images, determines a data set name"""
 
-    if fileNameA < fileNameB: # Always put the image with the lower number first
-        dataSetName = 'NAC_DTM_' + fileNameA[:-2] + '_' + fileNameB[:-2]
+    justFileA = os.path.splitext(os.path.basename(fileNameA))[0] # Strip paths and extensions
+    justFileB = os.path.splitext(os.path.basename(fileNameB))[0]
+
+    if justFileA < justFileB: # Always put the image with the lower number first
+        dataSetName = 'NAC_DTM_' + justFileA[:-2] + '_' + justFileB[:-2]
     else:
-        dataSetName = 'NAC_DTM_' + fileNameB[:-2] + '_' + fileNameA[:-2]
+        dataSetName = 'NAC_DTM_' + justFileB[:-2] + '_' + justFileA[:-2]
 
     return dataSetName
 
@@ -756,9 +790,13 @@ def getLastGitTag(codePath):
     gitFolder  = os.path.join(codeFolder, '.git/')
     
     # Get the tag using a subprocess call
-    cmd = ['git', '--git-dir', 'gitFolder', 'describe', '--abbrev=0']
+    cmd = ['git', '--git-dir', gitFolder, 'describe', '--abbrev=0']
     p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
     textOutput, err = p.communicate()
+    
+    # Check for errors
+    if (textOutput.find('fatal:') >=0):
+        raise Exception('Error: getLastGitTag failed on code path ' + codePath)
 
     return textOutput
 
