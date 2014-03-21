@@ -4,13 +4,17 @@
 
 - Make sure your StereoPipeline installation is up to date.
 
-- Install the CERES solver library.  Look in ceresInstallScript.sh for hints if you need to install manually.
+- Check out and build the NGT Tools repository:
+git clone https://github.com/NeoGeographyToolkit/Tools.git
+[ Build according to the instructions in the Tools/README.txt file. Make sure not to build in debug mode! ]
+
+- Add NGT Tools to your PYTHONPATH variable
 
 - Check out the lronacPipeline repository:
 git clone https://github.com/ScottMcMichael/lronacPipeline.git
 cd lronacPipeline
 
-- Edit CMakeLists.txt to point to the correct BaseSystem, visionworkbench, StereoPipeline, CERES, and SuiteSparse installations.
+- Edit CMakeLists.txt to point to the correct BaseSystem, visionworkbench, and StereoPipeline installations.
 
 - Build lronacPipeline:
 mkdir build
@@ -26,7 +30,7 @@ make
 
 - To generate a fully corrected DEM, call lronac2dem.py similar to this:
 
-lronac2dem.py --left /byss/moon/lronacPipeline_V2/BHABHAPLAIN/M112646261LE.IMG --right /byss/moon/lronacPipeline_V2/BHABHAPLAIN/M112646261RE.IMG --stereo-left /byss/moon/lronacPipeline_V2/BHABHAPLAIN/M112653051LE.IMG --stereo-right /byss/moon/lronacPipeline_V2/BHABHAPLAIN/M112653051RE.IMG --lola /byss/moon/lronacPipeline_V2/BHABHAPLAIN/lolaRdrPts.csv --workDir /byss/moon/lronacPipeline_V2/BHABHAPLAIN/workdir --prefix /byss/moon/lronacPipeline_V2/BHABHAPLAIN/results/output
+lronac2dem.py --left /byss/moon/lronacPipeline_V2/BHABHAPLAIN/M112646261LE.IMG --right /byss/moon/lronacPipeline_V2/BHABHAPLAIN/M112646261RE.IMG --stereo-left /byss/moon/lronacPipeline_V2/BHABHAPLAIN/M112653051LE.IMG --stereo-right /byss/moon/lronacPipeline_V2/BHABHAPLAIN/M112653051RE.IMG --lola /byss/moon/lronacPipeline_V2/BHABHAPLAIN/lolaRdrPts.csv --workDir /byss/moon/lronacPipeline_V2/BHABHAPLAIN/workdir --outputPrefix /byss/moon/lronacPipeline_V2/BHABHAPLAIN/results/output
 
 Note that you need the two pairs of LRONAC IMG files plus the LOLA data covering the expected region.  You can obtain the files manually or you can use lronacDataGrabber to find them on the ASU LRONAC website.
 
@@ -48,13 +52,16 @@ The minimum bounds for each data set are listed in the data grabber source locat
 
 ======= Output file description ====================================================
 
-ASU_LOLA_diff_stats.txt  = Contains statistics comparing elevation differences between the LOLA DEM and the ASU DEM.
-ASU_LOLA_diff_points.txt = List of each point compared to generate the statistics in the previous file (lat, lon, elevation, error).
-LOLA_diff_stats.txt      = Contains statistics comparing elevation differences between the LOLA DEM and the newly generated DEM.
-LOLA_diff_points.txt     = List of each point compared to generate the statistics in the previous file (lat, lon, elevation, error).
-outputHillshade.tif      = Convenient 8-bit visualization of the output DEM.
-p2d-DEM.tif              = The output 32 bit floating point DEM.
-p2d-IntersectionErr.tif  = Image containing the stereo triangulation error of each pixel in the output DEM.
+-ASU_LOLA_diff_stats.txt  = Contains statistics comparing elevation differences between the LOLA DEM and the ASU DEM.
+-ASU_LOLA_diff_points.txt = List of each point compared to generate the statistics in the previous file (lat, lon, elevation, error).
+-LOLA_diff_stats.txt      = Contains statistics comparing elevation differences between the LOLA DEM and the newly generated DEM.
+-LOLA_diff_points.txt     = List of each point compared to generate the statistics in the previous file (lat, lon, elevation, error).
+-Hillshade.tif        = Convenient 8-bit visualization of the output DEM.
+-Colormap.tif         = Elevation colorized version of Hillshade.tif
+-DEM.tif              = The output 32 bit floating point DEM.
+-IntersectionErr.tif  = Image containing the stereo triangulation error of each pixel in the output DEM.
+-MapProjLeft.tif      = Map projection of the main input files.
+-MapProjLeft.tif      = Map projection of the stereo input files.
 
 output-Log.txt = Log of intermediate processing outputs.  There are a number of things to look for in this file:
 - For the two left cubes: "INFO:root:- Stereo completed with good pixel percentage: 0.843245660555".

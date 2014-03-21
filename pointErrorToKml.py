@@ -19,8 +19,6 @@
 
 import sys, os, optparse, sys, string, simplekml
 
-import IsisTools
-
 def man(option, opt, value, parser):
     print >>sys.stderr, parser.usage
     print >>sys.stderr, '''\

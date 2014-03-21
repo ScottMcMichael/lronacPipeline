@@ -22,7 +22,7 @@ from BeautifulSoup import BeautifulSoup
 
 import os, glob, optparse, re, shutil, subprocess, string, time, urllib, urllib2
 
-import IsisTools
+import IsisTools, IrgFileFunctions, IrgIsisFunctions
 
 def man(option, opt, value, parser):
     print >>sys.stderr, parser.usage
@@ -124,7 +124,7 @@ def retrieveData(inputFile, outputFolder, startLine=0):
         except:
             pass # Did not find a blank spot, keep going
 
-        IsisTools.createFolder(subFolder) # Create the output folder
+        IrgFileFunctions.createFolder(subFolder) # Create the output folder
         
         # Download the images
         IMAGE_BASE_URL = 'http://lroc.sese.asu.edu/data/'
@@ -159,7 +159,7 @@ def retrieveData(inputFile, outputFolder, startLine=0):
         subprocess.call(cmd, stdout=FNULL, stderr=subprocess.STDOUT)
         
         # Get the bounding box of the cube's footprint
-        cubeBB = IsisTools.getCubeBoundingBox(cubePath)
+        cubeBB = IrgIsisFunctions.getCubeBoundingBox(cubePath)
          
         # Remove the temporary file
         os.remove(cubePath)

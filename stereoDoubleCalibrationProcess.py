@@ -21,7 +21,7 @@ import sys
 
 import os, glob, optparse, re, shutil, subprocess, string, time, math, logging, threading, numpy
 
-import IsisTools
+import IrgFileFunctions, IrgIsisFunctions, IrgAspFunctions
 
 import positionCorrector, rotationCorrector
 
@@ -38,15 +38,6 @@ class Usage(Exception):
         self.msg = msg
 
 #===============================================================
-
-# TODO: Move this!
-# Counts the number of lines in a file
-def getFileLineCount(filePath):
-    f = open(filePath)
-    i = 0
-    for line in f:
-        i = i + 1
-    return i
 
 # TODO: Make this a standalone function!
 # Get a single file ready to process
@@ -85,8 +76,8 @@ def prepareImgFile(inputPath, outputFolder, keep):
     os.system(cmd)
 
     if not keep:
-        IsisTools.removeIfExists(initialCubFile)
-        IsisTools.removeIfExists(calCubFile)
+        IrgFileFunctions.removeIfExists(initialCubFile)
+        IrgFileFunctions.removeIfExists(calCubFile)
 
     return echoCubFile
 
@@ -186,7 +177,7 @@ def extractPixelPairsFromStereoResults(disparityImagePath, outputPixelPath,
         raise Exception('Pixel sampling failed to create output file ' + outputPixelPath + 
                         ' from input file ' + disparityImagePath)
 
-    numPairs = getFileLineCount(outputPixelPath)
+    numPairs = IrgFileFunctions.getFileLineCount(outputPixelPath)
     logging.info('In stereo file %s found %d point pairs', disparityImagePath, numPairs)
 
     return numPairs
@@ -307,7 +298,7 @@ def callStereoCorrelation(leftInputPath, rightInputPath, outputPrefix, correlati
                         ' from input files ' + leftInputPath + ' and ' + rightInputPath)
 
     # Compute percentage of good pixels
-    percentGood = IsisTools.getStereoGoodPixelPercentage(outputPrefix)
+    percentGood = IrgAspFunctions.getStereoGoodPixelPercentage(outputPrefix)
     print 'Stereo completed with good pixel percentage: ' + str(percentGood)
     logging.info('For cubes %s and %s', leftInputPath, rightInputPath)
     logging.info('- Stereo completed with good pixel percentage: %s', str(percentGood))
@@ -370,10 +361,10 @@ def getInterestPointPairs(leftInputPath, rightInputPath, outputPath, surfaceElev
             raise Exception('matchBinaryToCsv call failed on file ' + outputPath)
 
         # Clean up temporary file
-        IsisTools.removeIfExists(binaryPath)
+        IrgFileFunctions.removeIfExists(binaryPath)
 
     # Count the number of point pairs we found
-    numPairs = getFileLineCount(outputPath)
+    numPairs = IrgFileFunctions.getFileLineCount(outputPath)
     print('For cubes %s and %s found %d point pairs' % (leftInputPath, rightInputPath, numPairs))
     logging.info('For cubes %s and %s', leftInputPath, rightInputPath)
     logging.info('- Found %d point pairs', numPairs)
@@ -389,7 +380,7 @@ def evaluateAccuracy(leftCubePath, rightCubePath, ipFindOutputPath, workDir='', 
     if savePoints:
         leftPointPath  = os.path.join(workDir, 'leftEvalPoints.csv')
         rightPointPath = os.path.join(workDir, 'rightEvalPoints.csv')
-        IsisTools.createFolder(workDir)
+        IrgFileFunctions.createFolder(workDir)
         leftFile  = open(leftPointPath, 'w')
         rightFile = open(rightPointPath, 'w')
 
@@ -408,8 +399,8 @@ def evaluateAccuracy(leftCubePath, rightCubePath, ipFindOutputPath, workDir='', 
             #print 'RightPixel = ' + rightSample + ', ' + rightLine
             
             # Obtain the backprojected GCC location for the pixels in the two images
-            leftLoc  = IsisTools.getPixelLocInCube(leftCubePath,  leftSample,  leftLine)
-            rightLoc = IsisTools.getPixelLocInCube(rightCubePath, rightSample, rightLine)
+            leftLoc  = IrgIsisFunctions.getPixelLocInCube(leftCubePath,  leftSample,  leftLine)
+            rightLoc = IrgIsisFunctions.getPixelLocInCube(rightCubePath, rightSample, rightLine)
             
             if savePoints:
                 leftFile.write (str(leftLoc ['gdc'][1]) + ', ' +  str(leftLoc ['gdc'][0]) + ', ' + str(leftLoc ['gdc'][2]) + '\n');
@@ -463,18 +454,19 @@ def findLatestPcAlignOutputLog(folder):
 def functionStartupCheck():
 
     # These calls will raise an exception if the tool is not found
-    IsisTools.checkIfToolExists('pc_align')
-    IsisTools.checkIfToolExists('lronacAngleDoubleSolver')
-    IsisTools.checkIfToolExists('lronac2isis')
-    IsisTools.checkIfToolExists('lronaccal')
-    IsisTools.checkIfToolExists('lronacecho')
-    IsisTools.checkIfToolExists('spiceinit')
-    IsisTools.checkIfToolExists('positionCorrector.py')
-    IsisTools.checkIfToolExists('pixelPairsFromStereo')
-    IsisTools.checkIfToolExists('rotationCorrector.py')
-    IsisTools.checkIfToolExists('stereo_corr')
-    IsisTools.checkIfToolExists('stereo_pprc')
-    IsisTools.checkIfToolExists('crop')
+    IrgFileFunctions.checkIfToolExists('pc_align')
+    IrgFileFunctions.checkIfToolExists('lronacAngleDoubleSolver')
+    IrgFileFunctions.checkIfToolExists('lronac2isis')
+    IrgFileFunctions.checkIfToolExists('lronaccal')
+    IrgFileFunctions.checkIfToolExists('lronacecho')
+    IrgFileFunctions.checkIfToolExists('spiceinit')
+    IrgFileFunctions.checkIfToolExists('positionCorrector.py')
+    IrgFileFunctions.checkIfToolExists('pixelPairsFromStereo')
+    IrgFileFunctions.checkIfToolExists('rotationCorrector.py')
+    IrgFileFunctions.checkIfToolExists('stereo_corr')
+    IrgFileFunctions.checkIfToolExists('stereo_pprc')
+    IrgFileFunctions.checkIfToolExists('stereoIpFind')
+    IrgFileFunctions.checkIfToolExists('crop')
 
     return True
 
@@ -611,7 +603,7 @@ def main(argsIn):
 
 
         # Get the expected surface elevation in meters
-        expectedSurfaceElevation = IsisTools.getCubeElevationEstimate(spiceInitLeftPath, tempFolder)
+        expectedSurfaceElevation = IrgIsisFunctions.getCubeElevationEstimate(spiceInitLeftPath, tempFolder)
 
 
         # Apply LE/RE LRONAC position offsets to each of the input files
@@ -950,7 +942,7 @@ def main(argsIn):
         DISPLACEMENT_INCREMENT = 180
 
         # Determine the number of points we want
-        numLolaPoints          = getFileLineCount(options.lolaPath) - 1        
+        numLolaPoints          = IrgFileFunctions.getFileLineCount(options.lolaPath) - 1        
         currentMaxDisplacement = STARTING_DISPLACEMENT
         minNumPointsToUse      = min(MIN_NUM_LOLA_POINTS, MIN_LOLA_PERCENTAGE*float(numLolaPoints))
         
@@ -972,7 +964,7 @@ def main(argsIn):
                 os.system(cmd)
                 
                 #TODO: Retry this step with higher max displacement until the number of points used is a minimum number!
-                numLolaPointsUsed = getFileLineCount(endErrorPath) - 1
+                numLolaPointsUsed = IrgFileFunctions.getFileLineCount(endErrorPath) - 1
             
                 if (numLolaPointsUsed >= minNumPointsToUse):
                     break # Success!
@@ -1179,68 +1171,68 @@ def main(argsIn):
         if not options.keep:
             print 'Deleting temporary files'
             # Init files
-            IsisTools.removeIfExists(spiceInitLeftPath)
-            IsisTools.removeIfExists(spiceInitRightPath)
-            IsisTools.removeIfExists(spiceInitStereoRightPath)
-            IsisTools.removeIfExists(spiceInitStereoLeftPath)
+            IrgFileFunctions.removeIfExists(spiceInitLeftPath)
+            IrgFileFunctions.removeIfExists(spiceInitRightPath)
+            IrgFileFunctions.removeIfExists(spiceInitStereoRightPath)
+            IrgFileFunctions.removeIfExists(spiceInitStereoLeftPath)
 
             # Position correction files
-            IsisTools.removeIfExists(posOffsetCorrectedLeftPath)
-            IsisTools.removeIfExists(posOffsetCorrectedRightPath)
-            IsisTools.removeIfExists(posOffsetCorrectedStereoLeftPath)
-            IsisTools.removeIfExists(posOffsetCorrectedStereoRightPath)
-            IsisTools.removeFolderIfExists(leftPosCorrectWorkDir)
-            IsisTools.removeFolderIfExists(rightPosCorrectWorkDir)
-            IsisTools.removeFolderIfExists(stereoLeftPosCorrectWorkDir)
-            IsisTools.removeFolderIfExists(stereoRightPosCorrectWorkDir)
+            IrgFileFunctions.removeIfExists(posOffsetCorrectedLeftPath)
+            IrgFileFunctions.removeIfExists(posOffsetCorrectedRightPath)
+            IrgFileFunctions.removeIfExists(posOffsetCorrectedStereoLeftPath)
+            IrgFileFunctions.removeIfExists(posOffsetCorrectedStereoRightPath)
+            IrgFileFunctions.removeFolderIfExists(leftPosCorrectWorkDir)
+            IrgFileFunctions.removeFolderIfExists(rightPosCorrectWorkDir)
+            IrgFileFunctions.removeFolderIfExists(stereoLeftPosCorrectWorkDir)
+            IrgFileFunctions.removeFolderIfExists(stereoRightPosCorrectWorkDir)
             # Stereo output
             stereoOutputLeftFolder = os.path.dirname(stereoPrefixLeft)
-            IsisTools.removeFolderIfExists(stereoOutputLeftFolder) #TURN THIS ON AFTER TESTING COMPLETE!
-            #IsisTools.removeIfExists(pixelPairsLeftSmall)
-            #IsisTools.removeIfExists(pixelPairsRightSmall)
-            #IsisTools.removeIfExists(pixelPairsLeftCrossSmall)
-            #IsisTools.removeIfExists(pixelPairsRightCrossSmall)
+            IrgFileFunctions.removeFolderIfExists(stereoOutputLeftFolder) #TURN THIS ON AFTER TESTING COMPLETE!
+            #IrgFileFunctions.removeIfExists(pixelPairsLeftSmall)
+            #IrgFileFunctions.removeIfExists(pixelPairsRightSmall)
+            #IrgFileFunctions.removeIfExists(pixelPairsLeftCrossSmall)
+            #IrgFileFunctions.removeIfExists(pixelPairsRightCrossSmall)
 
             ## Remove all the SBA files
             #fileList = [ f for f in os.listdir(tempFolder) if f.startswith("SBA_solution") ]
             #for f in fileList:
-            #    IsisTools.removeIfExists(os.path.join(tempFolder, f))
+            #    IrgFileFunctions.removeIfExists(os.path.join(tempFolder, f))
 
             # Remove stereo corrected files
-            IsisTools.removeIfExists(rightAdjustedPath)
-            IsisTools.removeIfExists(leftStereoAdjustedPath)
-            IsisTools.removeFolderIfExists(leftSteroCorrectWorkDir)
-            IsisTools.removeIfExists(rightStereoAdjustedPath)
-            IsisTools.removeFolderIfExists(rightSteroCorrectWorkDir)
+            IrgFileFunctions.removeIfExists(rightAdjustedPath)
+            IrgFileFunctions.removeIfExists(leftStereoAdjustedPath)
+            IrgFileFunctions.removeFolderIfExists(leftSteroCorrectWorkDir)
+            IrgFileFunctions.removeIfExists(rightStereoAdjustedPath)
+            IrgFileFunctions.removeFolderIfExists(rightSteroCorrectWorkDir)
             # Clean pc_align steps
-            IsisTools.removeIfExists(pixelPairsLarge)   # TODO: Update some of these for recent changes!
-            #IsisTools.removeFolderIfExists(largeGdcFolder)
-            #IsisTools.removeFolderIfExists(pcAlignFolder)
+            IrgFileFunctions.removeIfExists(pixelPairsLarge)   # TODO: Update some of these for recent changes!
+            #IrgFileFunctions.removeFolderIfExists(largeGdcFolder)
+            #IrgFileFunctions.removeFolderIfExists(pcAlignFolder)
             # Clean out final file correction
-            IsisTools.removeIfExists(leftCkPath)
-            IsisTools.removeIfExists(leftSpkPath)
-            IsisTools.removeFolderIfExists(leftFinalWorkDir)
-            IsisTools.removeIfExists(rightCkPath)
-            IsisTools.removeIfExists(rightSpkPath)
-            IsisTools.removeFolderIfExists(rightFinalWorkDir)
-            IsisTools.removeIfExists(leftStereoCkPath)
-            IsisTools.removeIfExists(leftStereoSpkPath)
-            IsisTools.removeFolderIfExists(leftStereoFinalWorkDir)
-            IsisTools.removeIfExists(rightStereoCkPath)
-            IsisTools.removeIfExists(rightStereoSpkPath)
-            IsisTools.removeFolderIfExists(rightStereoFinalWorkDir)
+            IrgFileFunctions.removeIfExists(leftCkPath)
+            IrgFileFunctions.removeIfExists(leftSpkPath)
+            IrgFileFunctions.removeFolderIfExists(leftFinalWorkDir)
+            IrgFileFunctions.removeIfExists(rightCkPath)
+            IrgFileFunctions.removeIfExists(rightSpkPath)
+            IrgFileFunctions.removeFolderIfExists(rightFinalWorkDir)
+            IrgFileFunctions.removeIfExists(leftStereoCkPath)
+            IrgFileFunctions.removeIfExists(leftStereoSpkPath)
+            IrgFileFunctions.removeFolderIfExists(leftStereoFinalWorkDir)
+            IrgFileFunctions.removeIfExists(rightStereoCkPath)
+            IrgFileFunctions.removeIfExists(rightStereoSpkPath)
+            IrgFileFunctions.removeFolderIfExists(rightStereoFinalWorkDir)
             # Remove local transform folders
-            IsisTools.removeFolderIfExists(mainLocalWorkDir)
-            IsisTools.removeFolderIfExists(stereoLocalWorkDir)
+            IrgFileFunctions.removeFolderIfExists(mainLocalWorkDir)
+            IrgFileFunctions.removeFolderIfExists(stereoLocalWorkDir)
             ## Remove check folders
-            #IsisTools.removeFolderIfExists(os.path.join(tempFolder, 'pcAlignStereoGdcCheck'))
-            #IsisTools.removeFolderIfExists(os.path.join(tempFolder, 'stereoGlobalAdjustGdcCheck'))
-            #IsisTools.removeFolderIfExists(os.path.join(tempFolder, 'finalGdcCheck'))
-            #IsisTools.removeFolderIfExists(os.path.join(tempFolder, 'finalStereoGdcCheck'))
-            IsisTools.removeIfExists(zeroParamsPath)
+            #IrgFileFunctions.removeFolderIfExists(os.path.join(tempFolder, 'pcAlignStereoGdcCheck'))
+            #IrgFileFunctions.removeFolderIfExists(os.path.join(tempFolder, 'stereoGlobalAdjustGdcCheck'))
+            #IrgFileFunctions.removeFolderIfExists(os.path.join(tempFolder, 'finalGdcCheck'))
+            #IrgFileFunctions.removeFolderIfExists(os.path.join(tempFolder, 'finalStereoGdcCheck'))
+            IrgFileFunctions.removeIfExists(zeroParamsPath)
 
             #if (hadToCreateTempFolder):
-            #    IsisTools.removeFolderIfExists(tempFolder)
+            #    IrgFileFunctions.removeFolderIfExists(tempFolder)
 
         endTime = time.time()
 

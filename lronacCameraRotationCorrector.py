@@ -21,7 +21,7 @@ import sys
 
 import os, glob, optparse, re, shutil, subprocess, string, time
 
-import IsisTools
+import IrgIsisFunctions
 
 def man(option, opt, value, parser):
     print >>sys.stderr, parser.usage
@@ -164,7 +164,7 @@ def main(argsIn):
 
         # Parse output looking for the IK frame file
         print 'Looking for source frame file...'
-        kernels = IsisTools.parseHeadOutput(tempTextPath, options.outputPath)
+        kernels = IrgIsisFunctions.parseHeadOutput(tempTextPath, options.outputPath)
         
         if not ('Frame' in kernels):
             os.remove(options.outputPath)

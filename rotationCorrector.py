@@ -21,7 +21,7 @@ import sys
 
 import os, glob, optparse, re, shutil, subprocess, string, time
 
-import IsisTools
+import IsisTools, IrgIsisFunctions
 
 def man(option, opt, value, parser):
     print >>sys.stderr, parser.usage
@@ -197,7 +197,7 @@ def main(argsIn):
 
 
         # Retrieve a list of all the kernels needed by the input cube file
-        kernelDict = IsisTools.getKernelsFromCube(options.outputPath, tempFolder)
+        kernelDict = IrgIsisFunctions.getKernelsFromCube(options.outputPath, tempFolder)
 
         # Locate required kernels
         if not ('LeapSecond' in kernelDict):

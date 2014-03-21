@@ -21,7 +21,7 @@ import sys
 
 import os, glob, re, shutil, subprocess, string, time, errno, optparse, math
 
-import IsisTools
+import IrgFileFunctions
 
 def man(option, opt, value, parser):
     print >>sys.stderr, parser.usage
@@ -108,7 +108,7 @@ def main(argsIn):
 
     try:
         usage = "usage: parallel_mapproject.py [options] <dem> <camera-image> <output>"
-        parser = IsisTools.PassThroughOptionParser(usage=usage) # Use parser that ignores unknown options
+        parser = IrgFileFunctions.PassThroughOptionParser(usage=usage) # Use parser that ignores unknown options
 
         parser.set_defaults(numThreads=8)
         parser.set_defaults(keep=False)
@@ -186,9 +186,9 @@ def main(argsIn):
     if outputFolder == '':
         outputFolder = './' # Handle calls in same directory
     outputName   = os.path.basename(options.outputPath)
-    IsisTools.createFolder(outputFolder)
+    IrgFileFunctions.createFolder(outputFolder)
     tempFolder   = os.path.join(outputFolder, outputName.replace('.', '_') + '_tiles/')
-    IsisTools.createFolder(tempFolder)
+    IrgFileFunctions.createFolder(tempFolder)
     
     
     # Queue up one mapproject call for each file
@@ -253,7 +253,7 @@ def main(argsIn):
 
     # Clean up temporary files
     if not options.keep:
-        IsisTools.removeFolderIfExists(tempFolder)
+        IrgFileFunctions.removeFolderIfExists(tempFolder)
 
 
     endTime = time.time()

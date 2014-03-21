@@ -19,7 +19,7 @@
 
 import sys, os, glob, optparse, re, subprocess, string, time, logging, threading
 
-import IsisTools, pointErrorToKml
+import IrgIsisFunctions, IrgAspFunctions, IrgFileFunctions, pointErrorToKml
 
 def man(option, opt, value, parser):
     print >>sys.stderr, parser.usage
@@ -34,7 +34,7 @@ class Usage(Exception):
 
 #--------------------------------------------------------------------------------
 
-MAP_PROJECT_METERS_PER_PIXEL  = 0.5 # Map resolution in meters
+MAP_PROJECT_METERS_PER_PIXEL  = 50.0 # Map resolution in meters
 MAX_VALID_TRIANGULATION_ERROR = 15 # Meters
 DEM_METERS_PER_PIXEL          = 1.0
 
@@ -86,12 +86,16 @@ def mapProjectImage(inputImage, demPath, outputPath, resolution, centerLat, forc
 def functionStartupCheck():
 
     # These calls will raise an exception if the tool is not found
-    IsisTools.checkIfToolExists('lola_compare')
-    IsisTools.checkIfToolExists('parallel_stereo')
-    IsisTools.checkIfToolExists('parallel_mapproject.py')
-    IsisTools.checkIfToolExists('point2dem')
-    IsisTools.checkIfToolExists('hillshade')
-    IsisTools.checkIfToolExists('crop')
+    IrgFileFunctions.checkIfToolExists('lola_compare')
+    IrgFileFunctions.checkIfToolExists('parallel_stereo')
+    IrgFileFunctions.checkIfToolExists('parallel_mapproject.py')
+    IrgFileFunctions.checkIfToolExists('point2dem')
+    IrgFileFunctions.checkIfToolExists('hillshade')
+    IrgFileFunctions.checkIfToolExists('colormap')
+    IrgFileFunctions.checkIfToolExists('crop')
+    IrgFileFunctions.checkIfToolExists('tar')
+    IrgFileFunctions.checkIfToolExists('gdal_translate')
+    IrgFileFunctions.checkIfToolExists('maskFromIntersectError')
 
     return True
 
@@ -184,12 +188,12 @@ def main(argsIn):
         if options.cropAmount and (options.cropAmount > 0):
             if (not os.path.exists(mainMosaicCroppedPath)) or carry:
                 cmd = ('crop from= ' + options.leftPath   + ' to= ' + mainMosaicCroppedPath + 
-                           ' nlines= ' + str(options.cropAmount) )#+ ' line=24200')
+                           ' nlines= ' + str(options.cropAmount) + ' line=24200')
                 print cmd
                 os.system(cmd)
             if (not os.path.exists(stereoMosaicCroppedPath) or carry):
                 cmd = ('crop from= ' + options.rightPath + ' to= ' + stereoMosaicCroppedPath + 
-                           ' nlines= ' + str(options.cropAmount) )# + ' line=24200')
+                           ' nlines= ' + str(options.cropAmount)  + ' line=24200')
                 print cmd
                 os.system(cmd)
             options.leftPath  = mainMosaicCroppedPath
@@ -229,8 +233,8 @@ def main(argsIn):
             #
             ## TODO: Delete other stereo files!
             #if not options.keep:
-            #    IsisTools.removeIntermediateStereoFiles(stereoOutputPrefix) # Limited clear
-            #    #IsisTools.removeFolderIfExists(stereoOutputFolder) # Larger clear
+            #    IrgFileFunctions.removeIntermediateStereoFiles(stereoOutputPrefix) # Limited clear
+            #    #IrgFileFunctions.removeFolderIfExists(stereoOutputFolder) # Larger clear
             
             
         else:
@@ -243,13 +247,13 @@ def main(argsIn):
         logging.info('Stereo finished in %f seconds', stereoTime - startTime)
 
         # Compute percentage of good pixels
-        percentGood = IsisTools.getStereoGoodPixelPercentage(stereoOutputPrefix)
+        percentGood = IrgAspFunctions.getStereoGoodPixelPercentage(stereoOutputPrefix)
         print 'Stereo completed with good pixel percentage: ' + str(percentGood)
         logging.info('Final stereo completed with good pixel percentage: %s', str(percentGood))
 
 
         # Find out the center latitude of the mosaic
-        centerLat = IsisTools.getCubeCenterLatitude(options.leftPath, tempFolder)
+        centerLat = IrgIsisFunctions.getCubeCenterLatitude(options.leftPath, tempFolder)
 
         # Go ahead and set up all the output paths
         # -- Deliverables
@@ -260,14 +264,16 @@ def main(argsIn):
         mapProjectLeftPath    = options.prefix + '-MapProjLeft.tif'
         mapProjectRightPath   = options.prefix + '-MapProjRight.tif'
         # -- Diagnostic
-        accuratePixelMask     = options.prefix + '-AccuratePixelMask.tif'
-        intersectionViewPathX = options.prefix + '-IntersectionErrorX.tif'
-        intersectionViewPathY = options.prefix + '-IntersectionErrorY.tif'
-        intersectionViewPathZ = options.prefix + '-IntersectionErrorZ.tif'
-        lolaDiffStatsPath     = options.prefix + '-LOLA_diff_stats.txt'
-        lolaDiffPointsPath    = options.prefix + '-LOLA_diff_points.csv'
-        lolaAsuDiffStatsPath  = options.prefix + '-ASU_LOLA_diff_stats.txt'
-        lolaAsuDiffPointsPath = options.prefix + '-ASU_LOLA_diff_points.csv'
+        accuratePixelMask        = options.prefix + '-AccuratePixelMask.tif'
+        intersectionViewPathX    = options.prefix + '-IntersectionErrorX.tif'
+        intersectionViewPathY    = options.prefix + '-IntersectionErrorY.tif'
+        intersectionViewPathZ    = options.prefix + '-IntersectionErrorZ.tif'
+        lolaDiffStatsPath        = options.prefix + '-LOLA_diff_stats.txt'
+        lolaDiffPointsPath       = options.prefix + '-LOLA_diff_points.csv'
+        lolaAsuDiffStatsPath     = options.prefix + '-ASU_LOLA_diff_stats.txt'
+        lolaAsuDiffPointsPath    = options.prefix + '-ASU_LOLA_diff_points.csv'
+        mapProjectLeftUint8Path  = options.prefix + '-MapProjLeftUint8.tif'
+        mapProjectRightUint8Path = options.prefix + '-MapProjRightUint8.tif'
 
 
         # Generate a DEM
@@ -344,8 +350,19 @@ def main(argsIn):
 
         # Generate a map projected version of the left and right images
         # - This step is done last since it is so slow!
-        #mapProjectImage(options.leftPath,  demPath, mapProjectLeftPath,  MAP_PROJECT_METERS_PER_PIXEL, centerLat, carry)
-        #mapProjectImage(options.rightPath, demPath, mapProjectRightPath, MAP_PROJECT_METERS_PER_PIXEL, centerLat, carry)
+        mapProjectImage(options.leftPath,  demPath, mapProjectLeftPath,  MAP_PROJECT_METERS_PER_PIXEL, centerLat, carry)
+        mapProjectImage(options.rightPath, demPath, mapProjectRightPath, MAP_PROJECT_METERS_PER_PIXEL, centerLat, carry)
+
+        # Generate 8 bit versions of the mapproject files for debugging
+        cmdLeft  = 'gdal_translate -scale -ot byte ' + mapProjectLeftPath  + ' ' + mapProjectLeftUint8Path
+        cmdRight = 'gdal_translate -scale -ot byte ' + mapProjectRightPath + ' ' + mapProjectRightUint8Path
+        if not os.path.exists(mapProjectLeftUint8Path) or carry:
+            print cmdLeft
+            os.system(cmdLeft)
+        if not os.path.exists(mapProjectRightUint8Path) or carry:
+            print cmdRight
+            os.system(cmdRight)
+
 
         mapProjectTime = time.time()
         logging.info('Map project finished in %f seconds', mapProjectTime - hillshadeTime)
@@ -353,12 +370,12 @@ def main(argsIn):
         # Clean up temporary files
         if not options.keep:
             print 'Removing temporary files'
-            IsisTools.removeIfExists(mainMosaicCroppedPath)
-            IsisTools.removeIfExists(stereoMosaicCroppedPath)
-            #IsisTools.removeIntermediateStereoFiles(stereoOutputPrefix) # Limited clear
-            IsisTools.removeFolderIfExists(stereoOutputFolder) # Larger clear
+            IrgFileFunctions.removeIfExists(mainMosaicCroppedPath)
+            IrgFileFunctions.removeIfExists(stereoMosaicCroppedPath)
+            #IrgFileFunctions.removeIntermediateStereoFiles(stereoOutputPrefix) # Limited clear
+            IrgFileFunctions.removeFolderIfExists(stereoOutputFolder) # Larger clear
             #if (hadToCreateTempFolder): Not done since stereo output needs to be retained
-            #    IsisTools.removeFolderIfExists(tempFolder)
+            #    IrgFileFunctions.removeFolderIfExists(tempFolder)
 
 
         endTime = time.time()

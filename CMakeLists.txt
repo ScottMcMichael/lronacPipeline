@@ -209,31 +209,6 @@ endforeach(f)
 #===================================================================================
 # Executables
 
-# TODO: Don't build these, just use the "Tools" repository
-add_executable(imagestats imagestats.cc) 
-target_link_libraries(imagestats  ${VISIONWORKBENCH_LIBRARIES} ${Boost_LIBRARIES}) 
-
-
-add_executable(matchBinaryToCsv matchBinaryToCsv.cc) 
-target_link_libraries(matchBinaryToCsv  ${VISIONWORKBENCH_LIBRARIES} ${Boost_LIBRARIES}) 
-
-add_executable(pixelPairsFromStereo pixelPairsFromStereo.cc) 
-target_link_libraries(pixelPairsFromStereo  ${VISIONWORKBENCH_LIBRARIES}  ${StereoPipeline_LIBRARIES} ${Boost_LIBRARIES}) 
-
-
-add_executable(lola_compare lola_compare.cc) 
-target_link_libraries(lola_compare  ${VISIONWORKBENCH_LIBRARIES} ${Boost_LIBRARIES}) 
-
-add_executable(getLatLonBounds getLatLonBounds.cc) 
-target_link_libraries(getLatLonBounds  ${VISIONWORKBENCH_LIBRARIES} ${Boost_LIBRARIES})
-
-add_executable(maskFromIntersectError maskFromIntersectError.cc) 
-target_link_libraries(maskFromIntersectError  ${VISIONWORKBENCH_LIBRARIES} ${Boost_LIBRARIES}) 
-
-
-add_executable(stereoIpFind stereoIpFind.cc)
-target_link_libraries(stereoIpFind  ${VISIONWORKBENCH_LIBRARIES}  ${StereoPipeline_LIBRARIES}) 
-
 add_executable(lronacAngleDoubleSolver IsisInterfaceLineScanRot.h IsisInterfaceLineScanRot.cc lronacAngleDoubleSolver.cc lronacSolverSupport.h lronacSolverModelDouble.h) 
 target_link_libraries(lronacAngleDoubleSolver  ${QT_LIBRARIES} ${VISIONWORKBENCH_LIBRARIES} ${StereoPipeline_LIBRARIES}  ${CERES_LIBRARIES} ${SUITESPARSE_LIBRARIES} ${Boost_LIBRARIES} -lisis3) 
 

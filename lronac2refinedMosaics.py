@@ -19,7 +19,7 @@
 
 import sys, os, glob, optparse, re, shutil, subprocess, string, time, logging, threading
 
-import IsisTools
+import IsisTools, IrgFileFunctions, IrgIsisFunctions, IrgAspFunctions
 
 import stereoDoubleCalibrationProcess, calibrationReport
 
@@ -125,7 +125,7 @@ def createMosaic(leftCube, rightCube, outputCube, workDir, forceOperation):
     os.system(cmd)
 
     # Read in the output from lronacjitreg
-    jitRegOffsets = IsisTools.readJitregFile(jitRegOutputPath)
+    jitRegOffsets = IrgAspFunctions.readJitregFile(jitRegOutputPath)
     logging.info('For cubes %s and %s', leftCube, rightCube)
     logging.info('- jitreg offsets = %s', str(jitRegOffsets))
 
@@ -161,12 +161,12 @@ def createMosaic(leftCube, rightCube, outputCube, workDir, forceOperation):
 def functionStartupCheck():
 
     # These calls will raise an exception if the tool is not found
-    IsisTools.checkIfToolExists('calibrationReport.py')
-    IsisTools.checkIfToolExists('noproj')
-    IsisTools.checkIfToolExists('lronacjitreg')
-    IsisTools.checkIfToolExists('handmos')
-    IsisTools.checkIfToolExists('cubenorm')
-    IsisTools.checkIfToolExists('stereoDoubleCalibrationProcess.py')
+    IrgFileFunctions.checkIfToolExists('calibrationReport.py')
+    IrgFileFunctions.checkIfToolExists('noproj')
+    IrgFileFunctions.checkIfToolExists('lronacjitreg')
+    IrgFileFunctions.checkIfToolExists('handmos')
+    IrgFileFunctions.checkIfToolExists('cubenorm')
+    IrgFileFunctions.checkIfToolExists('stereoDoubleCalibrationProcess.py')
 
     return True
 
@@ -297,7 +297,7 @@ def main(argsIn):
         doubleCalWorkFolder = os.path.join(tempFolder, 'doubleCal')
         try:
           if ( not os.path.exists(leftCorrectedPath)       or not os.path.exists(rightCorrectedPath)       or 
-               not os.path.exists(leftStereoCorrectedPath) or not os.path.exists(rightStereoCorrectedPath) or True):#carry ):
+               not os.path.exists(leftStereoCorrectedPath) or not os.path.exists(rightStereoCorrectedPath) or carry ):
               print '\n=============================================================================\n'
               cmdArgs = ['--left',          options.leftPath, 
                          '--right',         options.rightPath, 
@@ -345,7 +345,7 @@ def main(argsIn):
 
         # Generate a PVL file that we need for noproj
         pvlPath   = os.path.join(tempFolder, 'noprojInstruments.pvl')
-        imageSize = IsisTools.getCubeSize(leftCorrectedPath)
+        imageSize = IrgIsisFunctions.getImageSize(leftCorrectedPath)
         isHalfRes = imageSize[0] < 5000
         if not os.path.exists(pvlPath):
             print 'Writing PVL'
@@ -422,24 +422,24 @@ def main(argsIn):
         # Clean up temporary files
         if not options.keep:
             print 'Deleting temporary files'
-            IsisTools.removeIfExists(leftCorrectedPath)
-            IsisTools.removeIfExists(rightCorrectedPath)
-            IsisTools.removeIfExists(leftStereoCorrectedPath)
-            IsisTools.removeIfExists(rightStereoCorrectedPath)
-            IsisTools.removeIfExists(pvlPath)
-            IsisTools.removeIfExists(leftNoprojPath)
-            IsisTools.removeIfExists(rightNoprojPath)
-            IsisTools.removeIfExists(leftStereoNoprojPath)
-            IsisTools.removeIfExists(rightStereoNoprojPath)
-            #IsisTools.removeFolderIfExists(mainMosaicWorkDir)
-            #IsisTools.removeFolderIfExists(stereoMosaicWorkDir)
+            IrgFileFunctions.removeIfExists(leftCorrectedPath)
+            IrgFileFunctions.removeIfExists(rightCorrectedPath)
+            IrgFileFunctions.removeIfExists(leftStereoCorrectedPath)
+            IrgFileFunctions.removeIfExists(rightStereoCorrectedPath)
+            IrgFileFunctions.removeIfExists(pvlPath)
+            IrgFileFunctions.removeIfExists(leftNoprojPath)
+            IrgFileFunctions.removeIfExists(rightNoprojPath)
+            IrgFileFunctions.removeIfExists(leftStereoNoprojPath)
+            IrgFileFunctions.removeIfExists(rightStereoNoprojPath)
+            #IrgFileFunctions.removeFolderIfExists(mainMosaicWorkDir)
+            #IrgFileFunctions.removeFolderIfExists(stereoMosaicWorkDir)
             #if (hadToCreateTempFolder):
-            #    IsisTools.removeFolderIfExists(tempFolder)
+            #    IrgFileFunctions.removeFolderIfExists(tempFolder)
 
             ## Remove all the .kml files
             #fileList = [ f for f in os.listdir(tempFolder) if f.endswith(".kml") ]
             #for f in fileList:
-            #    IsisTools.removeIfExists(os.path.join(tempFolder, f))
+            #    IrgFileFunctions.removeIfExists(os.path.join(tempFolder, f))
 
         endTime = time.time()
 

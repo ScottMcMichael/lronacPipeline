@@ -18,8 +18,9 @@
 # __END_LICENSE__
 
 import sys, os, glob, optparse, re, shutil, subprocess, string, time, logging, threading
+import simplekml, matplotlib
 
-import IsisTools, simplekml, matplotlib
+import IsisTools, IrgIsisFunctions, IrgGeoFunctions, IrgFileFunctions
 
 import lronac2refinedMosaics
 import makeDemAndCompare
@@ -42,9 +43,9 @@ def writeLabelFile(imagePath, outputPath, dataSetName, versionId, description):
     """Write out a .LBL file formatted for the PDS"""
     
     # Call functions to automatically obtain some data from the referenced image
-    imageSize   = IsisTools.getCubeSize(imagePath)
+    imageSize   = IrgGeoFunctions.getImageSize(imagePath)
     try:
-        boundingBox = IsisTools.getImageBoundingBox(imagePath)
+        boundingBox = IrgGeoFunctions.getImageBoundingBox(imagePath)
     except: # If we couldn't get the bounding box just fill in junk
         boundingBox = (0, 0, 0, 0)
         
@@ -135,8 +136,8 @@ def writeLabelFile(imagePath, outputPath, dataSetName, versionId, description):
 def functionStartupCheck():
 
     # These calls will raise an exception if the tool is not found
-    IsisTools.checkIfToolExists('lronac2refinedMosaics.py')
-    IsisTools.checkIfToolExists('makeDemAndCompare.py')
+    IrgFileFunctions.checkIfToolExists('lronac2refinedMosaics.py')
+    IrgFileFunctions.checkIfToolExists('makeDemAndCompare.py')
     return True
 
 #--------------------------------------------------------------------------------
@@ -204,9 +205,9 @@ def main():
         tempFolder    = outputFolder + '/' + inputBaseName + '_stereoCalibrationTemp/'
         if (options.workDir):
             tempFolder = options.workDir
-        IsisTools.createFolder(outputFolder)
+        IrgFileFunctions.createFolder(outputFolder)
         hadToCreateTempFolder = not os.path.exists(tempFolder)
-        IsisTools.createFolder(tempFolder)
+        IrgFileFunctions.createFolder(tempFolder)
 
 
         # Set up logging
@@ -276,6 +277,8 @@ def main():
             cmdArgs.append(str(options.cropAmount))
         print cmdArgs
         makeDemAndCompare.main(cmdArgs)
+        
+        print 'Finished image processing, setting up final output files...'
 
         # Get the data set name
         if (options.asuPath):  # If ASU has a name for this set, use it
@@ -287,7 +290,7 @@ def main():
 
         # Get some data for the label file
         thisFilePath = os.path.join( os.path.dirname(os.path.abspath(__file__)), 'lronac2dem.py')
-        versionId   = IsisTools.getLastGitTag(thisFilePath)
+        versionId   = IrgFileFunctions.getLastGitTag(thisFilePath)
 
         #TODO: Check these!
         demDescription               = 'High-resolution NAC digital terrain models in GeoTIFF format. DEM is IEEE floating point TIFF, 32 bits/sample, 1 samples/pixel in single image plane configuration. The NoDATA value is -3.40282266e+038.'
@@ -313,7 +316,7 @@ def main():
                                                       + ' -C ' + os.path.dirname(options.rightPath) + ' ' + os.path.basename(options.rightPath  )
                                                       + ' -C ' + os.path.dirname(options.stereoLeft) + ' ' + os.path.basename(options.stereoLeft )
                                                       + ' -C ' + os.path.dirname(options.stereoRight) + ' ' + os.path.basename(options.stereoRight)
-                                                      + ' -C ' + os.path.dirname(options.lollaPath) + ' ' + os.path.basename(options.lolaPath   ))
+                                                      + ' -C ' + os.path.dirname(options.lolaPath) + ' ' + os.path.basename(options.lolaPath   ))
             if options.asuPath: # Handle optional input
                 cmd = cmd + ' ' + os.path.basename(options.asuPath) 
             print cmd
@@ -322,8 +325,8 @@ def main():
 
         if not options.keep:
             print 'Deleting temporary files'
-            IsisTools.removeIfExists(mainMosaicPath)
-            IsisTools.removeIfExists(stereoMosaicPath)
+            IrgFileFunctions.removeIfExists(mainMosaicPath)
+            IrgFileFunctions.removeIfExists(stereoMosaicPath)
         
         endTime = time.time()
 
