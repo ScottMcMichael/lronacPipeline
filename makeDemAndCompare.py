@@ -34,13 +34,13 @@ class Usage(Exception):
 
 #--------------------------------------------------------------------------------
 
-MAP_PROJECT_METERS_PER_PIXEL  = 50.0 # Map resolution in meters
+MAP_PROJECT_METERS_PER_PIXEL  = 0.5 # Map resolution in meters
 MAX_VALID_TRIANGULATION_ERROR = 15 # Meters
 DEM_METERS_PER_PIXEL          = 1.0
 
 DEM_NODATA    = -32767
 MOON_RADIUS   = 1737400
-SUBPIXEL_MODE = 1 # 1 = fast, 2 = accurate
+SUBPIXEL_MODE = 2 # 1 = fast, 2 = accurate
 
 ACCURATE_PIXEL_LIMIT = 5
 
@@ -188,12 +188,12 @@ def main(argsIn):
         if options.cropAmount and (options.cropAmount > 0):
             if (not os.path.exists(mainMosaicCroppedPath)) or carry:
                 cmd = ('crop from= ' + options.leftPath   + ' to= ' + mainMosaicCroppedPath + 
-                           ' nlines= ' + str(options.cropAmount) + ' line=24200')
+                           ' nlines= ' + str(options.cropAmount))# + ' line=24200')
                 print cmd
                 os.system(cmd)
             if (not os.path.exists(stereoMosaicCroppedPath) or carry):
                 cmd = ('crop from= ' + options.rightPath + ' to= ' + stereoMosaicCroppedPath + 
-                           ' nlines= ' + str(options.cropAmount)  + ' line=24200')
+                           ' nlines= ' + str(options.cropAmount))#  + ' line=24200')
                 print cmd
                 os.system(cmd)
             options.leftPath  = mainMosaicCroppedPath
