@@ -14,7 +14,7 @@ git clone https://github.com/NeoGeographyToolkit/Tools.git
 git clone https://github.com/ScottMcMichael/lronacPipeline.git
 cd lronacPipeline
 
-- Edit CMakeLists.txt to point to the correct BaseSystem, visionworkbench, and StereoPipeline installations.
+- Edit CMakeLists.txt to point to the correct BaseSystem, visionworkbench, StereoPipeline, and NGT Tools installations.
 
 - Build lronacPipeline:
 mkdir build

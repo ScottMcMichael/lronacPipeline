@@ -4,9 +4,6 @@
 project(lronacPipeline)
 cmake_minimum_required(VERSION 2.8)
 
-# Add path for custom modules
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}" )
-
 set(PACKAGE_VERSION "0.1")
 set(PACKAGE_NAME "LRONAC Pipeline")
 set(PACKAGE_STRING "${PACKAGE_NAME} ${PACKAGE_VERSION}")
@@ -17,8 +14,12 @@ set(PACKAGE_BUGREPORT "scott.t.mcmichael@nasa.gov")
 set(BASESYSTEM_INSTALL_DIR  "/home/smcmich1/repo/BaseSystem")
 set(VISIONWORKBENCH_ROOT    "/home/smcmich1/repo/visionworkbench/build")
 set(StereoPipeline_ROOT     "/home/smcmich1/repo/StereoPipeline/build")
+set(NGT_TOOLS_SOURCE        "/home/smcmich1/repo/Tools") # Need to point to FindX.cmake files there
 set(CERES_INSTALL_DIR       ${BASESYSTEM_INSTALL_DIR})
 set(SUITESPARSE_INSTALL_DIR ${BASESYSTEM_INSTALL_DIR})
+
+# Add NGT/Tools path to custom modules list
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${NGT_TOOLS_SOURCE})
 
 # Custom options
 option(BUILD_SHARED_LIBS "Produce shared libraries." TRUE)
