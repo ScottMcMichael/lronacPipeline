@@ -222,7 +222,7 @@ def main():
         stereoMosaicPath = os.path.join(tempFolder, os.path.basename(filename))
 
         # Call lronac2refinedMosaics.py
-        if (not os.path.exists(mainMosaicPath) or not os.path.exists(stereoMosaicPath)):    
+        if (not os.path.exists(mainMosaicPath) or not os.path.exists(stereoMosaicPath) or True):    
             refineTemp = os.path.join(tempFolder, 'refinement')
             cmdArgs = ['--left',          options.leftPath,
                        '--right',         options.rightPath,
