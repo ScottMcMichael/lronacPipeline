@@ -21,7 +21,7 @@ import sys
 
 import os, glob, re, shutil, subprocess, string, time, errno, optparse, math
 
-import IrgFileFunctions
+import IrgFileFunctions, IrgIsisFunctions
 
 def man(option, opt, value, parser):
     print >>sys.stderr, parser.usage
@@ -38,9 +38,12 @@ def add_job( cmd, suppressTileOutput=True, num_working_threads=4 ):
     
     FNULL = open(os.devnull, 'w')
     
+    # If we already have too many running processes:
     if ( len(job_pool) >= num_working_threads):
-        job_pool[0].wait();
-        job_pool.pop(0);
+        job_pool[0].wait(); # Wait until the first one finishes
+        job_pool.pop(0); # Pull the finished job off the list
+        
+    # Add the new job to the end of the list
     if suppressTileOutput:
         job_pool.append( subprocess.Popen(cmd, stdout=FNULL, stderr=subprocess.STDOUT) )
     else:
@@ -151,6 +154,15 @@ def main(argsIn):
         raise Usage(msg)
 
     startTime = time.time()
+    
+    # If the input image is NOT an ISIS image then the normal map_project call
+    #  can operate in parallel without this wrapper.
+    if not IrgIsisFunctions.isIsisFile(options.imagePath):
+        cmd = ['mapproject',  options.imagePath, options.demPath, options.outputPath]    
+        cmd = cmd + extraArgs
+        subprocess.call(cmd)
+        return 0
+    
 
     # Call mapproject on the input data using subprocess and record output
     cmd = ['mapproject',  '--query-projection', options.imagePath, options.demPath, options.outputPath]
@@ -225,7 +237,7 @@ def main(argsIn):
             cmd = ['mapproject',  '--t_pixelwin', str(tileStartX), str(tileStartY), str(tileStopX), str(tileStopY),
                                    options.imagePath, options.demPath, tilePath]
             cmd = cmd + options.extraArgs # Append other options
-            add_job(cmd, options.suppressOutput, options.numThreads) # Send to parallel job queue
+            add_job(cmd, options.suppressOutput, int(options.numThreads)) # Send to parallel job queue
     
     # Wait for all of the tiles to finish processing
     wait_on_all_jobs()
