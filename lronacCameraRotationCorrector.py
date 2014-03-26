@@ -149,22 +149,17 @@ def main(argsIn):
 
         # Copy the input file to the output location (only the RE image is modified
         cmd = "cp " + options.rightPath + " " + options.outputPath
-        print cmd
+        #print cmd
         os.system(cmd)
 
         # Call head -120 on file
-        tempTextPath = os.path.join(tempFolder, "headOutput.txt")
-        cmd = "head -120 "+options.outputPath+" > "+tempTextPath
-        print cmd
-        os.system(cmd)
-        if not os.path.exists(tempTextPath):
-            os.remove(options.outputPath)
-            raise Exception('Failed to extract cube kernel data!')
-
+        cmd = ['head', '-120', options.outputPath]
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+        headText, err = p.communicate()
 
         # Parse output looking for the IK frame file
         print 'Looking for source frame file...'
-        kernels = IrgIsisFunctions.parseHeadOutput(tempTextPath, options.outputPath)
+        kernels = IrgIsisFunctions.parseHeadOutput(headText, options.outputPath)
         
         if not ('Frame' in kernels):
             os.remove(options.outputPath)
@@ -204,17 +199,19 @@ def main(argsIn):
         modifyFrameFile(inputFramePath, tempIkPath, newRotation)
         
         # Re-run spiceinit (on the copied RE file) using the new frame file
-        cmd = "spiceinit attach=true from=" + options.outputPath + " fk=" + tempIkPath;
+        cmd = ['spiceinit', 'attach=', 'true', 'from=', options.outputPath, 'fk=', tempIkPath]
         if (options.spkPath): # Add forced SPK path if needed
-            cmd = cmd + " spk=" + options.spkPath
+            cmd.append('spk=')
+            cmd.append(options.spkPath)
         if (options.ckPath): # Add forced CK path if needed
-            cmd = cmd + " ck=" + options.ckPath
-        print cmd
-        os.system(cmd)
+            cmd.append('ck=')
+            cmd.append(options.ckPath)
+        #print cmd
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+        outputText, err = p.communicate()
 
         # Clean up temporary files
         if not options.keep:
-            os.remove(tempTextPath)
             os.remove(rotationAnglePath)
             os.remove(tempIkPath)
             os.remove(options.spkPath)

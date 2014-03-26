@@ -545,7 +545,6 @@ bool optimizeRotations(Parameters & params)
     return false;
   }
   
-  //TODO: Can't really load point values without a rotation-modified pixel to vector function.
   // If a path to an initial value file was provided, load them
   size_t estimatedNumParams = NUM_CAMERA_PARAMS;// + totalNumPoints*PARAMS_PER_POINT;
   std::vector<double> initialValues;
@@ -578,7 +577,7 @@ bool optimizeRotations(Parameters & params)
   printf("Initializing solver state...\n");
   Vector<double> initialState;
   std::vector<double> initialErrorMeters;
-  if (!lrocClass.getInitialStateEstimate(overlapPairs,        stereoOverlapPairs,
+  if (!lrocClass.estimatePointLocations(overlapPairs,        stereoOverlapPairs,
                                          leftPixelPairs,      rightPixelPairs,
                                          leftCrossPixelPairs, rightCrossPixelPairs,
                                          initialState,        initialErrorMeters,
@@ -592,28 +591,17 @@ bool optimizeRotations(Parameters & params)
   // Write initial state error to file
   std::string initialErrorMetersPath = params.outputPrefix + "-initialPointErrorMeters.csv";
   std::ofstream initialErrorMetersFile(initialErrorMetersPath.c_str());
+  double meanIntersectionError = 0;
   for (size_t i=0; i<initialErrorMeters.size(); ++i)
+  {
     initialErrorMetersFile << initialErrorMeters[i] << std::endl;
+    meanIntersectionError += initialErrorMeters[i];
+  }
   initialErrorMetersFile.close();
-
-
-  // Set up georeference class with default moon datum
-  vw::cartography::Datum datum("D_MOON");
-
-  ////printf("Writing initial state log to %s\n", initialStatePath.c_str());
-  //std::ofstream initialObsFile("/home/smcmich1/initialObsVector.csv");
-  //for (size_t i=0; i<packedObservations.size(); ++i)
-  //  initialObsFile << packedObservations[i] << std::endl;
-  //initialObsFile.close();
+  meanIntersectionError = meanIntersectionError / static_cast<double>(initialErrorMeters.size());
   
-  //return false;
+  printf(">>>> Mean point error before optimization = %lf <<<<<<\n", meanIntersectionError);
   
-  //Vector<double> initialPredictions = lrocClass(initialState);
-  //std::ofstream initialPredFile("/home/smcmich1/initialObsPrediction.csv");
-  //for (size_t i=0; i<initialPredictions.size(); ++i)
-  //  initialPredFile << initialPredictions[i] << std::endl;
-  //initialPredFile.close();
-
   std::string initialStatePath = params.outputPrefix + "-initialParamState.csv";
   printf("Writing initial state log to %s\n", initialStatePath.c_str());
   std::ofstream initialStateFile(initialStatePath.c_str());
@@ -621,6 +609,8 @@ bool optimizeRotations(Parameters & params)
     initialStateFile << initialState[i] << std::endl;
   initialStateFile.close();
 
+  // Set up georeference class with default moon datum
+  vw::cartography::Datum datum("D_MOON");
 
   // Write initial points as GDC coordinates for google earth
   std::string initialGdcCoordPath = params.outputPrefix + "-initialGdcPoints.csv";
@@ -636,25 +626,6 @@ bool optimizeRotations(Parameters & params)
     initialGdcCoordFile << gdcCoord[1] << ", " << gdcCoord[0] << ", " << gdcCoord[2] << std::endl;
   }
   initialGdcCoordFile.close();
-
-
-  // Compute the initial error - euclidean point distance
-  std::string initialErrorPath = params.outputPrefix + "-initialPointError.csv";
-  printf("Writing initial error log to %s\n", initialErrorPath.c_str());
-  std::ofstream initialErrorFile(initialErrorPath.c_str());
-  double meanInitialError = 0;
-  std::vector<double> currentError = lrocClass.computeError(initialState);
-  for (size_t i=0; i<currentError.size(); ++i)
-  {
-    initialErrorFile << currentError[i] << std::endl;
-    meanInitialError += currentError[i];
-  }
-  initialErrorFile.close();
-  meanInitialError = meanInitialError / currentError.size();
-  printf(">>>> Mean point error before optimization = %lf <<<<<<\n", meanInitialError);
-
-
-  //Vector<double> initialComputedObservations = lrocClass(initialState);
   
   if (params.initialOnly)
   {
@@ -905,50 +876,50 @@ bool optimizeRotations(Parameters & params)
   finalStateFile.close();
 
 
-  // The computeError() function calculates the mean euclidean distance from the observation points of the LE and RE cameras for each point.
+  // Compute the final triangulation error
+  std::vector<double> finalErrorMeters, finalStateCopy(finalParams.size());
+  for (size_t i=0; i<finalParams.size(); ++i)
+      finalStateCopy[i] = finalParams[i];
+  vw::Vector<double> dummyVec;
+  if (!lrocClass.estimatePointLocations(overlapPairs,        stereoOverlapPairs,
+                                        leftPixelPairs,      rightPixelPairs,
+                                        leftCrossPixelPairs, rightCrossPixelPairs,
+                                        dummyVec,            finalErrorMeters,
+                                        params.expectedSurfaceElevation, finalStateCopy))
+  {
+    printf("Error computing final error!\n");
+    return false;
+  }
+  // The initial state contains the camera parameters, then the point coordinates of each set of points in sequence
+
+  // Write initial state error to file
   std::string finalErrorPath = params.outputPrefix + "-finalPointError.csv";
   printf("Writing final error log to %s\n", finalErrorPath.c_str());
-
   std::ofstream finalErrorFile(finalErrorPath.c_str());
-  double meanFinalError = 0;
-  std::vector<double> finalError = lrocClass.computeError(finalParams);
-  //Vector<double> finalPredictions = lrocClass(finalParams);
-  //Vector<double> rawError(finalPredictions.size());
-  //std::ofstream predictionFile("/home/smcmich1/finalPredictions.csv");
-  //for (size_t i=0; i<finalPredictions.size(); ++i)
-  //{
-  //  predictionFile << finalPredictions[i] << std::endl;
-    //rawError[i] = packedObservations[i] - finalPredictions[i];
-    //finalErrorFile << packedObservations[i] - finalPredictions[i] << std::endl;
-  //  if (i % 4 == 0)
-  //    meanFinalError += finalError[i/4];
-  //}
-
-  for (size_t i=0; i<finalError.size(); ++i)
+  double meanFinalIntersectionError = 0;
+  for (size_t i=0; i<finalErrorMeters.size(); ++i)
   {
-    finalErrorFile << finalError[i] << std::endl;
-    meanFinalError += finalError[i];
+    finalErrorFile << finalErrorMeters[i] << std::endl;
+    meanFinalIntersectionError += finalErrorMeters[i];
   }
-  meanFinalError = meanFinalError / finalError.size();
-
-  //predictionFile.close();
   finalErrorFile.close();
-  //meanFinalError = meanFinalError / currentError.size();
+  meanFinalIntersectionError = meanFinalIntersectionError / static_cast<double>(finalErrorMeters.size());
+
   
   // Compute the median error
-  std::sort(finalError.begin(), finalError.end());
+  std::sort(finalErrorMeters.begin(), finalErrorMeters.end());
   double medianError = 0;
-  size_t centralIndex = finalError.size()/2;
-  if ((finalError.size() % 2) == 0)
-    medianError = (finalError[centralIndex-1] + finalError[centralIndex]) / 2.0;
+  size_t centralIndex = finalErrorMeters.size()/2;
+  if ((finalErrorMeters.size() % 2) == 0)
+    medianError = (finalErrorMeters[centralIndex-1] + finalErrorMeters[centralIndex]) / 2.0;
   else
-    medianError = finalError[centralIndex];
+    medianError = finalErrorMeters[centralIndex];
   printf(">>>> Median final error = %lf <<<<<<\n", medianError);
 
 
   // Write initial points as GDC coordinates for google earth
   std::string outputGdcPath = params.outputPrefix + "-outputGdcPoints.csv";
-  std::ofstream finalGdcCoordFile(outputGdcPath.c_str());
+  std::ofstream finalGdcCoordFile(outputGdcPath.c_str()); // TODO: Remove debug default
   for (size_t i=0; i<totalNumPoints; ++i)
   {
     // Convert from GCC to GDC
@@ -960,38 +931,9 @@ bool optimizeRotations(Parameters & params)
   }
   finalGdcCoordFile.close();
 
-  // Compare the intersection locations of the points to the solved locations of the points
-  vw::Vector<double> intersectedParams;
-  std::vector<double> finalIntersectErrorMeters, finalParamsCopy;
-  finalParamsCopy.resize(initialState.size());
-  for (size_t i=0; i<initialState.size(); ++i)
-    finalParamsCopy[i] = finalParams[i];
-  lrocClass.getInitialStateEstimate(overlapPairs,        stereoOverlapPairs,
-                                    leftPixelPairs,      rightPixelPairs,
-                                    leftCrossPixelPairs, rightCrossPixelPairs,
-                                    intersectedParams,   finalIntersectErrorMeters,
-                                    params.expectedSurfaceElevation, finalParamsCopy);
 
-  std::string gdcComparePath = params.outputPrefix + "-outputGdcPointsIntersected.csv";
-  std::ofstream outputGdcIntersected( gdcComparePath.c_str() );
-  for (size_t i=0; i<totalNumPoints; ++i)
-  {
-    // Convert from GCC to GDC
-    Vector3 gccPoint(intersectedParams[NUM_CAMERA_PARAMS+ 3*i  ],
-                     intersectedParams[NUM_CAMERA_PARAMS+ 3*i+1],
-                     intersectedParams[NUM_CAMERA_PARAMS+ 3*i+2]);
-    Vector3 gdcCoord = datum.cartesian_to_geodetic(gccPoint);
-    outputGdcIntersected.precision(12);
-    // Write lat, lon, height so pc_align tool can read these files
-    outputGdcIntersected << gdcCoord[1] << ", " << gdcCoord[0] << ", " << gdcCoord[2] << std::endl;
-  }
-  outputGdcIntersected.close();
-
-
-
-
-  printf(">>>> Mean point error after optimization = %lf <<<<<<\n", meanFinalError);
-  printf(">>>> Mean error change = %lf <<<<<<\n", meanFinalError - meanInitialError);
+  printf(">>>> Mean point error after optimization = %lf <<<<<<\n", meanFinalIntersectionError);
+  printf(">>>> Mean error change = %lf <<<<<<\n", meanFinalIntersectionError - meanIntersectionError);
   
   // --------------- Summary of results ------------------------------
   const double rad2deg = 180.0 / M_PI;

@@ -94,7 +94,7 @@ def applyInterCameraPositionOffset(inputCubePath, outputCubePath, workingDirecto
     cmdArgs = ['--keep', '--input', inputCubePath, 
                '--output',  outputCubePath, 
                '--workDir', workingDirectory]
-    print cmdArgs
+    #print cmdArgs
     positionCorrector.main(cmdArgs)
 
 
@@ -139,7 +139,7 @@ def extractAffinesFromStereoPprcLog(logPath):
         elif 'Aligning left and right images using affine matrices' in line:
             count = 4 # Need to read in four values
 
-    return (leftAffine, rightAffine)
+    raise Exception('Error: Failed to extract left and right affine transforms!')
 
 # Samples pixels pairs for bundle adjustment from the output of the stereo command.
 # - Returns the output path.
@@ -157,13 +157,13 @@ def extractPixelPairsFromStereoResults(disparityImagePath, outputPixelPath,
     rightAffine = '1 0 0 0 1 0 0 0 1'
     stereoFolder = os.path.dirname(disparityImagePath)
     stereoFiles  = os.listdir(stereoFolder)
-    print str(stereoFiles)
+    #print str(stereoFiles)
     logFile = None
     for f in stereoFiles: 
         if 'log-stereo_pprc' in f: 
             if f > logFile: # Get the log file with the highest number
                 logFile = f
-    
+    #print logFile
     if (logFile):
         logFile     = os.path.join(stereoFolder, logFile)
         leftAffine, rightAffine = extractAffinesFromStereoPprcLog(logFile)
@@ -217,7 +217,7 @@ def applyNavTransform(inputCubePath, outputCubePath, transformMatrixPath, workDi
         cmdArgs.append('--pcAlignTrans')
     
     # Execute the transformation command
-    print cmdArgs
+    #print cmdArgs
     rotationCorrector.main(cmdArgs)
 
     # Check to make sure we actually created the file
@@ -242,7 +242,7 @@ def checkAdjacentPairAlignment(leftInputPath, rightInputPath, outputDirectory,  
     if (not forceOperation) and (os.path.exists(defaultGdcPath)):
         return True
 
-    # Run the process
+    # Run the process silently
     cmd = ['lronacAngleDoubleSolver',  '--outputPrefix',            sbaOutputPrefix, 
                                        '--leftCubePath',            leftInputPath, 
                                        '--rightCubePath',           rightInputPath, 
@@ -464,7 +464,7 @@ def applyInterCameraPairRotation(leftInputPath, rightInputPath, newRotationPath,
     if spkPath:
         cmdArgs.append('--spk')
         cmdArgs.append(spkPath)
-    print cmdArgs
+    #print cmdArgs
     lronacCameraRotationCorrector.main(cmdArgs)
 
     # Check to make sure we actually created the file
@@ -642,19 +642,23 @@ def main(argsIn):
 
 
         # Apply LE/RE LRONAC position offsets to each of the input files
+        print 'Applying known camera offset to main LE camera...'
         posOffsetCorrectedLeftPath = os.path.join(tempFolder, leftBaseName + '.posOffsetCorrected.cub')
         leftPosCorrectWorkDir      = os.path.join(tempFolder, 'leftPosCorrectDir')
         applyInterCameraPositionOffset(spiceInitLeftPath, posOffsetCorrectedLeftPath, leftPosCorrectWorkDir, carry)
 
+        print 'Applying known camera offset to main RE camera...'
         posOffsetCorrectedRightPath = os.path.join(tempFolder, rightBaseName + '.posOffsetCorrected.cub')
         rightPosCorrectWorkDir      = os.path.join(tempFolder, 'rightPosCorrectDir')
         applyInterCameraPositionOffset(spiceInitRightPath, posOffsetCorrectedRightPath, rightPosCorrectWorkDir, carry)
 
+        print 'Applying known camera offset to main LE camera...'
         posOffsetCorrectedStereoLeftPath = os.path.join(tempFolder, leftStereoBaseName + '.posOffsetCorrected.cub')
         stereoLeftPosCorrectWorkDir      = os.path.join(tempFolder, 'stereoLeftPosCorrectDir')
         applyInterCameraPositionOffset(spiceInitStereoLeftPath, posOffsetCorrectedStereoLeftPath, 
                                        stereoLeftPosCorrectWorkDir, carry)
 
+        print 'Applying known camera offset to stereo RE camera...'
         posOffsetCorrectedStereoRightPath = os.path.join(tempFolder, rightStereoBaseName + '.posOffsetCorrected.cub')
         stereoRightPosCorrectWorkDir      = os.path.join(tempFolder, 'stereoRightPosCorrectDir')
         applyInterCameraPositionOffset(spiceInitStereoRightPath, posOffsetCorrectedStereoRightPath,  
@@ -669,7 +673,7 @@ def main(argsIn):
         # Use stereoIpFind to find a small (<500) set of paired pixels from each pair of images relatively quickly
         # - Image pairs that do not yield enough matched pixels will have all their matched pixels thrown out.
 
-        MIN_NUM_SMALL_PIXELS = 50  # Must have at least this many matches between images, otherwise they are all probably junk
+        MIN_NUM_SMALL_PIXELS = 75  # Must have at least this many matches between images, otherwise they are all probably junk
         
         numMainPairsSmall         = 0
         numStereoPairsSmall       = 0
@@ -772,6 +776,7 @@ def main(argsIn):
 
         print '\n-------------------------------------------------------------------------\n' # -------------------------------------------------
 
+
         # Compute all rotations and translations between the four cubes
         # - Computes the following transforms:
         #   = main   LE   to main   RE   (camera rotation offset in IK file)
@@ -786,6 +791,7 @@ def main(argsIn):
         mainIpFindPath      = sbaOutputPrefix + "-mainIpFindPixels.csv"
         stereoIpFindPath    = sbaOutputPrefix + "-stereoIpFindPixels.csv"
         if (not os.path.exists(globalTransformPath)) or carry:
+            print 'Solving for inter-camera transforms...'
             cmd = ['lronacAngleDoubleSolver',  '--outputPrefix',            sbaOutputPrefix, 
                                                '--leftCubePath',            posOffsetCorrectedLeftPath, 
                                                '--rightCubePath',           posOffsetCorrectedRightPath, 
@@ -829,26 +835,24 @@ def main(argsIn):
         # - The RE relative to LE corrections are performed later for convenience.
         
         
-        #DEBUG=====
-        
-        cmd = ('~/repo/lronacPipeline/calibrationReport.py --input SBA_solution-outputGdcPoints.csv ' +
-               '--output finalSbaPoints.kml --name finalSbaPoints --color green --size small')
-        os.system(cmd)
+        ##DEBUG=====
+        #
+        #cmd = ('~/repo/lronacPipeline/calibrationReport.py --input SBA_solution-outputGdcPoints.csv ' +
+        #       '--output finalSbaPoints.kml --name finalSbaPoints --color green --size small')
+        #os.system(cmd)
+        #
+        #cmd = ('~/repo/lronacPipeline/calibrationReport.py --input SBA_solution-outputGdcPointsIntersected.csv ' +
+        #       '--output finalSbaPointsIntersected.kml --name finalSbaPointsIntersected --color red --size small')
+        #os.system(cmd)
 
-        cmd = ('~/repo/lronacPipeline/calibrationReport.py --input SBA_solution-outputGdcPointsIntersected.csv ' +
-               '--output finalSbaPointsIntersected.kml --name finalSbaPointsIntersected --color red --size small')
-        os.system(cmd)
 
-
-        raise Exception('SBA point check(((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((())')
-
-                
 ##        leftStereoCkPath       = os.path.join(tempFolder, 'leftStereoDBCk.bc') 
 ##        leftStereoSpkPath      = os.path.join(tempFolder, 'leftStereoDBSpk.bsp')
 #        rightStereoCkPath       = os.path.join(tempFolder, 'rightStereoDBCk.bc') 
 #        rightStereoSpkPath      = os.path.join(tempFolder, 'rightStereoDBSpk.bsp')
 #        #DEBUG=====
-#        
+#
+        print 'Applying main-stereo camera transform to stereo LE camera...'
         leftStereoAdjustedPath  = os.path.join(tempFolder, leftStereoBaseName + '.stereoAdjusted.cub')
         leftSteroCorrectWorkDir = os.path.join(tempFolder, 'stereoLeftStereoCorrection/')
         applyNavTransform(posOffsetCorrectedStereoLeftPath, leftStereoAdjustedPath, 
@@ -856,6 +860,7 @@ def main(argsIn):
                           '', '', False, carry)
 #                          leftStereoCkPath, leftStereoSpkPath, False, carry)
 
+        print 'Applying main-stereo camera transform to stereo RE camera...'
         rightStereoAdjustedPath  = os.path.join(tempFolder, rightStereoBaseName + '.stereoAdjusted.cub')
         rightSteroCorrectWorkDir = os.path.join(tempFolder, 'stereoRightStereoCorrection/')
         applyNavTransform(posOffsetCorrectedStereoRightPath, rightStereoAdjustedPath, 
@@ -1004,6 +1009,7 @@ def main(argsIn):
 
         # Choose the image pair with the largest number of matching pixels (in the small step) to do this with.
         # - TODO: Do this for all pairs above a threshold?
+        print 'Running stereo correlation to obtain a set of dense stereo correspondence pairs...'
         CORRELATION_TIMEOUT = 400 # Max number of seconds to spend on each tile before giving up.
         if ( (numLeftPairsSmall > numRightPairsSmall) and (numLeftPairsSmall > numLeftCrossPairsSmall) and (numLeftPairsSmall > numRightCrossPairsSmall) ): # Test left
             # Perform initial stereo step on two LE cubes to generate a large number of point correspondences
@@ -1017,7 +1023,7 @@ def main(argsIn):
             largePixelCmdParam = ' --matchingPixelsRightPath '
             stereoPrefixRight  = os.path.join(tempFolder, 'stereoOutputRight/out')
             disparityImage     = callStereoCorrelation(posOffsetCorrectedRightPath, posOffsetCorrectedStereoRightPath, 
-                                                       stereoPrefixRight, CORRELATION_TIMEOUT, carry)
+                                                       stereoPrefixRight, CORRELATION_TIMEOUT, False)#carry)
             
         elif (numLeftCrossPairsSmall > numRightCrossPairsSmall): # Test left cross
             # Perform initial stereo step on LE to stereo RE cubes to generate a large number of point correspondences
@@ -1033,15 +1039,12 @@ def main(argsIn):
             disparityImage         = callStereoCorrelation(posOffsetCorrectedStereoLeftPath, posOffsetCorrectedRightPath, 
                                                            stereoPrefixRightCross, CORRELATION_TIMEOUT, carry)
 
-
-        carry = True
-
         # TODO: Allow this to happen from more than one input source?
         # Extract a large number of matching pixel locations (many thousands) from the stereo output.
         # - The skip number is a row and column skip.
         pixelPairsLarge    = os.path.join(tempFolder, 'stereoPixelPairsLarge.csv')
-# TODO: Restore larger value after testing!
-        numPixelPairsLarge = extractPixelPairsFromStereoResults(disparityImage, pixelPairsLarge, 100, carry)
+        # TODO: Determine the best value here
+        numPixelPairsLarge = extractPixelPairsFromStereoResults(disparityImage, pixelPairsLarge, 10, carry)
 
         
         print '\n-------------------------------------------------------------------------\n' # --------------------------------------------------
@@ -1054,6 +1057,7 @@ def main(argsIn):
         largeGdcPrefix = os.path.join(tempFolder, 'gdcPointsLargeComp/out')
         largeGdcFile   = largeGdcPrefix + '-initialGdcPoints.csv'
         if (not os.path.exists(largeGdcFile)) or carry:
+            print 'Calculating GDC coordinates of large set of intersected points...'
             cmd = ('lronacAngleDoubleSolver --outputPrefix '            + largeGdcPrefix + 
                                           largePixelCmdParam            + pixelPairsLarge +
                                           ' --leftCubePath '            + posOffsetCorrectedLeftPath + 
@@ -1070,6 +1074,8 @@ def main(argsIn):
         prepTime = time.time()
         logging.info('pc_align prep finished in %f seconds', prepTime - sbaTime)
 
+        print '\n-------------------------------------------------------------------------\n' # ----------------------------------------------------
+
         # Use pc-align to compare points to LOLA DEM, compute rotation and offset
         
         # The max-displacement threshold will be adjusted until we are either using a certain number of LOLA points
@@ -1085,6 +1091,7 @@ def main(argsIn):
         currentMaxDisplacement = STARTING_DISPLACEMENT
         minNumPointsToUse      = min(MIN_NUM_LOLA_POINTS, MIN_LOLA_PERCENTAGE*float(numLolaPoints))
         
+        print 'Using pc_align to compute a transform between intersected points and LOLA points...'
         print 'Starting pc_align, looking for ' + str(minNumPointsToUse) + ' lola point matches.' 
         logging.info('Starting pc_align, looking for %d lola point matches.', minNumPointsToUse)
         
@@ -1095,7 +1102,6 @@ def main(argsIn):
         if (not os.path.exists(pcAlignTransformPath)) or carry:
             
             while(True):
-                print '-------------'
                 cmd = ('pc_align --highest-accuracy --max-displacement ' + str(currentMaxDisplacement) + ' --datum D_MOON ' + 
                        '--save-inv-transformed-reference-points ' + largeGdcFile + 
                        ' ' + options.lolaPath + ' -o ' + pcAlignOutputPrefix + ' --compute-translation-only')
@@ -1136,6 +1142,7 @@ def main(argsIn):
         leftCkPath       = os.path.join(tempFolder, 'leftFinalCk.bc')
         leftSpkPath      = os.path.join(tempFolder, 'leftFinalSpk.bsp')
         leftFinalWorkDir = os.path.join(tempFolder, 'leftFullCorrection/')
+        print 'Applying pc_align transform to main LE image...'
         applyNavTransform(posOffsetCorrectedLeftPath, outputPathLeft, 
                           pcAlignTransformPath, leftFinalWorkDir, leftCkPath,
                           leftSpkPath, True, carry)
@@ -1144,6 +1151,7 @@ def main(argsIn):
         rightCkPath               = os.path.join(tempFolder, 'rightFinalCk.bc') 
         rightSpkPath              = os.path.join(tempFolder, 'rightFinalSpk.bsp')
         rightFinalWorkDir          = os.path.join(tempFolder, 'rightFullCorrection/')
+        print 'Applying pc_align transform to main RE image...'
         applyNavTransform(posOffsetCorrectedRightPath, partialCorrectedRightPath, 
                           pcAlignTransformPath, rightFinalWorkDir,
                           rightCkPath, rightSpkPath, True, carry)
@@ -1151,6 +1159,7 @@ def main(argsIn):
         leftStereoCkPath       = os.path.join(tempFolder, 'leftStereoFinalCk.bc') 
         leftStereoSpkPath      = os.path.join(tempFolder, 'leftStereoFinalSpk.bsp')
         leftStereoFinalWorkDir = os.path.join(tempFolder, 'leftStereoFullCorrection/')
+        print 'Applying pc_align transform to stereo LE image...'
         applyNavTransform(leftStereoAdjustedPath, outputPathStereoLeft, 
                           pcAlignTransformPath, leftStereoFinalWorkDir, 
                           leftStereoCkPath, leftStereoSpkPath, True, carry)
@@ -1159,21 +1168,23 @@ def main(argsIn):
         rightStereoCkPath               = os.path.join(tempFolder, 'rightStereoFinalCk.bc')
         rightStereoSpkPath              = os.path.join(tempFolder, 'rightStereoFinalSpk.bsp')
         rightStereoFinalWorkDir         = os.path.join(tempFolder, 'rightStereoFullCorrection/')
+        print 'Applying pc_align transform to stereo RE image...'
         applyNavTransform(rightStereoAdjustedPath, partialCorrectedStereoRightPath, 
                           pcAlignTransformPath, rightStereoFinalWorkDir, 
                           rightStereoCkPath, rightStereoSpkPath, True, carry)
 
 
-
         # Apply local transforms to both pairs of images!
 
         # Apply the local rotation to the adjusted RE cube
+        print 'Applying inter-pair camera transforms to main RE image...'
         mainLocalWorkDir = os.path.join(tempFolder, 'mainLocalCorrection')
         applyInterCameraPairRotation(outputPathLeft, partialCorrectedRightPath, 
                                     localRotationPath, outputPathRight, 
                                     rightCkPath, rightSpkPath, mainLocalWorkDir, carry)
 
         # Apply the local rotation to the adjusted stereo RE cube
+        print 'Applying inter-pair camera transforms to stereo RE image...'
         stereoLocalWorkDir = os.path.join(tempFolder, 'stereoLocalCorrection')
         applyInterCameraPairRotation(outputPathStereoLeft, partialCorrectedStereoRightPath, 
                                      stereoRotationPath, outputPathStereoRight, 
@@ -1186,7 +1197,6 @@ def main(argsIn):
 
 
         print '\n-------------------------------------------------------------------------\n'
-
 
         #DEBUG: Now that the LE and RE images are fully corrected, see if our points match the pc_align transformed points
         print 'Running  check to look at moved large points'
@@ -1210,7 +1220,9 @@ def main(argsIn):
                                           ' --elevation ' + str(expectedSurfaceElevation))
             print cmd
             os.system(cmd)
-            
+
+        carry = True
+
         # Generate KML for the output!
         testKmlFile = os.path.join(tempFolder, 'testLargeGdc.kml')
         if (not os.path.exists(testKmlFile)) or carry:
@@ -1222,107 +1234,107 @@ def main(argsIn):
             print 'Skipping large GDC TEST file creation step'
 # ----------------
 
-        raise Exception('Debugging local rotations!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        #raise Exception('Debugging local rotations!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
 
-        #print '\n-------------------------------------------------------------------------\n'
-        #print 'Starting last set of geocorrection accuracy checks...'
-        #
-        ## One last pair of checks to compute accuracy.
-        ## - This calls campt for pixel pairs and finds the GCC location difference.
-        ## - This is done for each image pairing that was used.
-        #medianMainError   = evaluateAccuracy(outputPathLeft,       outputPathRight, 
-        #                                   mainIpFindPath,       os.path.join(tempFolder, 'finalGdcCheckMain'), True)
-        #medianStereoError = evaluateAccuracy(outputPathStereoLeft, outputPathStereoRight, 
-        #                                   stereoIpFindPath,     os.path.join(tempFolder, 'finalGdcCheckStereo'), True)
-        #
-        #print        '=====> Median main   pair error = %.4f meters' % medianMainError
-        #print        '=====> Median stereo pair error = %.4f meters' % medianStereoError
-        #logging.info('=====> Median main   pair error = %.4f meters' % medianMainError)
-        #logging.info('=====> Median stereo pair error = %.4f meters' % medianStereoError)
-        #
-        ## DEBUG!!!!!!
-        ## Generate KML files to display the points
-        #leftCsvFile = os.path.join(tempFolder, 'finalGdcCheckMain/leftEvalPoints.csv')
-        #leftKmlFile = os.path.join(tempFolder, 'finalGdcCheckMain/leftEvalPoints.kml')
-        #cmd = 'calibrationReport.py --color red --size tiny --skip 1 --name leftMainEvalPoints --input ' + leftCsvFile + ' --output ' + leftKmlFile
-        #os.system(cmd)
-        #rightCsvFile = os.path.join(tempFolder, 'finalGdcCheckMain/rightEvalPoints.csv')
-        #rightKmlFile = os.path.join(tempFolder, 'finalGdcCheckMain/rightEvalPoints.kml')
-        #cmd = 'calibrationReport.py --color blue --size tiny --skip 1 --name rightMainEvalPoints --input ' + rightCsvFile + ' --output ' + rightKmlFile
-        #os.system(cmd)
-        #
-        #leftCsvFile = os.path.join(tempFolder, 'finalGdcCheckStereo/leftEvalPoints.csv')
-        #leftKmlFile = os.path.join(tempFolder, 'finalGdcCheckStereo/leftEvalPoints.kml')
-        #cmd = 'calibrationReport.py --color red --size tiny --skip 1 --name leftStereoEvalPoints --input ' + leftCsvFile + ' --output ' + leftKmlFile
-        #os.system(cmd)
-        #rightCsvFile = os.path.join(tempFolder, 'finalGdcCheckStereo/rightEvalPoints.csv')
-        #rightKmlFile = os.path.join(tempFolder, 'finalGdcCheckStereo/rightEvalPoints.kml')
-        #cmd = 'calibrationReport.py --color blue --size tiny --skip 1 --name rightStereoEvalPoints --input ' + rightCsvFile + ' --output ' + rightKmlFile
-        #os.system(cmd)
-        #
-        #
-        #
-        ## The next four checks are not used in every case
-        #if usingLeftPixels:
-        #    medianLeftError   = evaluateAccuracy(outputPathLeft,       outputPathStereoLeft,
-        #                                        pixelPairsLeftSmall,  os.path.join(tempFolder, 'finalGdcCheckLeft'), True)
-        #    print        '=====> Median left  pair error = %.4f meters' % medianLeftError
-        #    logging.info('=====> Median left  pair error = %.4f meters' % medianLeftError)            
-        #
-        #    leftCsvFile = os.path.join(tempFolder, 'finalGdcCheckLeft/leftEvalPoints.csv')
-        #    leftKmlFile = os.path.join(tempFolder, 'finalGdcCheckLeft/leftEvalPoints.kml')
-        #    cmd = 'calibrationReport.py --color red --size tiny --skip 1 --name leftLeftEvalPoints --input ' + leftCsvFile + ' --output ' + leftKmlFile
-        #    os.system(cmd)
-        #    rightCsvFile = os.path.join(tempFolder, 'finalGdcCheckLeft/rightEvalPoints.csv')
-        #    rightKmlFile = os.path.join(tempFolder, 'finalGdcCheckLeft/rightEvalPoints.kml')
-        #    cmd = 'calibrationReport.py --color blue --size tiny --skip 1 --name rightLeftEvalPoints --input ' + rightCsvFile + ' --output ' + rightKmlFile
-        #    os.system(cmd)
-        #
-        #if usingRightPixels:
-        #    medianRightError  = evaluateAccuracy(outputPathRight,      outputPathStereoRight, 
-        #                                       pixelPairsRightSmall, os.path.join(tempFolder, 'finalGdcCheckRight'), True)
-        #    print        '=====> Median right pair error = %.4f meters' % medianRightError
-        #    logging.info('=====> Median right pair error = %.4f meters' % medianRightError)
-        #
-        #    leftCsvFile = os.path.join(tempFolder, 'finalGdcCheckRight/leftEvalPoints.csv')
-        #    leftKmlFile = os.path.join(tempFolder, 'finalGdcCheckRight/leftEvalPoints.kml')
-        #    cmd = 'calibrationReport.py --color red --size tiny --skip 1 --name leftRightEvalPoints --input ' + leftCsvFile + ' --output ' + leftKmlFile
-        #    os.system(cmd)
-        #    rightCsvFile = os.path.join(tempFolder, 'finalGdcCheckRight/rightEvalPoints.csv')
-        #    rightKmlFile = os.path.join(tempFolder, 'finalGdcCheckRight/rightEvalPoints.kml')
-        #    cmd = 'calibrationReport.py --color blue --size tiny --skip 1 --name rightRightEvalPoints --input ' + rightCsvFile + ' --output ' + rightKmlFile
-        #    os.system(cmd)
-        #
-        #if usingLeftCrossPixels:
-        #    medianLeftCrossError  = evaluateAccuracy(outputPathLeft,           outputPathStereoRight,
-        #                                            pixelPairsLeftCrossSmall,  os.path.join(tempFolder, 'finalGdcCheckLeftCross'), True)
-        #    print        '=====> Median left  cross pair error = %.4f meters' % medianLeftCrossError
-        #    logging.info('=====> Median left  cross pair error = %.4f meters' % medianLeftCrossError)
-        #
-        #    leftCsvFile = os.path.join(tempFolder, 'finalGdcCheckLeftCross/leftEvalPoints.csv')
-        #    leftKmlFile = os.path.join(tempFolder, 'finalGdcCheckLeftCross/leftEvalPoints.kml')
-        #    cmd = 'calibrationReport.py --color red --size tiny --skip 1 --name leftLeftCrossEvalPoints --input ' + leftCsvFile + ' --output ' + leftKmlFile
-        #    os.system(cmd)
-        #    rightCsvFile = os.path.join(tempFolder, 'finalGdcCheckLeftCross/rightEvalPoints.csv')
-        #    rightKmlFile = os.path.join(tempFolder, 'finalGdcCheckLeftCross/rightEvalPoints.kml')
-        #    cmd = 'calibrationReport.py --color blue --size tiny --skip 1 --name rightLeftCrossEvalPoints --input ' + rightCsvFile + ' --output ' + rightKmlFile
-        #    os.system(cmd)
-        #
-        #
-        #if usingRightCrossPixels:
-        #    medianRightCrossError = evaluateAccuracy(outputPathStereoLeft,     outputPathRight,
-        #                                            pixelPairsRightCrossSmall, os.path.join(tempFolder, 'finalGdcCheckRightCross'), True)
-        #    print        '=====> Median right cross pair error = %.4f meters' % medianRightCrossError
-        #    logging.info('=====> Median right cross pair error = %.4f meters' % medianRightCrossError)
-        #
-        #    leftCsvFile = os.path.join(tempFolder, 'finalGdcCheckRightCross/leftEvalPoints.csv')
-        #    leftKmlFile = os.path.join(tempFolder, 'finalGdcCheckRightCross/leftEvalPoints.kml')
-        #    cmd = 'calibrationReport.py --color red --size tiny --skip 1 --name leftRightCrossEvalPoints --input ' + leftCsvFile + ' --output ' + leftKmlFile
-        #    os.system(cmd)
-        #    rightCsvFile = os.path.join(tempFolder, 'finalGdcCheckRightCross/rightEvalPoints.csv')
-        #    rightKmlFile = os.path.join(tempFolder, 'finalGdcCheckRightCross/rightEvalPoints.kml')
-        #    cmd = 'calibrationReport.py --color blue --size tiny --skip 1 --name rightRightCrossEvalPoints --input ' + rightCsvFile + ' --output ' + rightKmlFile
-        #    os.system(cmd)
+        print '\n-------------------------------------------------------------------------\n'
+        print 'Starting last set of geocorrection accuracy checks...'
+        
+        # One last pair of checks to compute accuracy.
+        # - This calls campt for pixel pairs and finds the GCC location difference.
+        # - This is done for each image pairing that was used.
+        medianMainError   = evaluateAccuracy(outputPathLeft,       outputPathRight, 
+                                           mainIpFindPath,       os.path.join(tempFolder, 'finalGdcCheckMain'), True)
+        medianStereoError = evaluateAccuracy(outputPathStereoLeft, outputPathStereoRight, 
+                                           stereoIpFindPath,     os.path.join(tempFolder, 'finalGdcCheckStereo'), True)
+        
+        print        '=====> Median main   pair error = %.4f meters' % medianMainError
+        print        '=====> Median stereo pair error = %.4f meters' % medianStereoError
+        logging.info('=====> Median main   pair error = %.4f meters' % medianMainError)
+        logging.info('=====> Median stereo pair error = %.4f meters' % medianStereoError)
+        
+        # DEBUG!!!!!!
+        # Generate KML files to display the points
+        leftCsvFile = os.path.join(tempFolder, 'finalGdcCheckMain/leftEvalPoints.csv')
+        leftKmlFile = os.path.join(tempFolder, 'finalGdcCheckMain/leftEvalPoints.kml')
+        cmd = 'calibrationReport.py --color red --size tiny --skip 1 --name leftMainEvalPoints --input ' + leftCsvFile + ' --output ' + leftKmlFile
+        os.system(cmd)
+        rightCsvFile = os.path.join(tempFolder, 'finalGdcCheckMain/rightEvalPoints.csv')
+        rightKmlFile = os.path.join(tempFolder, 'finalGdcCheckMain/rightEvalPoints.kml')
+        cmd = 'calibrationReport.py --color blue --size tiny --skip 1 --name rightMainEvalPoints --input ' + rightCsvFile + ' --output ' + rightKmlFile
+        os.system(cmd)
+        
+        leftCsvFile = os.path.join(tempFolder, 'finalGdcCheckStereo/leftEvalPoints.csv')
+        leftKmlFile = os.path.join(tempFolder, 'finalGdcCheckStereo/leftEvalPoints.kml')
+        cmd = 'calibrationReport.py --color red --size tiny --skip 1 --name leftStereoEvalPoints --input ' + leftCsvFile + ' --output ' + leftKmlFile
+        os.system(cmd)
+        rightCsvFile = os.path.join(tempFolder, 'finalGdcCheckStereo/rightEvalPoints.csv')
+        rightKmlFile = os.path.join(tempFolder, 'finalGdcCheckStereo/rightEvalPoints.kml')
+        cmd = 'calibrationReport.py --color blue --size tiny --skip 1 --name rightStereoEvalPoints --input ' + rightCsvFile + ' --output ' + rightKmlFile
+        os.system(cmd)
+        
+        
+        
+        # The next four checks are not used in every case
+        if usingLeftPixels:
+            medianLeftError   = evaluateAccuracy(outputPathLeft,       outputPathStereoLeft,
+                                                pixelPairsLeftSmall,  os.path.join(tempFolder, 'finalGdcCheckLeft'), True)
+            print        '=====> Median left  pair error = %.4f meters' % medianLeftError
+            logging.info('=====> Median left  pair error = %.4f meters' % medianLeftError)            
+        
+            leftCsvFile = os.path.join(tempFolder, 'finalGdcCheckLeft/leftEvalPoints.csv')
+            leftKmlFile = os.path.join(tempFolder, 'finalGdcCheckLeft/leftEvalPoints.kml')
+            cmd = 'calibrationReport.py --color red --size tiny --skip 1 --name leftLeftEvalPoints --input ' + leftCsvFile + ' --output ' + leftKmlFile
+            os.system(cmd)
+            rightCsvFile = os.path.join(tempFolder, 'finalGdcCheckLeft/rightEvalPoints.csv')
+            rightKmlFile = os.path.join(tempFolder, 'finalGdcCheckLeft/rightEvalPoints.kml')
+            cmd = 'calibrationReport.py --color blue --size tiny --skip 1 --name rightLeftEvalPoints --input ' + rightCsvFile + ' --output ' + rightKmlFile
+            os.system(cmd)
+        
+        if usingRightPixels:
+            medianRightError  = evaluateAccuracy(outputPathRight,      outputPathStereoRight, 
+                                               pixelPairsRightSmall, os.path.join(tempFolder, 'finalGdcCheckRight'), True)
+            print        '=====> Median right pair error = %.4f meters' % medianRightError
+            logging.info('=====> Median right pair error = %.4f meters' % medianRightError)
+        
+            leftCsvFile = os.path.join(tempFolder, 'finalGdcCheckRight/leftEvalPoints.csv')
+            leftKmlFile = os.path.join(tempFolder, 'finalGdcCheckRight/leftEvalPoints.kml')
+            cmd = 'calibrationReport.py --color red --size tiny --skip 1 --name leftRightEvalPoints --input ' + leftCsvFile + ' --output ' + leftKmlFile
+            os.system(cmd)
+            rightCsvFile = os.path.join(tempFolder, 'finalGdcCheckRight/rightEvalPoints.csv')
+            rightKmlFile = os.path.join(tempFolder, 'finalGdcCheckRight/rightEvalPoints.kml')
+            cmd = 'calibrationReport.py --color blue --size tiny --skip 1 --name rightRightEvalPoints --input ' + rightCsvFile + ' --output ' + rightKmlFile
+            os.system(cmd)
+        
+        if usingLeftCrossPixels:
+            medianLeftCrossError  = evaluateAccuracy(outputPathLeft,           outputPathStereoRight,
+                                                    pixelPairsLeftCrossSmall,  os.path.join(tempFolder, 'finalGdcCheckLeftCross'), True)
+            print        '=====> Median left  cross pair error = %.4f meters' % medianLeftCrossError
+            logging.info('=====> Median left  cross pair error = %.4f meters' % medianLeftCrossError)
+        
+            leftCsvFile = os.path.join(tempFolder, 'finalGdcCheckLeftCross/leftEvalPoints.csv')
+            leftKmlFile = os.path.join(tempFolder, 'finalGdcCheckLeftCross/leftEvalPoints.kml')
+            cmd = 'calibrationReport.py --color red --size tiny --skip 1 --name leftLeftCrossEvalPoints --input ' + leftCsvFile + ' --output ' + leftKmlFile
+            os.system(cmd)
+            rightCsvFile = os.path.join(tempFolder, 'finalGdcCheckLeftCross/rightEvalPoints.csv')
+            rightKmlFile = os.path.join(tempFolder, 'finalGdcCheckLeftCross/rightEvalPoints.kml')
+            cmd = 'calibrationReport.py --color blue --size tiny --skip 1 --name rightLeftCrossEvalPoints --input ' + rightCsvFile + ' --output ' + rightKmlFile
+            os.system(cmd)
+        
+        
+        if usingRightCrossPixels:
+            medianRightCrossError = evaluateAccuracy(outputPathStereoLeft,     outputPathRight,
+                                                    pixelPairsRightCrossSmall, os.path.join(tempFolder, 'finalGdcCheckRightCross'), True)
+            print        '=====> Median right cross pair error = %.4f meters' % medianRightCrossError
+            logging.info('=====> Median right cross pair error = %.4f meters' % medianRightCrossError)
+        
+            leftCsvFile = os.path.join(tempFolder, 'finalGdcCheckRightCross/leftEvalPoints.csv')
+            leftKmlFile = os.path.join(tempFolder, 'finalGdcCheckRightCross/leftEvalPoints.kml')
+            cmd = 'calibrationReport.py --color red --size tiny --skip 1 --name leftRightCrossEvalPoints --input ' + leftCsvFile + ' --output ' + leftKmlFile
+            os.system(cmd)
+            rightCsvFile = os.path.join(tempFolder, 'finalGdcCheckRightCross/rightEvalPoints.csv')
+            rightKmlFile = os.path.join(tempFolder, 'finalGdcCheckRightCross/rightEvalPoints.kml')
+            cmd = 'calibrationReport.py --color blue --size tiny --skip 1 --name rightRightCrossEvalPoints --input ' + rightCsvFile + ' --output ' + rightKmlFile
+            os.system(cmd)
         
         # All finished!  We should have a fully calibrated version of each of the four input files.
 

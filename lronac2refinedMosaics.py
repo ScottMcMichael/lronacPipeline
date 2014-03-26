@@ -291,36 +291,34 @@ def main(argsIn):
         filename                 = os.path.splitext(options.stereoRight)[0] + '.geoCorrected.cub'
         rightStereoCorrectedPath = os.path.join(outputFolder, os.path.basename(filename))
 
-        carry = True
-
         # Correct all four input images at once
         caughtException = False
         exceptionText   = ''
         doubleCalWorkFolder = os.path.join(tempFolder, 'doubleCal')
-        #try:
-        if ( not os.path.exists(leftCorrectedPath)       or not os.path.exists(rightCorrectedPath)       or 
-             not os.path.exists(leftStereoCorrectedPath) or not os.path.exists(rightStereoCorrectedPath) or carry ):
-            print '\n=============================================================================\n'
-            cmdArgs = ['--left',          options.leftPath, 
-                       '--right',         options.rightPath, 
-                       '--stereo-left',   options.stereoLeft, 
-                       '--stereo-right',  options.stereoRight, 
-                       '--lola',          options.lolaPath, 
-                       '--output-folder', outputFolder, 
-                       '--workDir',       doubleCalWorkFolder, 
-                       '--log-path',      options.logPath]
-            if options.keep:
-                cmdArgs.append('--keep')
-            print cmdArgs
-            stereoDoubleCalibrationProcess.main(cmdArgs)
-         
-         
-            print '\n============================================================================\n'
+        try:
+            if ( not os.path.exists(leftCorrectedPath)       or not os.path.exists(rightCorrectedPath)       or 
+                 not os.path.exists(leftStereoCorrectedPath) or not os.path.exists(rightStereoCorrectedPath) ):
+                print '\n=============================================================================\n'
+                cmdArgs = ['--left',          options.leftPath, 
+                           '--right',         options.rightPath, 
+                           '--stereo-left',   options.stereoLeft, 
+                           '--stereo-right',  options.stereoRight, 
+                           '--lola',          options.lolaPath, 
+                           '--output-folder', outputFolder, 
+                           '--workDir',       doubleCalWorkFolder, 
+                           '--log-path',      options.logPath]
+                if options.keep:
+                    cmdArgs.append('--keep')
+                print cmdArgs
+                stereoDoubleCalibrationProcess.main(cmdArgs)
+             
+             
+                print '\n============================================================================\n'
 
-        #except Exception, e: 
-        #    caughtException = True
-        #    exceptionText   = str(e)
-        #    print 'Caught an exception: ' + str(e)
+        except Exception, e: 
+            caughtException = True
+            exceptionText   = str(e)
+            print 'Caught an exception: ' + str(e)
 
         # Convert GDC output files into KML plots 
         # - This is just to help with debugging

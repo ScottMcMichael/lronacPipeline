@@ -81,11 +81,11 @@ def main(argsIn):
 
         # Copy the input file to the output location
         cmd = "cp " + options.inputPath + " " + options.outputPath
-        print cmd
+        #print cmd
         os.system(cmd)
 
         # Retrieve a list of all the kernels needed by the input cube file
-        kernelDict = IrgIsisFunctions.getKernelsFromCube(options.outputPath, tempFolder)
+        kernelDict = IrgIsisFunctions.getKernelsFromCube(options.outputPath)
 
         # Find the leap second file
         if not ('LeapSecond' in kernelDict):
@@ -95,13 +95,13 @@ def main(argsIn):
             leapSecondFilePath = kernelDict['LeapSecond'][0] # Only deal with a single file
             
 
-        # Convert the kernels into a space delimited string to pass as arguments
-        kernelStringList = ""
+        # Convert the kernels into a list of strings to pass as arguments
+        kernelStringList = []
         for k, v in kernelDict.iteritems(): # Iterate through dictionary entries
             # Add everything except the gigantic shape model (DEM)
             if k != 'ShapeModel':
                 for i in v: # Iterate through type lists
-                    kernelStringList = kernelStringList + ' ' + str(i)
+                    kernelStringList.append(str(i))
 
 
         # Determine if the input file is LE or RE
@@ -131,24 +131,27 @@ def main(argsIn):
             os.remove(spkDataPath)
 
         # Call lronac spice editor tool to generate modified text file
-        cmd = ('spiceEditor --transformType 1 --transformFile ' + lronacOffsetPath + 
-                          ' --outputPrefix ' + tempDataPrefix + ' --kernels ' + 
-                          kernelStringList +  ' --sourceCube ' + options.inputPath)
-        print cmd
-        os.system(cmd)
+        # - Call is silent unless there is an error
+        cmd = ['spiceEditor', '--transformType', '1', '--transformFile', lronacOffsetPath, 
+                              '--outputPrefix', tempDataPrefix, '--sourceCube', options.inputPath,
+                              '--kernels'] + kernelStringList
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+        outputText, err = p.communicate()       
         if not os.path.exists(spkDataPath):
             os.remove(options.outputPath)
+            print cmd
+            print outputText 
             raise Exception('Failed to create modified SPK data!')
 
         # Write the config file needed for the mkspk function
-        print 'Writing mkspk config file...'
+        #print 'Writing mkspk config file...'
         mkspkConfigPath = os.path.join(tempFolder, "spkConfig.txt")
         IsisTools.makeSpkSetupFile(leapSecondFilePath, mkspkConfigPath)
 
         # If the file already exists, delete it and rewrite it.
         if options.spkPath:
           tempSpkPath = options.spkPath
-          print 'Storing modified SPK file ' + tempSpkPath
+          #print 'Storing modified SPK file ' + tempSpkPath
         else:
           tempSpkPath = os.path.join(tempFolder, "modifiedLrocSpk.bsp")
         if os.path.exists(tempSpkPath):
@@ -157,21 +160,24 @@ def main(argsIn):
         #TODO: Temp trick to make sure this works for long paths
 
         # Create new SPK file using modified data
-        cmd = 'mkspk -setup ' + mkspkConfigPath + ' -input ' + spkDataPath + ' -output ' + tempSpkPath
-        print cmd
-        os.system(cmd)
+        # - Call is silent unless there is an error
+        cmd = ['mkspk', '-setup', mkspkConfigPath, '-input', spkDataPath, '-output', tempSpkPath]
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+        outputText, err = p.communicate()
         if not os.path.exists(tempSpkPath):
             os.remove(options.outputPath)
+            print cmd
+            print outputText
             raise Exception('Failed to create modified SPK file!')
 
         # Re-run spiceinit using the new SPK file
-        cmd = "spiceinit attach=true from=" + options.outputPath + " spk=" + tempSpkPath
-        print cmd
-        os.system(cmd)
+        cmd = ['spiceinit', 'attach=', 'true', 'from=', options.outputPath, "spk=", tempSpkPath]
+        #print cmd
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+        outputText, err = p.communicate()     
 
         # Clean up temporary files
         if not options.keep:
-            #os.remove(tempTextPath)
             os.remove(spkDataPath)
             os.remove(mkspkConfigPath)
 

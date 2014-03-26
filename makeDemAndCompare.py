@@ -35,7 +35,7 @@ class Usage(Exception):
 #--------------------------------------------------------------------------------
 
 MAP_PROJECT_METERS_PER_PIXEL  = 0.5 # Map resolution in meters
-MAX_VALID_TRIANGULATION_ERROR = 15 # Meters
+MAX_VALID_TRIANGULATION_ERROR = 999 # Meters
 DEM_METERS_PER_PIXEL          = 1.0
 
 DEM_NODATA    = -32767

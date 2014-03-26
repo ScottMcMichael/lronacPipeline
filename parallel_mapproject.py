@@ -65,6 +65,40 @@ def isOption(arg):
     else:
         return False
 
+def generateTileList(fullWidth, fullHeight, tileSize):
+    """Generate a full list of tiles for this image"""
+
+    numTilesX = int(math.ceil(fullWidth  / float(tileSize)))
+    numTilesY = int(math.ceil(fullHeight / float(tileSize)))
+
+    tileList = []
+    for r in range(0, numTilesY):
+        for c in range(0, numTilesX):
+            
+            # Starting pixel positions for the tile
+            tileStartY = r * tileSize
+            tileStartX = c * tileSize
+            
+            # Determine the size of this tile
+            thisWidth  = tileSize
+            thisHeight = tileSize
+            if (r == numTilesY-1): # If the last row
+                thisHeight = fullHeight - tileStartY # Height is last remaining pixels
+            if (c == numTilesX-1): # If the last col
+                thisWidth  = fullWidth  - tileStartX # Width is last remaining pixels
+            
+            # Get the end pixels for this tile
+            tileStopY  = tileStartY + thisHeight # Stop values are exclusive
+            tileStopX  = tileStartX + thisWidth
+            
+            # Create a name for this tile
+            # - Tile format is tile_col_row_width_height_.tif
+            tileString = 'tile_' + str(c) + '_' + str(r) + '_' + str(thisWidth) + '_' + str(thisHeight) + '_.tif'
+            
+            tileList.append(tileStartX, tileStartY, thisWidth, thisHeight, tileString)
+    
+    return (numTilesX, numTilesY, tileList)
+
 def handleArguments(args):
     """Split up arguments into required and optional lists which will be passed to subprocess"""
 
@@ -187,9 +221,8 @@ def main(argsIn):
     # - For now just do something simple.
     TILE_SIZE = 1000
     
-    # Round up; some tiles may be smaller then the normal size.
-    numTilesX = int(math.ceil(fullWidth  / float(TILE_SIZE)))
-    numTilesY = int(math.ceil(fullHeight / float(TILE_SIZE)))
+    numTilesX, numTilesY, tileList = generateTileList(fullWidth, fullHeight, TILE_SIZE)
+    
     
     print 'Splitting into ' + str(numTilesX) + ' by ' + str(numTilesY) + ' tiles.'
 
@@ -206,45 +239,39 @@ def main(argsIn):
     # Queue up one mapproject call for each file
     print 'Writing tiles...'
     tilePathList = []
+    index = 0    
     for r in range(0, numTilesY):
         for c in range(0, numTilesX):
             
             # Starting pixel positions for the tile
-            tileStartY = r * TILE_SIZE
-            tileStartX = c * TILE_SIZE
-            
-            # Determine the size of this tile
-            thisWidth  = TILE_SIZE
-            thisHeight = TILE_SIZE
-            if (r == numTilesY-1): # If the last row
-                thisHeight = fullHeight - tileStartY # Height is last remaining pixels
-            if (c == numTilesX-1): # If the last col
-                thisWidth  = fullWidth  - tileStartX # Width is last remaining pixels
-            
+            tileStartY = tiles[index][0]
+            tileStartX = tiles[index][1]
+                        
             # Get the end pixels for this tile
-            tileStopY  = tileStartY + thisHeight # Stop values are exclusive
-            tileStopX  = tileStartX + thisWidth
+            tileStopY  = tileStartY + tiles[index][2] # Stop values are exclusive
+            tileStopX  = tileStartX + tiles[index][3]
             
-            # Create a path for this tile
-            # - Tile format is tile_col_row_width_height_.tif
-            tileString = 'tile_' + str(c) + '_' + str(r) + '_' + str(thisWidth) + '_' + str(thisHeight) + '_.tif'
-            tilePath   = os.path.join(tempFolder, tileString)
-            tilePathList.append(tilePath)
+            # Get the output path for this tile
+            tilePath = os.path.join(tempFolder, tiles[index][4])
     
-            print 'Writing tile: ' + tileString
+            print 'Writing tile: ' + tiles[index][4]
             
             # Call mapproject on the input data using subprocess and record output
             cmd = ['mapproject',  '--t_pixelwin', str(tileStartX), str(tileStartY), str(tileStopX), str(tileStopY),
                                    options.imagePath, options.demPath, tilePath]
             cmd = cmd + options.extraArgs # Append other options
-            add_job(cmd, options.suppressOutput, int(options.numThreads)) # Send to parallel job queue
+            if not os.path.exists(tilePath):
+                add_job(cmd, options.suppressOutput, int(options.numThreads)) # Send to parallel job queue
+    
+            index = index + 1
     
     # Wait for all of the tiles to finish processing
     wait_on_all_jobs()
     
     if options.convertTiles: # Make uint8 version of all tiles for debugging
         print 'Writing out uint8 version of all tiles...'
-        for tilePath in tilePathList:
+        for t in tiles:
+            tilePath   = os.path.join(tempFolder, t[4])
             tilePathU8 = os.path.splitext(tilePath)[0] + 'U8.tif'
             cmd = ['gdal_translate', '-ot', 'byte', '-scale', tilePath, tilePathU8]
             add_job(cmd, options.suppressOutput, options.numThreads) # Send to parallel job queue

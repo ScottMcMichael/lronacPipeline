@@ -100,15 +100,17 @@ def run_msopck(inputBaseName, msopckConfigPath, ckDataPath, outputCkPath):
     os.system('ln -f -s ' + ckDataPath       + ' ' + dataSymPath)
 
     # Create new CK file using modified data
-    cmd = 'msopck ' + configSymPath + ' ' + dataSymPath + '  ' + shortOutputCkPath
-    print cmd
-    os.system(cmd)
+    cmd = ['msopck', configSymPath, dataSymPath, shortOutputCkPath]
+    p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+    outputText, err = p.communicate()
     if not os.path.exists(shortOutputCkPath):
+        print cmd
+        print outputText
         return False
 
     # Copy the CK file to the actual desired location
     cmd = 'cp ' + shortOutputCkPath + ' ' + outputCkPath
-    print cmd
+    #print cmd
     os.system(cmd)
     
     return True
@@ -192,12 +194,12 @@ def main(argsIn):
 
         # Copy the input file to the output location (only the RE image is modified
         cmd = "cp " + options.inputPath + " " + options.outputPath
-        print cmd
+        #print cmd
         os.system(cmd)
 
 
         # Retrieve a list of all the kernels needed by the input cube file
-        kernelDict = IrgIsisFunctions.getKernelsFromCube(options.outputPath, tempFolder)
+        kernelDict = IrgIsisFunctions.getKernelsFromCube(options.outputPath)
 
         # Locate required kernels
         if not ('LeapSecond' in kernelDict):
@@ -215,13 +217,13 @@ def main(argsIn):
             raise Exception('Error! Unable to find frame kernel file!')
         frameFilePath = kernelDict['Frame'][0] # Only deal with a single file
 
-        # Convert the kernels into a space delimited string to pass as arguments
-        kernelStringList = ""
+        # Convert the kernels into a list of strings to pass as arguments
+        kernelStringList = []
         for k, v in kernelDict.iteritems(): # Iterate through dictionary entries
             # Add everything except the gigantic shape model (DEM)
             if k != 'ShapeModel':
                 for i in v: # Iterate through type lists
-                    kernelStringList = kernelStringList + ' ' + str(i)
+                    kernelStringList.append(str(i))
 
         # Make sure the SPK and CK data paths do not already exist
         tempDataPrefix = os.path.join(tempFolder, "tempNavData")
@@ -237,51 +239,58 @@ def main(argsIn):
             transformType = 2 #PC_ALIGN, rotation affects position
 
         # Call lronac spice editor tool to generate modified text file
-        cmd = ('spiceEditor --transformType ' + str(transformType) + 
-                          ' --transformFile ' + options.transformPath + 
-                          ' --outputPrefix '  + tempDataPrefix + 
-                          ' --kernels '       + kernelStringList + 
-                          ' --sourceCube '    + options.inputPath)
-        print cmd
-        os.system(cmd)
+        # - Call is silent unless an error occurs
+        cmd = ['spiceEditor', '--transformType', str(transformType),
+                              '--transformFile', options.transformPath,
+                              '--outputPrefix',  tempDataPrefix,
+                              '--sourceCube',    options.inputPath,
+                              '--kernels'] +     kernelStringList
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+        outputText, err = p.communicate()
         if not os.path.exists(spkDataPath):
             os.remove(options.outputPath)
+            print cmd
+            print outputText
             raise Exception('Error! Failed to create modified SPK data!')
         if not os.path.exists(ckDataPath):
             os.remove(options.outputPath)
+            print cmd
+            print outputText
             raise Exception('Error! Failed to create modified CK data!')
 
         # Write the config file needed for the mkspk function
-        print 'Writing mkspk config file...'
+        #print 'Writing mkspk config file...'
         mkspkConfigPath = os.path.join(tempFolder, "spkConfig.txt")
         IsisTools.makeSpkSetupFile(leapSecondFilePath, mkspkConfigPath)
 
         # If the file already exists, delete it and rewrite it.
         if options.spkPath:
             tempSpkPath = options.spkPath
-            print 'Storing modified SPK file ' + tempSpkPath
+            #print 'Storing modified SPK file ' + tempSpkPath
         else:
             tempSpkPath = os.path.join(tempFolder, "modifiedLrocSpk.bsp")
         if os.path.exists(tempSpkPath):
             os.remove(tempSpkPath)
 
         # Create new SPK file using modified data
-        cmd = 'mkspk -setup ' + mkspkConfigPath + ' -input ' + spkDataPath + ' -output ' + tempSpkPath
-        print cmd
-        os.system(cmd)
+        cmd = ['mkspk', '-setup', mkspkConfigPath, '-input', spkDataPath, '-output', tempSpkPath]
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+        outputText, err = p.communicate()
         if not os.path.exists(tempSpkPath):
             os.remove(options.outputPath)
+            print cmd
+            print outputText
             raise Exception('Error! Failed to create modified SPK file!')
 
         # Write the config file needed for the msopck function
-        print 'Writing msopck config file...'
+        #print 'Writing msopck config file...'
         msopckConfigPath = os.path.join(tempFolder, "ckConfig.txt")
         makeCkSetupFile(leapSecondFilePath, clockFilePath, frameFilePath, msopckConfigPath, inputBaseName)
 
         # If the file already exists, delete it and rewrite it.
         if options.ckPath:
             tempCkPath = options.ckPath
-            print 'Storing modified CK file ' + tempCkPath
+            #print 'Storing modified CK file ' + tempCkPath
         else:
             tempCkPath = os.path.join(tempFolder, "modifiedLrocCk.bc")
         if os.path.exists(tempCkPath):
@@ -294,12 +303,11 @@ def main(argsIn):
             raise Exception('Error running msopck!')
 
         # Re-run spiceinit using the new SPK and CK file
-        cmd = ("spiceinit attach=true from=" + options.outputPath + 
-                           " spk=" + tempSpkPath + " ck=" + tempCkPath) # + " fk=../../lroFrameZero.tf"
-        print cmd
-        os.system(cmd)
-
-
+        cmd = ['spiceinit', 'attach=', 'true', 'from=', options.outputPath,
+                            'spk=', tempSpkPath, 'ck=', tempCkPath]
+        #print cmd
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+        outputText, err = p.communicate()
 
         # Clean up temporary files
         if not options.keep:

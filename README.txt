@@ -8,7 +8,7 @@
 git clone https://github.com/NeoGeographyToolkit/Tools.git
 [ Build according to the instructions in the Tools/README.txt file. Make sure not to build in debug mode! ]
 
-- Add NGT Tools to your PYTHONPATH variable
+- Add NGT Tools to your PATH and PYTHONPATH variables
 
 - Check out the lronacPipeline repository:
 git clone https://github.com/ScottMcMichael/lronacPipeline.git
@@ -46,8 +46,7 @@ lronacDataGrabber.py --fetch --input-file lronacDataSourceList.txt
 
 lronacDataGrabber.py --input-file lronacDataSourceList.txt --output-folder . --name BHABHAPLAIN
 
-Currently the server for automated LOLA data downloads is not working so they needed to be downloaded by hand at the following address:  http://ode.rsl.wustl.edu/moon/lrololadataPointSearch.aspx
-The minimum bounds for each data set are listed in the data grabber source location file and in the command line output when retrieving data.  A 0.25 to 0.5 degree buffer in each direction is reccomended.  
+The minimum bounds for each data set are listed in the data grabber source location file and in the command line output when retrieving data.  A 0.25 degree buffer in each direction is reccomended.  
 
 
 ======= Output file description ====================================================
@@ -114,10 +113,7 @@ Inputs: Lola point cloud, four images (LE1, RE1, LE2, RE2)
 
 ----- Configuration files -----
 
-ceresInstallScript.sh     = Notes to help in installing CERES on a Linux machine with no admin access
-CMakeLists.txt            = Main build script for lronacPipeline
-FindStereoPipeline.cmake  = Cmake function to help with the build.
-FindVisionWorkbench.cmake = Cmake function to help with the build.
+CMakeLists.txt = Main build script for lronacPipeline
 
 
 ----- Executables -----
@@ -150,14 +146,11 @@ calibrationReport.py = Generates a KML plot of a set of GDC points.
 lronacAngleDoubleSolver.cc  = New SBA tool using the CERES solver.
 lronacSolverModelDouble.h   = Camera model code for new SBA tool.
 lronacSolverSupport.h       = Support code for the SBA tool.
-pixelPairsFromStereo.cc     = Tool to extract a grid of correspondence points from a stereo output file.
 IsisInterfaceLineScanRot.h  = Replacement of IsisInterfaceLineScan with additional functionality.
 IsisInterfaceLineScanRot.cc = See IsisInterfaceLineScanRot.h.
 SpiceEditor.cc              = Tool to generate intermediate position and orientation kernel correction files given a transform.
 stereo.h                    = Copy of the same file from StereoPipeline/src/asp/Tools with some dependencies removed.
 stereo.cc                   = See stereo.h
-lola_compare.cc             = Tool for comparing a GeoTiff DEM to a LOLA RDR file.  Also found in NeoGeographyToolkit/Tools.
-imagestats.cc               = Tool similar to gdalinfo -stats but provides better histogram output.  Also found in NeoGeographyToolkit/Tools.
 
 ----- Unused/Debug files -----
 
