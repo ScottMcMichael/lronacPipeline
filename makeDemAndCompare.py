@@ -107,7 +107,7 @@ def writeColorMapInfo(colormapPath, lutFilePath, demPath, outputPath):
 
     # Write a copy of the input file with the elevation values appended to each line    
     for (line, value) in zip(inputFile, colormapPercentileValues):
-        newLine = line[:-1] + ', ' + str(value) + '\n'
+        newLine = line[:-1] + ', ' + str(round(value,2)) + '\n'
         outputFile.write(newLine) 
         
     inputFile.close()
@@ -288,6 +288,8 @@ def main(argsIn):
 
         # Find out the center latitude of the mosaic
         centerLat = IrgIsisFunctions.getCubeCenterLatitude(options.leftPath, tempFolder)
+        
+        print 'centerlat = ' + str(centerLat)
 
         # Go ahead and set up all the output paths
         # -- Deliverables
@@ -312,18 +314,14 @@ def main(argsIn):
         mapProjectRightUint8Path = options.prefix + '-MapProjRightUint8.tif'
 
 
-        cmd = ('point2dem --errorimage -o ' + options.prefix + ' ' + pointCloudPath + 
-                        ' -r moon --tr ' + str(DEM_METERS_PER_PIXEL) + ' --t_srs "+proj=eqc +lat_ts=' + str(centerLat) + 
-                        ' +lat_0=0 +a='+str(MOON_RADIUS)+' +b='+str(MOON_RADIUS)+' +units=m" --nodata ' + str(DEM_NODATA))
-        print cmd
-
-# TODO: Double check that center lat is making it in properly!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         # Generate a DEM
         if (not os.path.exists(demPath)) or carry:
+            
+            #TODO: Add a +lon_0 entry here to set the central meridian?
+            
             cmd = ('point2dem --errorimage -o ' + options.prefix + ' ' + pointCloudPath + 
                             ' -r moon --tr ' + str(DEM_METERS_PER_PIXEL) + ' --t_srs "+proj=eqc +lat_ts=' + str(centerLat) + 
                             ' +lat_0=0 +a='+str(MOON_RADIUS)+' +b='+str(MOON_RADIUS)+' +units=m" --nodata ' + str(DEM_NODATA))
-            print cmd
             os.system(cmd)
         else:
             print 'DEM file ' + pointCloudPath + ' already exists, skipping point2dem step.'

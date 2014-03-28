@@ -135,14 +135,14 @@ def writeLabelFile(imagePath, outputPath, dataSetName, versionId, description, e
     labelFile.write('    SAMPLE_FIRST_PIXEL           = 1\n')
     labelFile.write('    SAMPLE_LAST_PIXEL            = ' + str(imageSize[0] + 1) + '\n')
     labelFile.write('    MAP_PROJECTION_ROTATION      = 0.0 <DEG>\n') #From gdalinfo (probably always zero)
-    labelFile.write('    MAP_RESOLUTION               = ' + str(pixelsPerDegree) +' <PIX/DEG>\n')
-    labelFile.write('    MAP_SCALE                    = ' + str(metersPerPixel) + ' <METERS/PIXEL>\n')
+    labelFile.write('    MAP_RESOLUTION               = ' + str(round(pixelsPerDegree,2)) +' <PIX/DEG>\n')
+    labelFile.write('    MAP_SCALE                    = ' + str(round(metersPerPixel,4)) + ' <METERS/PIXEL>\n')
     labelFile.write('    MAXIMUM_LATITUDE             = ' + str(boundingBox[3]) + ' <DEG>\n') 
     labelFile.write('    MINIMUM_LATITUDE             = ' + str(boundingBox[2]) + ' <DEG>\n')
     labelFile.write('    EASTERNMOST_LONGITUDE        = ' + str(boundingBox[0]) + ' <DEG>\n')
     labelFile.write('    WESTERNMOST_LONGITUDE        = ' + str(boundingBox[1]) + ' <DEG>\n')
-    labelFile.write('    LINE_PROJECTION_OFFSET       = ' + str(lineProjOffset)  +' <PIXEL>\n')
-    labelFile.write('    SAMPLE_PROJECTION_OFFSET     = ' + str(sampleProjOffset) +' <PIXEL>\n')
+    labelFile.write('    LINE_PROJECTION_OFFSET       = ' + str(round(lineProjOffset,2))  +' <PIXEL>\n')
+    labelFile.write('    SAMPLE_PROJECTION_OFFSET     = ' + str(round(sampleProjOffset,2)) +' <PIXEL>\n')
     labelFile.write('END_OBJECT = IMAGE_MAP_PROJECTION\n')
     labelFile.write('\n')
     labelFile.write('END\n')
@@ -322,35 +322,31 @@ def main():
         thisFilePath = os.path.join( os.path.dirname(os.path.abspath(__file__)), 'lronac2dem.py')
         versionId   = IrgFileFunctions.getLastGitTag(thisFilePath)
 
-        #TODO: Check these!
-        demDescription               = 'High-resolution NAC digital terrain models in GeoTIFF format. DEM is IEEE floating point TIFF, 32 bits/sample, 1 samples/pixel in single image plane configuration. The NoDATA value is -3.40282266e+038.'
-        #intersectionErrorDescription = 'TODO'
-        hillshadeDescription         = 'Shaded-relief derived from NAC digital terrain models. Image is a TIFF image, 8 bits/sample, 1 samples/pixel in single image plane configuration.'
-        colormapDescription          = 'Color shaded-relief derived from NAC digital terrain models. Image is 3-channel RGB TIFF, 8 bits/sample, 3 samples/pixel in single image plane configuration.'
-        confidenceDescription        = 'TODO'
-        mapProjectLeftDescription    = 'TODO'
-        mapProjectRightDescription   = 'TODO'
+        demDescription        = 'High-resolution NAC digital terrain models in GeoTIFF format. DEM is IEEE floating point TIFF, 32 bits/sample, 1 samples/pixel in single image plane configuration. The NoDATA value is -3.40282266e+038.'
+        hillshadeDescription  = 'Shaded-relief derived from NAC digital terrain models. Image is a TIFF image, 8 bits/sample, 1 samples/pixel in single image plane configuration.'
+        colormapDescription   = 'Color shaded-relief derived from NAC digital terrain models. Image is 3-channel RGB TIFF, 8 bits/sample, 3 samples/pixel in single image plane configuration.'
+        confidenceDescription = 'Discretized visualization of intersection error in NAC digital terrain model. Image is a TIFF image, 8 bits/sample, 1 samples/pixel in single image plane configuration.'
+        mapProjectDescription = 'High-resolution NAC orthoprojected image in GeoTIFF format. Image is IEEE floating point TIFF, 32 bits/sample, 1 samples/pixel in single image plane configuration. The NoDATA value is -3.40282266e+038.'
 
         # Copy the colormap legend file in to the colormap label file!
-        colormapLegendText = ('/* Colormap legend information: */\n')
+        colormapLegendText = ('\n/* Colormap legend information: */\n')
         colormapLegendFile = open(colormapLegendPath, 'r')
         for line in colormapLegendFile:
-            colormapLegendText = colormapLegendText + '/*' + line.strip() + '*/\n'
+            colormapLegendText = colormapLegendText + '/*  ' + line.strip() + '     */\n'
             
         # Copy the confidence legend file in to the confidence label file!
-        confidenceLegendText = ('/* Confidence legend information: */\n')
+        confidenceLegendText = ('\n/* Confidence legend information: */\n')
         confidenceLegendFile = open(confidenceLegendPath, 'r')
         for line in confidenceLegendFile:
-            confidenceLegendText = confidenceLegendText + '/*' + line.strip() + '*/\n'
+            confidenceLegendText = confidenceLegendText + '/*  ' + line.strip() + '     */\n'
 
         # Generate label files for each of the output files
         writeLabelFile(demPath,               demLabelPath,               dataSetName, versionId, demDescription)
-        #writeLabelFile(intersectionErrorPath, intersectionErrorLabelPath, dataSetName, versionId, intersectionErrorDescription)
         writeLabelFile(hillshadePath,         hillshadeLabelPath,         dataSetName, versionId, hillshadeDescription)
         writeLabelFile(colormapPath,          colormapLabelPath,          dataSetName, versionId, colormapDescription,   colormapLegendText)
         writeLabelFile(confidencePath,        confidenceLabelPath,        dataSetName, versionId, confidenceDescription, confidenceLegendText)
-        writeLabelFile(mapProjectLeftPath,    mapProjectLeftLabelPath,    dataSetName, versionId, mapProjectLeftDescription)
-        writeLabelFile(mapProjectRightPath,   mapProjectRightLabelPath,   dataSetName, versionId, mapProjectRightDescription)
+        writeLabelFile(mapProjectLeftPath,    mapProjectLeftLabelPath,    dataSetName, versionId, mapProjectDescription)
+        writeLabelFile(mapProjectRightPath,   mapProjectRightLabelPath,   dataSetName, versionId, mapProjectDescription)
         
 
         # Compress the input files to save disk space
@@ -370,7 +366,7 @@ def main():
             IrgFileFunctions.tarFileList(listOfDeliveryFiles, compressedOutputPath)
             
 
-#TODO:!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+#TODO:!!!!!!!!!!
         ## Compress the diagnostic files to save disk space
         #if not os.path.exists(compressedDebugPath):
         #    
