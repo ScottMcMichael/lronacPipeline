@@ -19,7 +19,8 @@
 
 import sys, os, glob, optparse, re, subprocess, string, time, logging, threading
 
-import IrgIsisFunctions, IrgAspFunctions, IrgFileFunctions, pointErrorToKml
+import IrgIsisFunctions, IrgAspFunctions, IrgFileFunctions, IrgMathFunctions
+import IrgGeoFunctions, pointErrorToKml
 
 def man(option, opt, value, parser):
     print >>sys.stderr, parser.usage
@@ -34,6 +35,8 @@ class Usage(Exception):
 
 #--------------------------------------------------------------------------------
 
+# For convenience some of the constants used in the file are set up here
+
 MAP_PROJECT_METERS_PER_PIXEL  = 0.5 # Map resolution in meters
 MAX_VALID_TRIANGULATION_ERROR = 999 # Meters
 DEM_METERS_PER_PIXEL          = 1.0
@@ -42,7 +45,7 @@ DEM_NODATA    = -32767
 MOON_RADIUS   = 1737400
 SUBPIXEL_MODE = 2 # 1 = fast, 2 = accurate
 
-ACCURATE_PIXEL_LIMIT = 5
+PIXEL_ACCURACY_THRESHOLDS = [0.5, 1, 2, 4, 8, 16, 32, 64]
 
 
 
@@ -81,6 +84,37 @@ def mapProjectImage(inputImage, demPath, outputPath, resolution, centerLat, forc
         print 'Map projected file  ' + outputPath + ' already exists, skipping map project step.'
 
     return True
+
+
+def writeColorMapInfo(colormapPath, lutFilePath, demPath, outputPath):
+    """Writes a file containing the color map information"""
+    
+    colormapPercentiles = []
+    numColorSteps = IrgFileFunctions.getFileLineCount(lutFilePath)
+    for i in range(0,numColorSteps): # This loop generates the percentage values from the color profile we are using
+        colormapPercentiles.append(i / float(numColorSteps-1))
+    # Get the min and max elevation of the DEM
+    elevationBounds = IrgGeoFunctions.getImageStats(demPath) 
+    # Get elevation values for each percentile
+    colormapPercentileValues = IrgMathFunctions.getPercentileValues(elevationBounds[0][0], elevationBounds[0][1], colormapPercentiles)
+    
+    # Now write out a version of the LUT file with values added
+    inputFile  = open(lutFilePath, 'r')
+    outputFile = open(outputPath,  'w')
+
+    # Add a header line to the output file
+    outputFile.write('Percent of range, R, G, B, Elevation (meters above datum)\n')
+
+    # Write a copy of the input file with the elevation values appended to each line    
+    for (line, value) in zip(inputFile, colormapPercentileValues):
+        newLine = line[:-1] + ', ' + str(value) + '\n'
+        outputFile.write(newLine) 
+        
+    inputFile.close()
+    outputFile.close()
+    
+
+
 
 # Makes sure all needed functions are found in the PATH
 def functionStartupCheck():
@@ -261,10 +295,12 @@ def main(argsIn):
         intersectionErrorPath = options.prefix + '-IntersectionErr.tif'
         hillshadePath         = options.prefix + '-Hillshade.tif'
         colormapPath          = options.prefix + '-Colormap.tif'
+        colormapLegendPath    = options.prefix + '-ColormapLegend.csv'
         mapProjectLeftPath    = options.prefix + '-MapProjLeft.tif'
         mapProjectRightPath   = options.prefix + '-MapProjRight.tif'
+        confidenceLevelPath   = options.prefix + '-Confidence.tif'
+        confidenceLegendPath  = options.prefix + '-ConfidenceLegend.csv'
         # -- Diagnostic
-        accuratePixelMask        = options.prefix + '-AccuratePixelMask.tif'
         intersectionViewPathX    = options.prefix + '-IntersectionErrorX.tif'
         intersectionViewPathY    = options.prefix + '-IntersectionErrorY.tif'
         intersectionViewPathZ    = options.prefix + '-IntersectionErrorZ.tif'
@@ -276,6 +312,12 @@ def main(argsIn):
         mapProjectRightUint8Path = options.prefix + '-MapProjRightUint8.tif'
 
 
+        cmd = ('point2dem --errorimage -o ' + options.prefix + ' ' + pointCloudPath + 
+                        ' -r moon --tr ' + str(DEM_METERS_PER_PIXEL) + ' --t_srs "+proj=eqc +lat_ts=' + str(centerLat) + 
+                        ' +lat_0=0 +a='+str(MOON_RADIUS)+' +b='+str(MOON_RADIUS)+' +units=m" --nodata ' + str(DEM_NODATA))
+        print cmd
+
+# TODO: Double check that center lat is making it in properly!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         # Generate a DEM
         if (not os.path.exists(demPath)) or carry:
             cmd = ('point2dem --errorimage -o ' + options.prefix + ' ' + pointCloudPath + 
@@ -296,12 +338,17 @@ def main(argsIn):
 
         # Create a colorized version of the hillshade
         # - Uses a blue-red color map from here: http://www.sandia.gov/~kmorel/documents/ColorMaps/
-        # - TODO: Modify colormap so we can save the legend file to the output directory!
-        if (not os.path.exists(colormapPath)) or carry:
+        if (not os.path.exists(colormapPath)) or (not os.path.exists(colormapLegendPath)) or carry:
+            # The color LUT is kept with the source code
             lutFilePath = os.path.join( os.path.dirname(os.path.abspath(__file__)), 'colorProfileBlueRed.csv')
+            
+            # Generate the colormap
             cmd = 'colormap ' + demPath + ' -o ' + colormapPath + ' -s ' + hillshadePath + ' --lut-file ' + lutFilePath
             print cmd
             os.system(cmd)
+            
+            # Generate another file storing the colormap info
+            writeColorMapInfo(colormapPath, lutFilePath, demPath, colormapLegendPath)
         else:
             print 'Output file ' + colormapPath + ' already exists, skipping colormap step.'
 
@@ -328,10 +375,12 @@ def main(argsIn):
             print cmdZ
             os.system(cmdZ)
 
-        # Generate a good pixel mask from the intersection error (all pixels below limit in white)
-        if not os.path.exists(accuratePixelMask):
-            cmd = ('maskFromIntersectError ' + intersectionErrorPath + ' ' + accuratePixelMask +
-                                         ' --scaleOutput --thresholds ' + str(ACCURATE_PIXEL_LIMIT))
+        # Generate a confidence plot from the intersection error
+        if not os.path.exists(confidenceLevelPath):
+            thresholdString = str(PIXEL_ACCURACY_THRESHOLDS)[1:-1].replace(',', '')
+            cmd = ('maskFromIntersectError ' + intersectionErrorPath + ' ' + confidenceLevelPath
+                                             + ' --legend ' + confidenceLegendPath + 
+                                        ' --scaleOutput --thresholds ' + thresholdString)
             print cmd
             os.system(cmd)
 

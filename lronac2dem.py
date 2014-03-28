@@ -20,7 +20,7 @@
 import sys, os, glob, optparse, re, shutil, subprocess, string, time, logging, threading
 import simplekml, matplotlib
 
-import IsisTools, IrgIsisFunctions, IrgGeoFunctions, IrgFileFunctions
+import IsisTools, IrgIsisFunctions, IrgGeoFunctions, IrgFileFunctions, IrgMathFunctions, IrgAspFunctions
 
 import lronac2refinedMosaics
 import makeDemAndCompare
@@ -39,7 +39,7 @@ class Usage(Exception):
 
 #--------------------------------------------------------------------------------
 
-def writeLabelFile(imagePath, outputPath, dataSetName, versionId, description):
+def writeLabelFile(imagePath, outputPath, dataSetName, versionId, description, extraData=None):
     """Write out a .LBL file formatted for the PDS"""
     
     # Call functions to automatically obtain some data from the referenced image
@@ -48,20 +48,42 @@ def writeLabelFile(imagePath, outputPath, dataSetName, versionId, description):
         boundingBox = IrgGeoFunctions.getImageBoundingBox(imagePath)
     except: # If we couldn't get the bounding box just fill in junk
         boundingBox = (0, 0, 0, 0)
+
+    # Obtain the ASP version string
+    aspVersionString = IrgAspFunctions.getAspVersionStrings()
+    
+    imageGeoInfo = IrgGeoFunctions.getImageGeoInfo(imagePath)
+        
+    projCenterLatitude  = imageGeoInfo['standard_parallel_1']
+    projCenterLongitude = imageGeoInfo['central meridian']
+        
+    # Currently assuming pixels are the same size
+    metersPerPixel = abs(imageGeoInfo['pixel size'][0])
+    
+    # Compute pixels per degree
+    lonSpanDegrees     = boundingBox[1] - boundingBox[0]
+    latSpanDegrees     = boundingBox[3] - boundingBox[2]
+    pixelsPerDegreeLon = imageSize[0] / lonSpanDegrees
+    pixelsPerDegreeLat = imageSize[1] / latSpanDegrees
+    pixelsPerDegree    = (pixelsPerDegreeLat + pixelsPerDegreeLon) / 2.0
+
+    # Computed by dividing 'Origin' by 'Pixel Size'
+    lineProjOffset   = imageGeoInfo['origin'][0] / imageGeoInfo['pixel size'][1]
+    sampleProjOffset = imageGeoInfo['origin'][1] / imageGeoInfo['pixel size'][0]
         
     
     labelFile = open(outputPath, 'w')
     
-    labelFile.write('PDS_VERSION_ID            = PDS3\n') #TODO
+    labelFile.write('PDS_VERSION_ID            = PDS3\n')
     
     labelFile.write('/* The source image data definition. */\n')
     labelFile.write('^IMAGE        = ' + os.path.basename(outputPath) +'\n')
     
     labelFile.write('/* Identification Information  */\n')
-    labelFile.write('DATA_SET_ID               = "LRO-L-LROC-5-RDR-V1.0"\n') #TODO
-    labelFile.write('DATA_SET_NAME             = "LRO MOON LROC 5 RDR V1.0"\n')
-    labelFile.write("VOLUME_ID                 = 'LROLRC_2001'\n")
-    labelFile.write('PRODUCER_INSTITUTION_NAME = "NASA Ames"\n')
+    labelFile.write('DATA_SET_ID               = ""\n') # Someone will tell us what to put here
+    labelFile.write('DATA_SET_NAME             = ""\n') # Someone will tell us what to put here
+    labelFile.write("VOLUME_ID                 = ''\n") # Someone will tell us what to put here
+    labelFile.write('PRODUCER_INSTITUTION_NAME = "NASA AMES RESEARCH CENTER"\n')
     labelFile.write('PRODUCER_ID               = NASA IRG\n')
     labelFile.write('PRODUCER_FULL_NAME        = "ZACHARY MORATTO"\n')
     labelFile.write("PRODUCT_ID                = " + dataSetName + "\n")
@@ -73,58 +95,54 @@ def writeLabelFile(imagePath, outputPath, dataSetName, versionId, description):
     labelFile.write('INSTRUMENT_ID             = "LROC"\n')
     labelFile.write('TARGET_NAME               = MOON\n')
     labelFile.write('MISSION_PHASE_NAME        = "NOMINAL MISSION"\n')
-    labelFile.write("""RATIONALE_DESC            = "Created at the request of NASA's Exploration\n""") #TODO!!!!!!!!!!!!!
+    labelFile.write("""RATIONALE_DESC            = "Created at the request of NASA's Exploration\n""") 
     labelFile.write('                            Systems Mission Directorate to support future\n')
     labelFile.write('                            human exploration"\n')
-    labelFile.write('SOFTWARE_NAME             = "ISIS 3.2.1 with SER enhancements | NASA Ames Stereo Pipeline\n') #TODO!!!!!!!!!!!!!!
+    labelFile.write('SOFTWARE_NAME             = "'+ aspVersionString[0] +' | '+ aspVersionString[2] +'"\n')
     labelFile.write('DESCRIPTION               = "' + description + '"\n')
     labelFile.write('\n')
     labelFile.write('/* Time Parameters */\n')
-    labelFile.write('START_TIME                   = "N/A"\n')
-    labelFile.write('STOP_TIME                    = "N/A"\n')
-    labelFile.write('SPACECRAFT_CLOCK_START_COUNT = "N/A"\n')
-    labelFile.write('SPACECRAFT_CLOCK_STOP_COUNT  = "N/A"\n')
     labelFile.write('PRODUCT_CREATION_TIME        = ' + time.strftime("%Y-%m-%dT%H:%M:%S") + '\n')
     labelFile.write('\n')
     labelFile.write('/* NOTE:                                                                   */\n')
-    labelFile.write('/* This raster image is composed of a set of pixels that represent finite  */\n') #TODO!!!!!!!!!!!!!!!!!!!!!!!!
+    labelFile.write('/* This raster image is composed of a set of pixels that represent finite  */\n')
     labelFile.write('/* areas, and not discrete points.  The center of the upper left pixel is  */\n')
     labelFile.write('/* defined as line and sample (1.0,1.0). The                               */\n')
     labelFile.write('/* [LINE,SAMPLE]_PROJECTION_OFFSET elements are the pixel offset from line */\n')
     labelFile.write('/* and sample (1.0,1.0) to the map projection origin (defined by the       */\n')
     labelFile.write('/* CENTER_LATITUDE and CENTER_LONGITUDE elements).  These offset values    */\n')
     labelFile.write('/* are positive when the map projection origin is to the right or below    */\n')
-    labelFile.write('/* the center of the upper left pixel. This definition was adopted in      */\n')
-    labelFile.write('/* November 2011 by the LROC team.                                         */\n')
+    labelFile.write('/* the center of the upper left pixel.                                     */\n')
+    if extraData: # Location for additional notes
+        labelFile.write(extraData)
     labelFile.write('\n')
     labelFile.write('OBJECT = IMAGE_MAP_PROJECTION\n')
-    labelFile.write('    ^DATA_SET_MAP_PROJECTION     = "DSMAP.CAT"\n') #TODO
-    labelFile.write('    MAP_PROJECTION_TYPE          = EQUIRECTANGULAR\n')
-    labelFile.write('    PROJECTION_LATITUDE_TYPE     = PLANETOCENTRIC\n') #TODO
-    labelFile.write('    A_AXIS_RADIUS                = 1737.4 <KM>\n')
+    labelFile.write('    MAP_PROJECTION_TYPE          = EQUIRECTANGULAR\n') # Specified by +proj=eqc
+    labelFile.write('    PROJECTION_LATITUDE_TYPE     = PLANETOCENTRIC\n')  #From gdalinfo?
+    labelFile.write('    A_AXIS_RADIUS                = 1737.4 <KM>\n') # Fixed lunar radius
     labelFile.write('    B_AXIS_RADIUS                = 1737.4 <KM>\n')
     labelFile.write('    C_AXIS_RADIUS                = 1737.4 <KM>\n')
-    labelFile.write('    COORDINATE_SYSTEM_NAME       = PLANETOCENTRIC\n') #TODO
-    labelFile.write('    POSITIVE_LONGITUDE_DIRECTION = EAST\n') #TODO
-    labelFile.write('    KEYWORD_LATITUDE_TYPE        = PLANETOCENTRIC\n') #TODO
-    labelFile.write('    /* NOTE:  CENTER_LATITUDE and CENTER_LONGITUDE describe the location   */\n') #TODO
+    labelFile.write('    COORDINATE_SYSTEM_NAME       = PLANETOCENTRIC\n') #From gdalinfo?
+    labelFile.write('    POSITIVE_LONGITUDE_DIRECTION = EAST\n') #From gdalinfo?
+    labelFile.write('    KEYWORD_LATITUDE_TYPE        = PLANETOCENTRIC\n') #From gdalinfo?
+    labelFile.write('    /* NOTE:  CENTER_LATITUDE and CENTER_LONGITUDE describe the location   */\n')
     labelFile.write('    /* of the center of projection, which is not necessarily equal to the  */\n')
     labelFile.write('    /* location of the center point of the image.                          */\n')
-    labelFile.write('    CENTER_LATITUDE              = 25.0 <DEG>\n') #TODO
-    labelFile.write('    CENTER_LONGITUDE             = 180.0 <DEG>\n')
+    labelFile.write('    CENTER_LATITUDE              = ' + str(projCenterLatitude)  + ' <DEG>\n')
+    labelFile.write('    CENTER_LONGITUDE             = ' + str(projCenterLongitude) + ' <DEG>\n')
     labelFile.write('    LINE_FIRST_PIXEL             = 1\n')
     labelFile.write('    LINE_LAST_PIXEL              = ' + str(imageSize[1] + 1) + '\n')
     labelFile.write('    SAMPLE_FIRST_PIXEL           = 1\n')
     labelFile.write('    SAMPLE_LAST_PIXEL            = ' + str(imageSize[0] + 1) + '\n')
-    labelFile.write('    MAP_PROJECTION_ROTATION      = 0.0 <DEG>\n') #TODO
-    labelFile.write('    MAP_RESOLUTION               = 15161.675 <PIX/DEG>\n') #TODO
-    labelFile.write('    MAP_SCALE                    = 2.00 <METERS/PIXEL>\n') #TODO
+    labelFile.write('    MAP_PROJECTION_ROTATION      = 0.0 <DEG>\n') #From gdalinfo (probably always zero)
+    labelFile.write('    MAP_RESOLUTION               = ' + str(pixelsPerDegree) +' <PIX/DEG>\n')
+    labelFile.write('    MAP_SCALE                    = ' + str(metersPerPixel) + ' <METERS/PIXEL>\n')
     labelFile.write('    MAXIMUM_LATITUDE             = ' + str(boundingBox[3]) + ' <DEG>\n') 
     labelFile.write('    MINIMUM_LATITUDE             = ' + str(boundingBox[2]) + ' <DEG>\n')
     labelFile.write('    EASTERNMOST_LONGITUDE        = ' + str(boundingBox[0]) + ' <DEG>\n')
     labelFile.write('    WESTERNMOST_LONGITUDE        = ' + str(boundingBox[1]) + ' <DEG>\n')
-    labelFile.write('    LINE_PROJECTION_OFFSET       = 379713.5 <PIXEL>\n') #TOOO
-    labelFile.write('    SAMPLE_PROJECTION_OFFSET     = -1802158.5 <PIXEL>\n') #TODO
+    labelFile.write('    LINE_PROJECTION_OFFSET       = ' + str(lineProjOffset)  +' <PIXEL>\n')
+    labelFile.write('    SAMPLE_PROJECTION_OFFSET     = ' + str(sampleProjOffset) +' <PIXEL>\n')
     labelFile.write('END_OBJECT = IMAGE_MAP_PROJECTION\n')
     labelFile.write('\n')
     labelFile.write('END\n')
@@ -245,20 +263,32 @@ def main():
         if (not os.path.exists(mainMosaicPath) or not os.path.exists(stereoMosaicPath)):
             raise Exception('lronac2refinedMosaics failed to produce mosaics!')
 
-        # List of all the output files that will be created       
+        # List of all the output files that will be created by makeDemAndCompare.py
         demPath               = options.outputPrefix + '-DEM.tif'
         intersectionErrorPath = options.outputPrefix + '-IntersectionErr.tif'
         hillshadePath         = options.outputPrefix + '-Hillshade.tif'
         colormapPath          = options.outputPrefix + '-Colormap.tif'
+        colormapLegendPath    = options.outputPrefix + '-ColormapLegend.csv'
+        confidencePath        = options.outputPrefix + '-Confidence.tif'
+        confidenceLegendPath  = options.outputPrefix + '-ConfidenceLegend.csv'
         mapProjectLeftPath    = options.outputPrefix + '-MapProjLeft.tif'
         mapProjectRightPath   = options.outputPrefix + '-MapProjRight.tif'
-        compressedInputPath   = options.outputPrefix + '-CompressedInputs.tar.bz2'
-        demLabelPath               = options.outputPrefix + '-DEM.LBL' # Each of these files gets an associated label file
+        
+        compressedInputPath  = options.outputPrefix + '-CompressedInputs.tar.bz2'
+        compressedOutputPath = options.outputPrefix + '-CompressedOutputs.tar.bz2'
+        compressedDebugPath  = options.outputPrefix + '-CompressedDiagnostics.tar.bz2'
+        
+        # List of .LBL text files to be created
+        demLabelPath               = options.outputPrefix + '-DEM.LBL' 
         intersectionErrorLabelPath = options.outputPrefix + '-IntersectionErr.LBL'
         hillshadeLabelPath         = options.outputPrefix + '-Hillshade.LBL'
         colormapLabelPath          = options.outputPrefix + '-Colormap.LBL'
+        confidenceLabelPath        = options.outputPrefix + '-Confidence.LBL'
         mapProjectLeftLabelPath    = options.outputPrefix + '-MapProjLeft.LBL'
         mapProjectRightLabelPath   = options.outputPrefix + '-MapProjRight.LBL'
+
+        # List of diagnostic files we want to archive
+        #TODO:!!!!!!!!!!!
 
         # Call makeDemAndCompare.py
         cmdArgs = ['--left',     mainMosaicPath, 
@@ -297,30 +327,55 @@ def main():
         #intersectionErrorDescription = 'TODO'
         hillshadeDescription         = 'Shaded-relief derived from NAC digital terrain models. Image is a TIFF image, 8 bits/sample, 1 samples/pixel in single image plane configuration.'
         colormapDescription          = 'Color shaded-relief derived from NAC digital terrain models. Image is 3-channel RGB TIFF, 8 bits/sample, 3 samples/pixel in single image plane configuration.'
+        confidenceDescription        = 'TODO'
         mapProjectLeftDescription    = 'TODO'
         mapProjectRightDescription   = 'TODO'
+
+        # Copy the colormap legend file in to the colormap label file!
+        colormapLegendText = ('/* Colormap legend information: */\n')
+        colormapLegendFile = open(colormapLegendPath, 'r')
+        for line in colormapLegendFile:
+            colormapLegendText = colormapLegendText + '/*' + line.strip() + '*/\n'
+            
+        # Copy the confidence legend file in to the confidence label file!
+        confidenceLegendText = ('/* Confidence legend information: */\n')
+        confidenceLegendFile = open(confidenceLegendPath, 'r')
+        for line in confidenceLegendFile:
+            confidenceLegendText = confidenceLegendText + '/*' + line.strip() + '*/\n'
 
         # Generate label files for each of the output files
         writeLabelFile(demPath,               demLabelPath,               dataSetName, versionId, demDescription)
         #writeLabelFile(intersectionErrorPath, intersectionErrorLabelPath, dataSetName, versionId, intersectionErrorDescription)
         writeLabelFile(hillshadePath,         hillshadeLabelPath,         dataSetName, versionId, hillshadeDescription)
-        writeLabelFile(colormapPath,          colormapLabelPath,          dataSetName, versionId, colormapDescription)
+        writeLabelFile(colormapPath,          colormapLabelPath,          dataSetName, versionId, colormapDescription,   colormapLegendText)
+        writeLabelFile(confidencePath,        confidenceLabelPath,        dataSetName, versionId, confidenceDescription, confidenceLegendText)
         writeLabelFile(mapProjectLeftPath,    mapProjectLeftLabelPath,    dataSetName, versionId, mapProjectLeftDescription)
         writeLabelFile(mapProjectRightPath,   mapProjectRightLabelPath,   dataSetName, versionId, mapProjectRightDescription)
         
 
         # Compress the input files to save disk space
         if not os.path.exists(compressedInputPath):
-            # This extra set of commands is needed to strip the absolute path name from each stored file
-            cmd = ('tar -jcvf ' + compressedInputPath + ' -C ' + os.path.dirname(options.leftPath) + ' ' + os.path.basename(options.leftPath   )
-                                                      + ' -C ' + os.path.dirname(options.rightPath) + ' ' + os.path.basename(options.rightPath  )
-                                                      + ' -C ' + os.path.dirname(options.stereoLeft) + ' ' + os.path.basename(options.stereoLeft )
-                                                      + ' -C ' + os.path.dirname(options.stereoRight) + ' ' + os.path.basename(options.stereoRight)
-                                                      + ' -C ' + os.path.dirname(options.lolaPath) + ' ' + os.path.basename(options.lolaPath   ))
+            
+            listOfInputFiles = [options.leftPath, options.rightPath, options.stereoLeft, options.stereoRight, options.lolaPath]
             if options.asuPath: # Handle optional input
-                cmd = cmd + ' ' + os.path.basename(options.asuPath) 
-            print cmd
-            os.system(cmd)
+                listOfInputFiles.append(options.asuPath)
+            IrgFileFunctions.tarFileList(listOfInputFiles, compressedInputPath)
+            
+
+        # Compress the output files to save disk space
+        if not os.path.exists(compressedOutputPath):
+            
+            listOfDeliveryFiles = [demPath,      hillshadePath,      colormapPath,      confidencePath,      mapProjectLeftPath,      mapProjectRightPath,
+                                   demLabelPath, hillshadeLabelPath, colormapLabelPath, confidenceLabelPath, mapProjectLeftLabelPath, mapProjectRightLabelPath]
+            IrgFileFunctions.tarFileList(listOfDeliveryFiles, compressedOutputPath)
+            
+
+#TODO:!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        ## Compress the diagnostic files to save disk space
+        #if not os.path.exists(compressedDebugPath):
+        #    
+        #    listOfDebugFiles = []
+        #    IrgFileFunctions.tarFileList(listOfDebugFiles, compressedDebugPath)
 
 
         if not options.keep:
