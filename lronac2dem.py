@@ -55,7 +55,7 @@ def writeLabelFile(imagePath, outputPath, dataSetName, versionId, description, e
     imageGeoInfo = IrgGeoFunctions.getImageGeoInfo(imagePath)
         
     projCenterLatitude  = imageGeoInfo['standard_parallel_1']
-    projCenterLongitude = imageGeoInfo['central meridian']
+    projCenterLongitude = imageGeoInfo['central_meridian']
         
     # Currently assuming pixels are the same size
     metersPerPixel = abs(imageGeoInfo['pixel size'][0])

@@ -288,8 +288,6 @@ def main(argsIn):
 
         # Find out the center latitude of the mosaic
         centerLat = IrgIsisFunctions.getCubeCenterLatitude(options.leftPath, tempFolder)
-        
-        print 'centerlat = ' + str(centerLat)
 
         # Go ahead and set up all the output paths
         # -- Deliverables

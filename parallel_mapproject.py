@@ -21,7 +21,7 @@ import sys
 
 import os, glob, re, shutil, subprocess, string, time, errno, optparse, math
 
-import IrgFileFunctions, IrgIsisFunctions
+import IrgFileFunctions, IrgIsisFunctions, IrgPbsFunctions, IrgSystemFunctions
 
 def man(option, opt, value, parser):
     print >>sys.stderr, parser.usage
@@ -30,40 +30,13 @@ Calls mapproject in parallel with ISIS cameras.
 '''
     sys.exit()
 
-# List of currently running jobs
-job_pool  = []
 
-
-def add_job( cmd, suppressTileOutput=True, num_working_threads=4 ):
+def generateTileName(startX, startY, stopX, stopY):
+    """Generate the name of a tile based on its location"""
     
-    FNULL = open(os.devnull, 'w')
+    tileString = 'tile_' + str(startX) + '_' + str(startY) + '_' + str(stopX) + '_' + str(stopY) + '_.tif'
+    return tileString
     
-    # If we already have too many running processes:
-    if ( len(job_pool) >= num_working_threads):
-        job_pool[0].wait(); # Wait until the first one finishes
-        job_pool.pop(0); # Pull the finished job off the list
-        
-    # Add the new job to the end of the list
-    if suppressTileOutput:
-        job_pool.append( subprocess.Popen(cmd, stdout=FNULL, stderr=subprocess.STDOUT) )
-    else:
-        job_pool.append( subprocess.Popen(cmd) )
-
-def wait_on_all_jobs():
-    print "Waiting for jobs to finish";
-    while len(job_pool) > 0:
-        job_pool[0].wait();
-        job_pool.pop(0);
-
-
-def isOption(arg):
-    """Returns True if the string is an argument, False otherwise"""
-    
-    # An option must start with '-' and not consist of all numbers
-    if ( arg.startswith('-') and not re.match('^-[0-9.]+$', arg) ):
-        return True
-    else:
-        return False
 
 def generateTileList(fullWidth, fullHeight, tileSize):
     """Generate a full list of tiles for this image"""
@@ -93,9 +66,9 @@ def generateTileList(fullWidth, fullHeight, tileSize):
             
             # Create a name for this tile
             # - Tile format is tile_col_row_width_height_.tif
-            tileString = 'tile_' + str(c) + '_' + str(r) + '_' + str(thisWidth) + '_' + str(thisHeight) + '_.tif'
+            tileString = generateTileName(tileStartX, tileStartY, tileStopX, tileStopY)
             
-            tileList.append(tileStartX, tileStartY, thisWidth, thisHeight, tileString)
+            tileList.append((tileStartX, tileStartY, tileStopX, tileStopY, tileString))
     
     return (numTilesX, numTilesY, tileList)
 
@@ -114,10 +87,10 @@ def handleArguments(args):
         else:
             n = '-' # This will just cause us to get out of the loop
         
-        if isOption(a):      # This is the start of an option.
+        if IrgSystemFunctions.isCmdOption(a):      # This is the start of an option.
             optionsList.append(a)  # Record this entry.
             
-            if isOption(n):  # The next entry is the start of another option so this one has no values.
+            if IrgSystemFunctions.isCmdOption(n):  # The next entry is the start of another option so this one has no values.
                 continue
             
             optionsList.append(n)  # Otherwise record the next entry as a value.
@@ -137,32 +110,86 @@ def handleArguments(args):
     # Return the two lists
     return (requiredList, optionsList)
 
+def writeSingleTile(options):
+    """Writes a single tile according to the options"""
+
+    # Determine the name of the tile we need to write
+    tileName = generateTileName(options.pixelStartX, options.pixelStartY, options.pixelStopX, options.pixelStopY)
+    tilePath = os.path.join(options.workDir, tileName)
+       
+    # Just call the command for a single tile!
+    cmd = ['mapproject',  '--t_pixelwin', str(options.pixelStartX), str(options.pixelStartY), str(options.pixelStopX), str(options.pixelStopY),
+                               options.demPath, options.imagePath, tilePath]
+    cmd = cmd + options.extraArgs # Append other options
+    IrgSystemFunctions.executeCommand(cmd, options.suppressOutput)
+      
+    if options.convertTiles: # Make uint8 version of the tile for debugging
+        
+        tilePathU8 = os.path.splitext(tilePath)[0] + 'U8.tif'
+        cmd = ['gdal_translate', '-ot', 'byte', '-scale', tilePath, tilePathU8]
+        IrgSystemFunctions.executeCommand(cmd, options.suppressOutput)
+
+    return 0
 
 #------------------------------------------------------------------------------
 
 def main(argsIn):
 
-
     try:
-        usage = "usage: parallel_mapproject.py [options] <dem> <camera-image> <output>"
-        parser = IrgFileFunctions.PassThroughOptionParser(usage=usage) # Use parser that ignores unknown options
+        usage      = "usage: parallel_mapproject.py [options] <dem> <camera-image> <output>"
+        epilogText = "This also accepts all 'mapproject' arguments though the 'threads' argument will typically be ignored."
+        parser     = IrgSystemFunctions.PassThroughOptionParser(usage=usage, epilog=epilogText) # Use parser that ignores unknown options
 
-        parser.set_defaults(numThreads=8)
-        parser.set_defaults(keep=False)
-        parser.set_defaults(suppressOutput=False)
 
-        parser.add_option("--num-threads",  dest="numThreads",  help="Number of threads to use")
-        
-        parser.add_option("--convert-tiles",  action="store_true",
-                          dest="convertTiles",  help="Generate a uint8 version of each tile")
-        parser.add_option("--suppress-output",  action="store_true",
-                          dest="suppressOutput",  help="Suppress output of sub-calls.")
+        parser.add_option("--num-processes",  dest="numProcesses", type='int', default=None,
+                                              help="Number of processes to use (default program tries to choose best)")
+
+        parser.add_option('--nodes-list',  dest='nodesListPath', default=None,
+                                           help='The list of computing nodes, one per line. ' + \
+                                                'If not provided, run on the local machine.')
+
+        parser.add_option('--tile-size',  dest='tileSize', default=1000,
+                                           help='Size of square tiles to break up processing in to.')
+
+
+        # Directory where the job is running
+        parser.add_option('--work-dir',  dest='workDir', default=None,
+                                         help='Working directory to assemble the tiles in')
+
+        parser.add_option("--suppress-output", action="store_true", default=False,
+                                               dest="suppressOutput",  help="Suppress output of sub-calls.")
 
         parser.add_option("--manual", action="callback", callback=man,
-                          help="Read the manual.")
-        parser.add_option("--keep", action="store_true", dest="keep",
-                          help="Do not delete the temporary files.")
-        
+                                       help="Read the manual.")
+               
+        # DEBUG options
+        parser.add_option("--keep", action="store_true", dest="keep", default=False,
+                                    help="Do not delete the temporary files.")
+        parser.add_option("--convert-tiles",  action="store_true", dest="convertTiles",
+                                              help="Generate a uint8 version of each tile")
+
+
+
+        ## Debug options
+        #p.add_option('--dry-run',   dest='dryrun', default=False, action='store_true',
+        #                            help=optparse.SUPPRESS_HELP)
+        #p.add_option('--verbose',   dest='verbose', default=False, action='store_true',
+        #                            help=optparse.SUPPRESS_HELP)        
+    
+    
+        # PRIVATE options
+        # These specify the tile location to request, bypassing the need to query mapproject.
+        parser.add_option('--pixelStartX', dest='pixelStartX', default=None, type='int',
+                                           help=optparse.SUPPRESS_HELP)
+        parser.add_option('--pixelStartY', dest='pixelStartY', default=None, type='int',
+                                           help=optparse.SUPPRESS_HELP)
+        parser.add_option('--pixelStopX',  dest='pixelStopX', default=None, type='int',
+                                           help=optparse.SUPPRESS_HELP)
+        parser.add_option('--pixelStopY',  dest='pixelStopY', default=None, type='int',
+                                           help=optparse.SUPPRESS_HELP)
+
+
+
         # This call handles all the parallel_mapproject specific options.
         (options, args) = parser.parse_args(argsIn)
 
@@ -170,16 +197,17 @@ def main(argsIn):
         requiredList, optionsList = handleArguments(args)
 
         # Check the required positional arguments.
-        if len(requiredList) < 1: 
-            parser.error("Need path to input image")
-        if len(requiredList) < 2: 
+        if len(requiredList) < 1:
             parser.error("Need path to DEM")
+        if len(requiredList) < 2:
+            parser.error("Need path to input image")
         if len(requiredList) < 3:
             parser.error("Need output path")
-        
-        options.imagePath  = requiredList[0]
-        options.demPath    = requiredList[1]
+
+        options.demPath    = requiredList[0]
+        options.imagePath  = requiredList[1]
         options.outputPath = requiredList[2]
+
 
         # Any additional arguments need to be forwarded to the mapproject function
         options.extraArgs = optionsList
@@ -189,23 +217,33 @@ def main(argsIn):
 
     startTime = time.time()
     
-    # If the input image is NOT an ISIS image then the normal map_project call
-    #  can operate in parallel without this wrapper.
-    if not IrgIsisFunctions.isIsisFile(options.imagePath):
+    # Determine if this is a main copy or a spawned copy
+    spawnedCopy = ( (options.pixelStartX is not None) and (options.pixelStartY is not None) and
+                    (options.pixelStopX  is not None) and (options.pixelStopY  is not None) and options.workDir )
+    
+    if spawnedCopy: # This copy was spawned to process a single tile
+        
+        return writeSingleTile(options) # Just call a function to handle this and then we are done!   
+
+    # If the input image is NOT an ISIS image AND we are running on a single machine we can
+    #  just use the multi-threading capability of the ordinary mapproject call.
+    if (not IrgIsisFunctions.isIsisFile(options.imagePath)) and (not options.nodesListPath):
         cmd = ['mapproject',  options.imagePath, options.demPath, options.outputPath]    
-        cmd = cmd + extraArgs
+        cmd = cmd + options.extraArgs
         subprocess.call(cmd)
         return 0
-    
 
+
+    # Otherwise this is the original called process and there are multiple steps to go through
+    
     # Call mapproject on the input data using subprocess and record output
-    cmd = ['mapproject',  '--query-projection', options.imagePath, options.demPath, options.outputPath]
+    cmd = ['mapproject',  '--query-projection', options.demPath, options.imagePath, options.outputPath]
     cmd = cmd + options.extraArgs # Append other options
     p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
     projectionInfo, err = p.communicate()
     if not options.suppressOutput:
         print projectionInfo
-        
+    
         
     # Now find the image size in the output
     startPos    = projectionInfo.find('Output image bounding box:')
@@ -217,79 +255,91 @@ def main(argsIn):
     fullHeight  = int(projectionInfo[heightStart+8 : heightEnd])
     print 'Output image size is ' + str(fullWidth) + ' by ' + str(fullHeight) + ' pixels.'
 
-    # Figure out how to break up the image into tiles.
-    # - For now just do something simple.
-    TILE_SIZE = 1000
-    
-    numTilesX, numTilesY, tileList = generateTileList(fullWidth, fullHeight, TILE_SIZE)
-    
-    
+    # For now we just break up the image into a user-specified tile size (default 1000x1000)
+    numTilesX, numTilesY, tileList = generateTileList(fullWidth, fullHeight, options.tileSize)
+    numTiles = numTilesX * numTilesY
+
     print 'Splitting into ' + str(numTilesX) + ' by ' + str(numTilesY) + ' tiles.'
 
-    # Make a temporary directory to store the tiles
+    # Set up output folder
     outputFolder = os.path.dirname(options.outputPath)
     if outputFolder == '':
         outputFolder = './' # Handle calls in same directory
     outputName   = os.path.basename(options.outputPath)
     IrgFileFunctions.createFolder(outputFolder)
-    tempFolder   = os.path.join(outputFolder, outputName.replace('.', '_') + '_tiles/')
+    
+    # Make a temporary directory to store the tiles
+    if options.workDir:
+        tempFolder = options.workDir
+    else: # No folder provided, create a default one
+        tempFolder = os.path.join(outputFolder, outputName.replace('.', '_') + '_tiles/')
     IrgFileFunctions.createFolder(tempFolder)
+
     
+    # Generate a text file that contains the boundaries for each tile
+    argumentFilePath = os.path.join(tempFolder, 'argumentList.txt')
+    argumentFile     = file(argumentFilePath, 'w')
+    for tile in tileList:
+        argumentFile.write(str(tile[0]) + '\t' + str(tile[1]) + '\t' + str(tile[2]) + '\t' + str(tile[3]) + '\n')
+    argumentFile.close()
     
-    # Queue up one mapproject call for each file
-    print 'Writing tiles...'
-    tilePathList = []
-    index = 0    
-    for r in range(0, numTilesY):
-        for c in range(0, numTilesX):
-            
-            # Starting pixel positions for the tile
-            tileStartY = tiles[index][0]
-            tileStartX = tiles[index][1]
-                        
-            # Get the end pixels for this tile
-            tileStopY  = tileStartY + tiles[index][2] # Stop values are exclusive
-            tileStopX  = tileStartX + tiles[index][3]
-            
-            # Get the output path for this tile
-            tilePath = os.path.join(tempFolder, tiles[index][4])
+    # Indicate to GNU Parallel that there are multiple tab-seperated variables in the text file we just wrote
+    parallelArgs = ['--colsep', "\\t"]
     
-            print 'Writing tile: ' + tiles[index][4]
-            
-            # Call mapproject on the input data using subprocess and record output
-            cmd = ['mapproject',  '--t_pixelwin', str(tileStartX), str(tileStartY), str(tileStopX), str(tileStopY),
-                                   options.imagePath, options.demPath, tilePath]
-            cmd = cmd + options.extraArgs # Append other options
-            if not os.path.exists(tilePath):
-                add_job(cmd, options.suppressOutput, int(options.numThreads)) # Send to parallel job queue
+    # Get the number of available nodes and CPUs per node
+    numNodes = IrgPbsFunctions.getNumNodesInList(options.nodesListPath)
     
-            index = index + 1
+    # We assume all machines have the same number of CPUs (cores)
+    cpusPerNode = IrgSystemFunctions.get_num_cpus()
     
-    # Wait for all of the tiles to finish processing
-    wait_on_all_jobs()
+    # We don't actually know the best number here!
+    threadsPerCpu = 4
     
-    if options.convertTiles: # Make uint8 version of all tiles for debugging
-        print 'Writing out uint8 version of all tiles...'
-        for t in tiles:
-            tilePath   = os.path.join(tempFolder, t[4])
-            tilePathU8 = os.path.splitext(tilePath)[0] + 'U8.tif'
-            cmd = ['gdal_translate', '-ot', 'byte', '-scale', tilePath, tilePathU8]
-            add_job(cmd, options.suppressOutput, options.numThreads) # Send to parallel job queue
+    # Set the optimal number of processes if the user did not specify
+    if not options.numProcesses:
+        options.numProcesses = numNodes * cpusPerNode * threadsPerCpu
+        
+    # Note: mapproject can run with multiple threads on non-ISIS data but we don't use that
+    #       functionality here since we call mapproject with one tile at a time.
+        
+    # No need for more processes than their are tiles!
+    if options.numProcesses > numTiles:
+        options.numProcesses = numTiles
     
-        # Wait for all of the tiles to finish processing
-        wait_on_all_jobs()
+    # Build the command line that will be passed to GNU parallel
+    # - The numbers in braces will receive the values from the text file we wrote earlier
+    # - The output path used here does not matter since spawned copies compute the correct tile path.
+    commandList   = ['parallel_mapproject_temp.py',  '--pixelStartX', '{1}',
+                                                     '--pixelStartY', '{2}',
+                                                     '--pixelStopX',  '{3}',
+                                                     '--pixelStopY',  '{4}',
+                                                     '--threads', '1', # Only use on thread internally, parallel will handle things.
+                                                     '--work-dir', tempFolder,
+                                                     options.demPath, options.imagePath, options.outputPath]
+    if options.convertTiles:
+        commandList = commandList + ['--convert-tiles']
+    if options.suppressOutput:
+        commandList = commandList + ['--suppress-output']
+    commandList   = commandList + options.extraArgs # Append other options
+    commandString = IrgSystemFunctions.argListToString(commandList)    
     
+    # Use GNU parallel call to distribute the work across computers
+    # - This call will wait until all processes are finished
+    IrgPbsFunctions.runInGnuParallel(options.numProcesses, commandString, argumentFilePath, parallelArgs, options.nodesListPath, not options.suppressOutput)
+
+
     # Build a gdal VRT file which is composed of all the processed tiles
     vrtPath = os.path.join(tempFolder, 'mosaic.vrt')
-    cmd = "gdalbuildvrt  -resolution highest " + vrtPath + " " + tempFolder + "*_.tif";
+    cmd = "gdalbuildvrt -resolution highest " + vrtPath + " " + tempFolder + "*_.tif";
     print cmd
     os.system(cmd)
-
+    
     # Convert VRT file to final output file
     cmd = "gdal_translate -co compress=lzw " + vrtPath + " " + options.outputPath;
     print cmd
     os.system(cmd)
-
+    #IrgSystemFunctions.executeCommand(cmd, False, True)
+    
     # Clean up temporary files
     if not options.keep:
         IrgFileFunctions.removeFolderIfExists(tempFolder)
