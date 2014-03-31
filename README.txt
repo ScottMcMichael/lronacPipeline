@@ -9,6 +9,7 @@ git clone https://github.com/NeoGeographyToolkit/Tools.git
 [ Build according to the instructions in the Tools/README.txt file. Make sure not to build in debug mode! ]
 
 - Add NGT Tools to your PATH and PYTHONPATH variables
+- Add NGT Tools build directory to PATH
 
 - Check out the lronacPipeline repository:
 git clone https://github.com/ScottMcMichael/lronacPipeline.git
