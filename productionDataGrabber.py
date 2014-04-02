@@ -147,11 +147,11 @@ def retrieveData(inputFile, outputFolder, startLine=0):
             if not os.path.exists(diskPath):
                 fullUrl = IMAGE_BASE_URL + image
                 cmd = "wget --output-document=" + diskPath + "  " + fullUrl
-                print cmd
+                #print cmd
                 os.system(cmd)
         
         # Finished downloading the images
-        
+
         # Init the nav data from one cube
         cubePath = lastDiskPath + '.cub'
         if not os.path.exists(cubePath):
@@ -161,9 +161,9 @@ def retrieveData(inputFile, outputFolder, startLine=0):
         FNULL = open(os.devnull, 'w')
         cmd = ['spiceinit', 'from='+cubePath]
         subprocess.call(cmd, stdout=FNULL, stderr=subprocess.STDOUT)
-        
+
         # Get the bounding box of the cube's footprint
-        cubeBB = IrgIsisFunctions.getCubeBoundingBox(cubePath)
+        cubeBB = IrgIsisFunctions.getIsisBoundingBox(cubePath)
          
         # Remove the temporary file
         os.remove(cubePath)
