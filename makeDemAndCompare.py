@@ -76,7 +76,7 @@ def mapProjectImage(inputImage, demPath, outputPath, resolution, centerLat, forc
         cmd = ('parallel_mapproject.py ' + demPath         + ' ' + inputImage + ' ' + outputPath +
                                        ' --tr ' + str(resolution) + ' --t_srs "+proj=eqc +lat_ts=' + str(centerLat) + 
                                        ' +lat_0=0 +a='+str(MOON_RADIUS)+' +b='+str(MOON_RADIUS)+' +units=m" --nodata ' + str(DEM_NODATA) +
-                                       ' --suppress-output --num-threads 24')
+                                       ' --suppress-output')
         
         print cmd
         os.system(cmd)
