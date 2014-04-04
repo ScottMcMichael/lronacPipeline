@@ -99,14 +99,14 @@ class DataSet:
                 fullPath = os.path.join(folder, 'results/' + f)
                 # If any file is missing return incomplete status
                 if not os.path.exists(fullPath):
-                    status.status = DataSetStatus.INCOMPLETE
+                    self.status = DataSet.INCOMPLETE
                 
         # Fill in some additional information if available
         statsPath = os.path.join(folder, 'results/output-LOLA_diff_stats.txt')
         if os.path.exists(statsPath):
-            meanValue, stdDev, percentile, histogram = IsisTools.readLolaCompareFile(filePath)
-            status.meanLolaError   = meanValue
-            status.stdDevLolaError = stdDev
+            meanValue, stdDev, percentile, histogram = IsisTools.readLolaCompareFile(statsPath)
+            self.meanLolaError   = meanValue
+            self.stdDevLolaError = stdDev
 
         return True
 
@@ -129,12 +129,12 @@ class DataSet:
         """Returns the abbreviated data set name used with PBS"""
         
         # The short name is the last 7 characters from each name
-        spacerPos = name.find('_')
-        shortName = name[spacerPos-7:spacerPos+1] + name[-7:]
+        spacerPos = self.name.find('_')
+        shortName = self.name[spacerPos-7:spacerPos+1] + self.name[-7:]
         return shortName
         
     
-    def getStatusString():
+    def getStatusString(self):
         """Returns a string describing the data set"""
         
         s = (self.name + ' ' +
@@ -178,6 +178,7 @@ def recordLocalDataStatus(dryRun=False):
         incompleteFile = open(INCOMPLETE_STATUS_PATH, 'w')
         completeFile   = open(COMPLETE_STATUS_PATH,   'w')
         archiveFile    = open(ARCHIVE_STATUS_PATH,    'w')
+        print 'Writing new status files based on folders in ' + PROCESSING_FOLDER
     
     # Loop through all local data folders
     foldersInDirectory = os.listdir(PROCESSING_FOLDER)
@@ -198,13 +199,13 @@ def recordLocalDataStatus(dryRun=False):
 
         if ds.status == DataSet.ARCHIVED:
             if dryRun:
-                print ' - ARCHIVED file - ' + dataSetStatusString
+                print ' - ARCHIVED file   - ' + dataSetStatusString
             else: # Add to log file file
                 archiveFile.write(dataSetStatusString + '\n') 
         
         if ds.status == DataSet.COMPLETE:
             if dryRun:
-                print ' - COMPLETE file - ' + dataSetStatusString
+                print ' - COMPLETE file   - ' + dataSetStatusString
             else: # Add to log file file
                 completeFile.write(dataSetStatusString + '\n')
 
@@ -218,13 +219,16 @@ def recordLocalDataStatus(dryRun=False):
         # Finished writing the output files
         completeFile.close()
         incompleteFile.close()
-        archive.close()
+        archiveFile.close()
     
     
 
 def flagIncompleteDataSets(dryRun=False):
     """Flags incomplete data sets for repeat processing"""
     
+    if not os.path.exists(INCOMPLETE_STATUS_PATH):
+        raise Exception('Incomplete file list not present, run --check-local to generate it.')
+
     # Loop through all data sets in the incomplete folder
     incompleteFile = open(INCOMPLETE_STATUS_PATH, 'r')
     for line in incompleteFile:
@@ -324,6 +328,9 @@ def archiveDataSet(dataSetName, deleteLocalFiles=False, dryRun=False):
 def archiveAllCompletedResults(deleteLocalFiles=False, dryRun=False):
     """Archives all the folders in the completed results archive folder"""
 
+    if not os.path.exists(COMPLETE_STATUS_PATH):
+        raise Exception('Complete file list not present, run --check-local to generate it.')
+
     # Loop through all data sets in the incomplete folder
     completeFile = open(COMPLETE_STATUS_PATH, 'r')
     if not dryRun:
@@ -395,7 +402,7 @@ def main():
             parser.add_option("--clear", action="store_true", dest="clear", default=False,
                               help="Clear files after archiving them.")
             
-            parser.add_option("--dry-run", action="store_true", dest="dryRun", default=True, #TODO: Update
+            parser.add_option("--dry-run", action="store_true", dest="dryRun", default=False,
                               help="Don't touch any data, just display actions to be taken.")
                               
             parser.add_option("--manual", action="callback", callback=man,
@@ -407,7 +414,8 @@ def main():
 
         if options.pbsName: # Search for all folders this PBS name may apply to
             outputList = findPbsMatch(options.pbsName)
-            print outputList
+            for i in outputList:
+                print i
             return 0 # Don't combine with other commands
             
 
