@@ -59,7 +59,7 @@ function getShortName(){
 
 #---------------------------------------------
 
-INPUT_FILE=/u/smcmich1/data/lronacProduction/lronacPairList30.csv
+INPUT_FILE=/u/smcmich1/data/lronacProduction/lronacPairList60.csv
 
 echo "Starting jobSubmissionScriptProd.sh with input file $INPUT_FILE"
 
@@ -67,7 +67,7 @@ echo "Starting jobSubmissionScriptProd.sh with input file $INPUT_FILE"
 OUTPUT_FOLDER=/u/smcmich1/data/lronacProduction
 
 # Limit number of batch jobs to submit
-SIMULTANEOUS_JOB_LIMIT=1
+SIMULTANEOUS_JOB_LIMIT=2
 SLEEP_TIME=120 # Check number of active processes every five minutes
 
 # Loop until we have exhausted our source file
@@ -80,6 +80,7 @@ do
     # - Unfortunately this script must be completely silent for this to work.
     echo "Downloading next data set..."
     GRABBER_OUTPUT=$(productionDataGrabber.py -i $INPUT_FILE --starting-line $LAST_LINE -o $OUTPUT_FOLDER)
+    echo $GRABBER_OUTPUT
 
     # Check if we actually got data
     LAST_LINE=$(cut -d " " -f 1 <<< "$GRABBER_OUTPUT")
@@ -87,13 +88,20 @@ do
     if [ "$LAST_LINE" -eq "-1" ]; then
         echo ">>>>> Ran out of data lines in input file, stopping script <<<<<"
         return 0
-    fi
-    
+    fi 
+
     # Parse results
     FULL_DIRECTORY=$(cut -d " " -f 2 <<< "$GRABBER_OUTPUT")
     POS=`expr "$GRABBER_OUTPUT" : '.*NAC_DTM_'`
     PRETTY_NAME=${GRABBER_OUTPUT:POS}
     PRETTY_NAME=${PRETTY_NAME%?} # Remove trailing slash
+
+    # Verify that the last input file was downloaded before processing this data set
+    LOLA_POINTS_PATH=$FULL_DIRECTORY/lolaRdrPoints.csv
+    if [ ! -e "$LOLA_POINTS_PATH" ]; then
+        echo "LOLA point path $LOLA_POINTS_PATH expected but not found, skipping this data set"
+        continue
+    fi
 
     echo "Downloaded data set $PRETTY_NAME, moving to process..."
  
@@ -120,14 +128,12 @@ do
                 echo "Running script for $PRETTY_NAME"
       
                 # Submit the job using a westmere (cheap) CPU
-                echo qsub -q long -N ${JOB_NAME} -l walltime="40:00:00" -W group_list=s1219 -j oe -e $ERR_OUT_PATH -o $STD_OUT_PATH -S /bin/bash -V -C $PWD -l select=1:ncpus=12:model=wes -m eb -- /u/smcmich1/projects/lronacPipeline/jobWrapperV2.sh $FULL_DIRECTORY       
+                echo qsub -q normal -N ${JOB_NAME} -l walltime="8:00:00" -W group_list=s1219 -j oe -e $ERR_OUT_PATH -o $STD_OUT_PATH -S /bin/bash -V -C $PWD -l select=1:ncpus=12:model=wes -m eb -- /u/smcmich1/projects/lronacPipeline/jobWrapperV2.sh $FULL_DIRECTORY       
 
-                qsub -q long -N ${JOB_NAME} -l walltime="40:00:00" -W group_list=s1219 -j oe -e $ERR_OUT_PATH -o $STD_OUT_PATH -S /bin/bash -V -C $PWD -l select=1:ncpus=12:model=wes -m eb -- /u/smcmich1/projects/lronacPipeline/jobWrapperV2.sh $FULL_DIRECTORY       
-
-               exit #DEBUG!!!!!!!!!
+                qsub -q normal -N ${JOB_NAME} -l walltime="8:00:00" -W group_list=s1219 -j oe -e $ERR_OUT_PATH -o $STD_OUT_PATH -S /bin/bash -V -C $PWD -l select=1:ncpus=12:model=wes -m eb -- /u/smcmich1/projects/lronacPipeline/jobWrapperV2.sh $FULL_DIRECTORY       
 
                break # Move on to the next data seta
-        
+
             else # Wait for a while
                 CURRENT_TIME=$(date +"%T")
                 echo "$CURRENT_TIME - Waiting for a job to finish."

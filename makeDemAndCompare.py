@@ -70,16 +70,19 @@ def compareDemToLola(lolaPath, demPath, outputPath, csvPath, force):
 
 
 # Generate a map projected version of an input image using the output DEM
-def mapProjectImage(inputImage, demPath, outputPath, resolution, centerLat, force):
-    
+def mapProjectImage(inputImage, demPath, outputPath, resolution, centerLat, nodeFilePath, force):
+
     if (not os.path.exists(outputPath)) or force:
         cmd = ('parallel_mapproject.py ' + demPath         + ' ' + inputImage + ' ' + outputPath +
                                        ' --tr ' + str(resolution) + ' --t_srs "+proj=eqc +lat_ts=' + str(centerLat) + 
                                        ' +lat_0=0 +a='+str(MOON_RADIUS)+' +b='+str(MOON_RADIUS)+' +units=m" --nodata ' + str(DEM_NODATA) +
-                                       ' --suppress-output')
+                                       ' --suppress-output --keep')
         
+	if nodeFilePath: # Needed to operate across multiple computers
+	    cmd = cmd + ' --node-file ' + nodeFilePath
         print cmd
         os.system(cmd)
+
     else:
         print 'Map projected file  ' + outputPath + ' already exists, skipping map project step.'
 
@@ -153,6 +156,9 @@ def main(argsIn):
             inputGroup.add_option("--lola",    dest="lolaPath", help="Path to LOLA DEM")
             inputGroup.add_option("--asu",     dest="asuPath",  help="Path to ASU DEM")
             
+            inputGroup.add_option("--node-file", dest="nodeFilePath", 
+                                  help="Path to file containing list of available nodes")
+
             parser.add_option_group(inputGroup)
 
             # The default working directory path is kind of ugly...
@@ -395,8 +401,8 @@ def main(argsIn):
 
         # Generate a map projected version of the left and right images
         # - This step is done last since it is so slow!
-        mapProjectImage(options.leftPath,  demPath, mapProjectLeftPath,  MAP_PROJECT_METERS_PER_PIXEL, centerLat, carry)
-        mapProjectImage(options.rightPath, demPath, mapProjectRightPath, MAP_PROJECT_METERS_PER_PIXEL, centerLat, carry)
+        mapProjectImage(options.leftPath,  demPath, mapProjectLeftPath,  MAP_PROJECT_METERS_PER_PIXEL, centerLat, options.nodeFilePath, carry)
+        mapProjectImage(options.rightPath, demPath, mapProjectRightPath, MAP_PROJECT_METERS_PER_PIXEL, centerLat, options.nodeFilePath, carry)
 
         # Generate 8 bit versions of the mapproject files for debugging
         cmdLeft  = 'gdal_translate -scale -ot byte ' + mapProjectLeftPath  + ' ' + mapProjectLeftUint8Path
@@ -407,7 +413,6 @@ def main(argsIn):
         if not os.path.exists(mapProjectRightUint8Path) or carry:
             print cmdRight
             os.system(cmdRight)
-
 
         mapProjectTime = time.time()
         logging.info('Map project finished in %f seconds', mapProjectTime - hillshadeTime)
