@@ -122,7 +122,7 @@ def extractAffinesFromStereoPprcLog(logPath):
     for line in f:
             
         if (count > 0): # Reading the transform (may spread over variable number of lines)
-            parenGroups = re.findall( r'\([ \d.,-]*\)', line) # Find all number sets on this line
+            parenGroups = re.findall( r'\([ \de.,-]*\)', line) # Find all number sets on this line
 
             for p in parenGroups: # Record number sets as they are found
                 count = count - 1
@@ -1011,6 +1011,10 @@ def main(argsIn):
         # - TODO: Do this for all pairs above a threshold?
         print 'Running stereo correlation to obtain a set of dense stereo correspondence pairs...'
         CORRELATION_TIMEOUT = 400 # Max number of seconds to spend on each tile before giving up.
+        stereoPrefixLeft       = ''
+	stereoPrefixRight      = '' # Initialize these variables
+        stereoPrefixLeftCross  = ''
+        stereoPrefixRightCross = ''
         if ( (numLeftPairsSmall > numRightPairsSmall) and (numLeftPairsSmall > numLeftCrossPairsSmall) and (numLeftPairsSmall > numRightCrossPairsSmall) ): # Test left
             # Perform initial stereo step on two LE cubes to generate a large number of point correspondences
             largePixelCmdParam = ' --matchingPixelsLeftPath '
@@ -1357,8 +1361,10 @@ def main(argsIn):
             IrgFileFunctions.removeFolderIfExists(stereoLeftPosCorrectWorkDir)
             IrgFileFunctions.removeFolderIfExists(stereoRightPosCorrectWorkDir)
             # Stereo output
-            stereoOutputLeftFolder = os.path.dirname(stereoPrefixLeft)
-            IrgFileFunctions.removeFolderIfExists(stereoOutputLeftFolder) #TURN THIS ON AFTER TESTING COMPLETE!
+            IrgFileFunctions.removeFolderIfExists(os.path.dirname(stereoPrefixLeft))
+            IrgFileFunctions.removeFolderIfExists(os.path.dirname(stereoPrefixRight))
+            IrgFileFunctions.removeFolderIfExists(os.path.dirname(stereoPrefixLeftCross))
+            IrgFileFunctions.removeFolderIfExists(os.path.dirname(stereoPrefixRightCross))
             #IrgFileFunctions.removeIfExists(pixelPairsLeftSmall)
             #IrgFileFunctions.removeIfExists(pixelPairsRightSmall)
             #IrgFileFunctions.removeIfExists(pixelPairsLeftCrossSmall)
