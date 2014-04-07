@@ -1112,8 +1112,10 @@ def main(argsIn):
                 print cmd
                 os.system(cmd)
                 
-                #TODO: Retry this step with higher max displacement until the number of points used is a minimum number!
-                numLolaPointsUsed = IrgFileFunctions.getFileLineCount(endErrorPath) - 1
+                if not os.path.exists(endErrorPath):
+   	            numLolaPointsUsed = 0 # Failed to produce any output, maybe raising the error cutoff will help?
+                else:
+                    numLolaPointsUsed = IrgFileFunctions.getFileLineCount(endErrorPath) - 1
             
                 if (numLolaPointsUsed >= minNumPointsToUse):
                     break # Success!
