@@ -53,7 +53,7 @@ def writeLabelFile(imagePath, outputPath, dataSetName, versionId, description, e
     aspVersionString = IrgAspFunctions.getAspVersionStrings()
     
     imageGeoInfo = IrgGeoFunctions.getImageGeoInfo(imagePath)
-        
+
     projCenterLatitude  = imageGeoInfo['standard_parallel_1']
     projCenterLongitude = imageGeoInfo['central_meridian']
         
@@ -315,6 +315,7 @@ def main():
         makeDemAndCompare.main(cmdArgs)
         
         print 'Finished image processing, setting up final output files...'
+        logging.info('Started label file generation')
 
         # Get the data set name
         if (options.asuPath):  # If ASU has a name for this set, use it
@@ -354,6 +355,7 @@ def main():
         writeLabelFile(mapProjectLeftPath,    mapProjectLeftLabelPath,    dataSetName, versionId, mapProjectDescription)
         writeLabelFile(mapProjectRightPath,   mapProjectRightLabelPath,   dataSetName, versionId, mapProjectDescription)
         
+        logging.info('Done with label files, compressing results.')
 
         # Compress the input files to save disk space
         if not os.path.exists(compressedInputPath):

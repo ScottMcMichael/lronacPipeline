@@ -246,7 +246,7 @@ def flagIncompleteDataSets(dryRun=False):
         
         # For incomplete data sets, remove the downloadLog.txt file
         # - This will cause the auto-processor code to run the data set again.
-        flagFile = os.path.join(f, 'downloadLog.txt')
+        flagFile = os.path.join(ds.getLocalFolder(), 'downloadLog.txt')
         if dryRun:
             print '- Remove file ' + flagFile
         else:  # Actually removet the file

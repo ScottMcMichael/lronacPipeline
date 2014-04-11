@@ -67,8 +67,8 @@ echo "Starting jobSubmissionScriptProd.sh with input file $INPUT_FILE"
 OUTPUT_FOLDER=/u/smcmich1/data/lronacProduction
 
 # Limit number of batch jobs to submit
-SIMULTANEOUS_JOB_LIMIT=2
-SLEEP_TIME=120 # Check number of active processes every five minutes
+SIMULTANEOUS_JOB_LIMIT=18
+SLEEP_TIME=240 # Check number of active processes every few minutes
 
 # Loop until we have exhausted our source file
 LAST_LINE=0
@@ -128,9 +128,9 @@ do
                 echo "Running script for $PRETTY_NAME"
       
                 # Submit the job using a westmere (cheap) CPU
-                echo qsub -q long -N ${JOB_NAME} -l walltime="80:00:00" -W group_list=s1219 -j oe -e $ERR_OUT_PATH -o $STD_OUT_PATH -S /bin/bash -V -C $PWD -l select=1:ncpus=12:model=wes -m eb -- /u/smcmich1/projects/lronacPipeline/jobWrapperV2.sh $FULL_DIRECTORY       
+                echo qsub -q long -N ${JOB_NAME} -l walltime="35:00:00" -W group_list=s1219 -j oe -e $ERR_OUT_PATH -o $STD_OUT_PATH -S /bin/bash -V -C $PWD -l select=1:ncpus=12:model=wes -m eb -- /u/smcmich1/projects/lronacPipeline/jobWrapperV2.sh $FULL_DIRECTORY       
 
-                qsub -q long -N ${JOB_NAME} -l walltime="80:00:00" -W group_list=s1219 -j oe -e $ERR_OUT_PATH -o $STD_OUT_PATH -S /bin/bash -V -C $PWD -l select=1:ncpus=12:model=wes -m eb -- /u/smcmich1/projects/lronacPipeline/jobWrapperV2.sh $FULL_DIRECTORY       
+                qsub -q long -N ${JOB_NAME} -l walltime="35:00:00" -W group_list=s1219 -j oe -e $ERR_OUT_PATH -o $STD_OUT_PATH -S /bin/bash -V -C $PWD -l select=1:ncpus=12:model=wes -m eb -- /u/smcmich1/projects/lronacPipeline/jobWrapperV2.sh $FULL_DIRECTORY       
 
                break # Move on to the next data seta
 

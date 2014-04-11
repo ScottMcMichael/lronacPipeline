@@ -76,7 +76,7 @@ def mapProjectImage(inputImage, demPath, outputPath, resolution, centerLat, node
         cmd = ('parallel_mapproject.py ' + demPath         + ' ' + inputImage + ' ' + outputPath +
                                        ' --tr ' + str(resolution) + ' --t_srs "+proj=eqc +lat_ts=' + str(centerLat) + 
                                        ' +lat_0=0 +a='+str(MOON_RADIUS)+' +b='+str(MOON_RADIUS)+' +units=m" --nodata ' + str(DEM_NODATA) +
-                                       ' --suppress-output --keep')
+                                       ' --suppress-output --tile-size 4096')
         
 	if nodeFilePath: # Needed to operate across multiple computers
 	    cmd = cmd + ' --node-file ' + nodeFilePath
@@ -250,6 +250,7 @@ def main(argsIn):
         
         stereoOptionString = ('--corr-timeout 400 --alignment-method AffineEpipolar --subpixel-mode ' + str(SUBPIXEL_MODE) + 
                               ' ' + options.leftPath + ' ' + options.rightPath + 
+                              ' --job-size-w 4096 --job-size-h 4096 ' + # Reduce number of tile files created
                               ' ' + stereoOutputPrefix + ' --processes 8 --threads-multiprocess 4' +
                               ' --threads-singleprocess 32 --compute-error-vector' + ' --filter-mode 1' +
                               ' --erode-max-size 5000 --max-valid-triangulation-error ' + str(MAX_VALID_TRIANGULATION_ERROR))
@@ -258,29 +259,9 @@ def main(argsIn):
             cmd = ('parallel_stereo ' + stereoOptionString)
             print cmd
             os.system(cmd)
-            
-            ## Preprocessing, correlation, and subpixel refinement
-            #cmd = ('parallel_stereo --entry-point 0 --stop-point 3' + stereoOptionString)
-            #print cmd
-            #os.system(cmd)
-            #
-            ## TODO: Delete -D files
-            #
-            ## Filtering, triangulation, and post-processing
-            #cmd = ('parallel_stereo --entry-point 3 --stop-point 6' + stereoOptionString)
-            #print cmd
-            #os.system(cmd)
-            #
-            ## TODO: Delete other stereo files!
-            #if not options.keep:
-            #    IrgFileFunctions.removeIntermediateStereoFiles(stereoOutputPrefix) # Limited clear
-            #    #IrgFileFunctions.removeFolderIfExists(stereoOutputFolder) # Larger clear
-            
-            
+                       
         else:
             print 'Stereo file ' + pointCloudPath + ' already exists, skipping stereo step.'
-
-# TODO: Split this up and do piecemeal deletions (stages 0-5)
 
 
         stereoTime = time.time()
@@ -362,6 +343,10 @@ def main(argsIn):
         #if not os.path.exists(meshPath):
         #    print cmd
         #    os.system(cmd)
+
+        if not options.keep: # Remove stereo folder here to cut down on file count before mapproject calls
+             IrgFileFunctions.removeFolderIfExists(stereoOutputFolder)
+
 
         # Convert the intersection error to a viewable format
         cmdX = 'gdal_translate -ot byte -scale 0 10 0 255 -outsize 50% 50% -b 1 ' + intersectionErrorPath + ' ' + intersectionViewPathX
