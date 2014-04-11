@@ -37,9 +37,10 @@ class Usage(Exception):
 
 # For convenience some of the constants used in the file are set up here
 
-MAP_PROJECT_METERS_PER_PIXEL  = 0.5 # Map resolution in meters
-MAX_VALID_TRIANGULATION_ERROR = 999 # Meters
-DEM_METERS_PER_PIXEL          = 1.0
+MAP_PROJECT_METERS_PER_PIXEL         = 0.5 # Map resolution in meters
+MAX_VALID_TRIANGULATION_ERROR        = 999 # Meters
+DEM_METERS_PER_PIXEL                 = 1.0
+MAP_PROJECT_METERS_PER_PIXEL_LOW_RES = 1.0
 
 DEM_NODATA    = -32767
 MOON_RADIUS   = 1737400
@@ -78,8 +79,8 @@ def mapProjectImage(inputImage, demPath, outputPath, resolution, centerLat, node
                                        ' +lat_0=0 +a='+str(MOON_RADIUS)+' +b='+str(MOON_RADIUS)+' +units=m" --nodata ' + str(DEM_NODATA) +
                                        ' --suppress-output --tile-size 4096')
         
-	if nodeFilePath: # Needed to operate across multiple computers
-	    cmd = cmd + ' --node-file ' + nodeFilePath
+    if nodeFilePath: # Needed to operate across multiple computers
+        cmd = cmd + ' --node-file ' + nodeFilePath
         print cmd
         os.system(cmd)
 
@@ -155,6 +156,9 @@ def main(argsIn):
 
             inputGroup.add_option("--lola",    dest="lolaPath", help="Path to LOLA DEM")
             inputGroup.add_option("--asu",     dest="asuPath",  help="Path to ASU DEM")
+            
+            parser.add_option("--doubleDem", action="store_true", dest="doubleDem",
+                              help="Compute and use an initial low-res dem to improve output.")
             
             inputGroup.add_option("--node-file", dest="nodeFilePath", 
                                   help="Path to file containing list of available nodes")
@@ -239,7 +243,77 @@ def main(argsIn):
             options.leftPath  = mainMosaicCroppedPath
             options.rightPath = stereoMosaicCroppedPath
 
+        # Find out the center latitude of the mosaic
+        centerLat = IrgIsisFunctions.getCubeCenterLatitude(options.leftPath, tempFolder)
+
         print '\n-------------------------------------------------------------------------\n'
+
+        if options.doubleDem:
+            print 'Using initial low-quality DEM to improve results'
+            
+            # Set up low quality DEM paths
+            lowResStereoOutputPrefix  = os.path.join(tempFolder, 'lowResStereoWorkDir/stereo')
+            lowResStereoOutputFolder  = os.path.join(tempFolder, 'lowResStereoWorkDir')
+            lowResPointCloudPath      = lowResStereoOutputPrefix + '-PC.tif'
+            lowResDemPath             = os.path.join(tempFolder, 'lowRes-DEM.tif')
+            lowResHillshadePath       = os.path.join(tempFolder, 'lowRes-Hillshade.tif')
+            lowResMapProjectLeftPath  = os.path.join(tempFolder, 'lowRes-MapProjLeft.tif')
+            lowResMapProjectRightPath = os.path.join(tempFolder, 'lowRes-MapProjRight.tif')
+            
+            # Create an initial low-quality DEM
+            lowResStereoOptionString = ('--corr-timeout 400 --alignment-method AffineEpipolar --subpixel-mode 1 '+
+                                        ' ' + options.leftPath + ' ' + options.rightPath + 
+                                        ' ' + lowResStereoOutputPrefix + ' --processes 8 --threads-multiprocess 4' +
+                                        ' --threads-singleprocess 32 ' + ' --filter-mode 1')
+      
+            if (not os.path.exists(lowResPointCloudPath)) or carry:
+                cmd = ('parallel_stereo ' + lowResStereoOptionString)
+                print cmd
+                os.system(cmd)
+            else:
+                print 'Stereo file ' + lowResPointCloudPath + ' already exists, skipping low res stereo step.'
+    
+            lowResStereoTime = time.time()
+            logging.info('Low res stereo finished in %f seconds', lowResStereoTime - startTime)
+    
+            ## Compute percentage of good pixels
+            #percentGood = IrgAspFunctions.getStereoGoodPixelPercentage(stereoOutputPrefix)
+            #print 'Stereo completed with good pixel percentage: ' + str(percentGood)
+            #logging.info('Final stereo completed with good pixel percentage: %s', str(percentGood))
+    
+            # Generate a DEM
+            if (not os.path.exists(lowResDemPath)) or carry:
+                
+                #TODO: Add a +lon_0 entry here to set the central meridian?           
+                cmd = ('point2dem -o ' + lowResDemPath + ' ' + lowResPointCloudPath
+                                  + ' -r moon --tr 10.0 --t_srs "+proj=eqc +lat_ts='
+                                  + str(centerLat) + ' +lat_0=0 +a='+str(MOON_RADIUS)+
+                                  ' +b='+str(MOON_RADIUS)+' +units=m" --nodata ' + str(DEM_NODATA))
+                os.system(cmd)
+            else:
+                print 'DEM file ' + lowResPointCloudPath + ' already exists, skipping low res point2dem step.'
+    
+            # Create a hillshade image to visualize the output
+            if (not os.path.exists(lowResHillshadePath)) or carry:
+                cmd = 'hillshade ' + lowResDemPath + ' -o ' + lowResHillshadePath
+                print cmd
+                os.system(cmd)
+            else:
+                print 'Output file ' + lowResHillshadePath + ' already exists, skipping low res hillshade step.'
+    
+            # If not retaining temporary files, remove all low res stereo outputs except for DEM and hillshade
+            if not options.keep:
+                IrgFileFunctions.removeFolderIfExists(lowResStereoOutputFolder)
+    
+            # Map project both images on to the low-quality DEM at low resolution
+            mapProjectImage(options.leftPath,  lowResDemPath, lowResMapProjectLeftPath,
+                            MAP_PROJECT_METERS_PER_PIXEL_LOW_RES, centerLat, options.nodeFilePath, carry)
+            mapProjectImage(options.rightPath, lowResDemPath, lowResMapProjectRightPath,
+                            MAP_PROJECT_METERS_PER_PIXEL_LOW_RES, centerLat, options.nodeFilePath, carry)
+
+            # End of doubleDem code!
+            print '\n-------------------------------------------------------------------------\n'
+
 
         # Call stereo to generate a point cloud from the two images
         # - This step takes a really long time.
@@ -247,19 +321,27 @@ def main(argsIn):
         stereoOutputPrefix = os.path.join(tempFolder, 'stereoWorkDir/stereo')
         stereoOutputFolder = os.path.join(tempFolder, 'stereoWorkDir')
         pointCloudPath     = stereoOutputPrefix + '-PC.tif'
-        
-        stereoOptionString = ('--corr-timeout 400 --alignment-method AffineEpipolar --subpixel-mode ' + str(SUBPIXEL_MODE) + 
-                              ' ' + options.leftPath + ' ' + options.rightPath + 
+        stereoOptionString = ('--corr-timeout 400 --subpixel-mode ' + str(SUBPIXEL_MODE) + 
+                              ' --processes 8 --threads-multiprocess 4' +
                               ' --job-size-w 4096 --job-size-h 4096 ' + # Reduce number of tile files created
-                              ' ' + stereoOutputPrefix + ' --processes 8 --threads-multiprocess 4' +
                               ' --threads-singleprocess 32 --compute-error-vector' + ' --filter-mode 1' +
                               ' --erode-max-size 5000 --max-valid-triangulation-error ' + str(MAX_VALID_TRIANGULATION_ERROR))
+
+        if options.doubleDem: # Additional inputs are required.  Also set correct alignment method
+            stereoOptionString = stereoOptionString + (' --alignment-method none '+
+                                                       lowResMapProjectLeftPath + ' ' + lowResMapProjectRightPath + ' '
+                                                       + options.leftPath + ' ' + options.rightPath + 
+                                                       ' ' + stereoOutputPrefix + ' ' + lowResDemPath)
+        else: # Just operate on the inputs
+            stereoOptionString = stereoOptionString + (' --alignment-method AffineEpipolar '+
+                                                       options.leftPath + ' ' + options.rightPath + 
+                                                       ' ' + stereoOutputPrefix)
   
         if (not os.path.exists(pointCloudPath)) or carry:
             cmd = ('parallel_stereo ' + stereoOptionString)
             print cmd
             os.system(cmd)
-                       
+
         else:
             print 'Stereo file ' + pointCloudPath + ' already exists, skipping stereo step.'
 
@@ -271,10 +353,6 @@ def main(argsIn):
         percentGood = IrgAspFunctions.getStereoGoodPixelPercentage(stereoOutputPrefix)
         print 'Stereo completed with good pixel percentage: ' + str(percentGood)
         logging.info('Final stereo completed with good pixel percentage: %s', str(percentGood))
-
-
-        # Find out the center latitude of the mosaic
-        centerLat = IrgIsisFunctions.getCubeCenterLatitude(options.leftPath, tempFolder)
 
         # Go ahead and set up all the output paths
         # -- Deliverables
@@ -407,6 +485,10 @@ def main(argsIn):
             print 'Removing temporary files'
             IrgFileFunctions.removeIfExists(mainMosaicCroppedPath)
             IrgFileFunctions.removeIfExists(stereoMosaicCroppedPath)
+            
+            IrgFileFunctions.removeIfExists(lowResMapProjectLeftPath) # Clean up optional files
+            IrgFileFunctions.removeIfExists(lowResMapProjectRightPath)
+            
             #IrgFileFunctions.removeIntermediateStereoFiles(stereoOutputPrefix) # Limited clear
             IrgFileFunctions.removeFolderIfExists(stereoOutputFolder) # Larger clear
             #if (hadToCreateTempFolder): Not done since stereo output needs to be retained

@@ -182,6 +182,9 @@ def main():
 
             inputGroup.add_option("--lola",    dest="lolaPath", help="Path to LOLA DEM")
             inputGroup.add_option("--asu",     dest="asuPath",  help="Path to ASU DEM")
+
+            parser.add_option("--doubleDem", action="store_true", dest="doubleDem",
+                              help="Compute and use an initial low-res dem to improve output.")
             
             inputGroup.add_option("--node-file", dest="nodeFilePath", 
                                   help="Path to list of available computing nodes")
@@ -308,9 +311,12 @@ def main():
         if options.cropAmount:
             cmdArgs.append('--crop')
             cmdArgs.append(str(options.cropAmount))
+        if options.doubleDem:
+            cmdArgs.append('--doubleDem')
         if options.nodeFilePath:
             cmdArgs.append('--node-file')
             cmdArgs.append(options.nodeFilePath)
+        print 'Running makeDemAndCompare:'
         print cmdArgs
         makeDemAndCompare.main(cmdArgs)
         
