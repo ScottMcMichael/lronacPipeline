@@ -257,6 +257,58 @@ def flagIncompleteDataSets(dryRun=False):
 
     
     
+def removeCompressedOutputs(dataSetName, dryRun=False):
+    """Removes the large local output files in a completed run"""
+       
+    # Make sure the data set is complete before removing any files
+    ds = DataSet(dataSetName)
+    if not ds.isComplete():
+        raise Exception('Attempting to archive incomplete data set: ' + dataSetName)
+    localFolder = ds.getLocalFolder()
+    
+    # Each of these files will be deleted
+    filesToDelete = ['output-Colormap.tif',
+                     'output-Confidence.tif',
+                     'output-DEM.tif',
+                     'output-Hillshade.tif',
+                     'output-MapProjLeft.tif',
+                     'output-MapProjRight.tif',
+                     'output-MapProjLeftUint8.tif',  # Files after her are not compressed but can
+                     'output-MapProjRightUint8.tif', #  quickly be regenerated from compressed files.
+                     'output-IntersectionErrorX.tif',
+                     'output-IntersectionErrorY.tif',
+                     'output-IntersectionErrorZ.tif']
+    
+    for f in filesToDelete: # For each file in the list above
+        inputPath = os.path.join(localFolder, f)
+        
+        # Delete the file
+        cmd = 'rm ' + inputPath
+        if dryRun:
+            print '- rm ' + inputPath
+        else: # Actually delete the file
+            IrgFileFunctions.removeIfExists(inputPath)
+   
+   
+
+def removeAllCompletedCompressedOutputs(dryRun=False):
+    """Removes the large local output files in all completed runs"""
+
+    if not os.path.exists(COMPLETE_STATUS_PATH):
+        raise Exception('Complete file list not present, run --check-local to generate it.')
+
+    # Loop through all data sets in the incomplete folder
+    completeFile = open(COMPLETE_STATUS_PATH, 'r')
+    for line in completeFile:
+        entries     = line.split(' ')
+        dataSetName = entries[0]
+        
+        removeCompressedOutputs(dataSetName, dryRun)
+
+    completeFile.close()
+
+   
+    
 def archiveDataSet(dataSetName, deleteLocalFiles=False, dryRun=False):
     """Archives a data set to long term storage on Lou"""
     
@@ -274,10 +326,13 @@ def archiveDataSet(dataSetName, deleteLocalFiles=False, dryRun=False):
     filesToArchive = ['output-CompressedOutputs.tar.bz2']
     
     for f in filesToArchive:
-        fullName  = 'NAC_DTM_' + dataSetName + '_'
-        inputPath = os.path.join(localFolder, fullName)
-        outputPath
-        cmd = 'shiftc ' + fullPath + ' ' + LOU_STORAGE_PATH
+        # Get storage name to use
+        archiveName  = 'NAC_DTM_' + dataSetName + '_CompressedOutputs.tar.bz2'
+        inputPath    = os.path.join(localFolder, f)
+        outputPath   = os.path.join(LOU_STORAGE_PATH, archiveName)
+        
+        # Move the file over to Lou
+        cmd = 'shiftc ' + fullPath + ' ' + outputPath
         if dryRun:
             print '- ' + cmd
         else: # Actually transfer the file
@@ -302,7 +357,7 @@ def archiveDataSet(dataSetName, deleteLocalFiles=False, dryRun=False):
         cmdRmImg   = 'rm ' + localFolder + '/*.IMG'
         rdrPath    = os.path.join(localFolder + 'lolaRdrPoints.csv')
         prtPath    = os.path.join(localFolder + 'print.prt')
-        logPath    = os.path.join(localFolder + 'stdOutputLog.txt')
+        #logPath    = os.path.join(localFolder + 'stdOutputLog.txt')
         workDir    = os.path.join(localFolder + '/workDir')
         resultsDir = os.path.join(localFolder + '/results')
         
@@ -310,14 +365,14 @@ def archiveDataSet(dataSetName, deleteLocalFiles=False, dryRun=False):
             print '- ' + cmdRmImg
             print '- rm ' + rdrPath
             print '- rm ' + ptrPath
-            print '- rm ' + logPath
+            #print '- rm ' + logPath
             print '- rm ' + workDir
             print '- rm ' + resultsDir
         else: # Actually delete the files
             os.system(cmdRmImg)
             IrgFileFunctions.removeIfExists(rdrPath)
             IrgFileFunctions.removeIfExists(ptrPath)
-            IrgFileFunctions.removeIfExists(logPath)
+            #IrgFileFunctions.removeIfExists(logPath)
             IrgFileFunctions.removeFolderIfExists(workDir)
             IrgFileFunctions.removeFolderIfExists(resultsDir)
         
@@ -393,6 +448,10 @@ def main():
                               dest="archive", default=False,
                               help="Archive completed files to Lou.")
 
+            parser.add_option("--clear-compressed", action="store_true",
+                              dest="clearCompressed", default=False,
+                              help="Clear all local files in completed folders which have been compressed.")
+
             # TODO: Archive restore function
 
             parser.add_option("--flag-incomplete", action="store_true",
@@ -424,6 +483,9 @@ def main():
 
         if options.archive:
             print 'TODO!'
+        
+        if options.clearCompressed:
+            removeAllCompletedCompressedOutputs(options.dryRun)
         
         if options.flagIncomplete:
             flagIncompleteDataSets(options.dryRun)
