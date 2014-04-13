@@ -86,9 +86,13 @@ class DataSet:
         
         if self._isFolderArchived(folder):
             self.status = self.ARCHIVED
+
+        elif self._hasErrors(folder): # Data is local, but may have errors
+            self.status = self.INCOMPLETE
+            # This check is important since not all errors are fatal!
             
         else: # Data is still local, see if it is completed.
-            
+        
             # List of the files that need to be present to be considered complete
             requiredOutputList = [ 'output-CompressedInputs.tar.bz2',
                                    'output-CompressedOutputs.tar.bz2']
@@ -110,13 +114,41 @@ class DataSet:
 
         return True
 
-    def _isFolderArchived(self, folder):
+    def _isFolderArchived(self, localFolder):
         """Returns true if the folder has been archived and cleared.\n
            - This is indicated by a folder that is almost empty except for 'downloadLog.txt'"""
            
         # TODO: Verify the number of entries on this list!
-        itemList = os.listdir(folder)
-        return (len(itemList) == 3) and (itemList[0] == 'downloadLog.txt')
+        itemList = os.listdir(localFolder)
+        return (len(itemList) < 6) and ('downloadLog.txt' in itemList)
+
+    def _hasErrors(self, localFolder):
+        """Searches for errors in the log file"""
+        
+        # Open the log file
+        logPath = os.path.join(localFolder, 'stdOutLog.txt')
+        logFile = open(logPath, 'r')
+        
+        # List of errors we know to look for
+        errorList = ['Traceback (most recent call last):',
+                     'caught an exception',
+                     ' ERROR**',
+                     'Disk quota exceeded',
+                     'file size exceeded']
+        
+        # Search for each of these errors in the log file
+        for line in logFile:
+            for e in errorList:
+                if (e in line): # Error was found, print a big message and return
+                    print '+++++ Found an error in the following line: +++++'
+                    print line
+                    print ' in file: ' + logPath
+                    print '+++++++++++++++++++++++++++++++++++++++++++++++++'
+                    logFile.close()
+                    return True
+        
+        logFile.close()
+        return False # No errors found
 
     def getLocalFolder(self):
         """Get the local storage location"""
@@ -280,11 +312,9 @@ def removeCompressedOutputs(dataSetName, dryRun=False):
                      'output-IntersectionErrorZ.tif']
     
     for f in filesToDelete: # For each file in the list above
-        inputPath = os.path.join(localFolder, f)
+        inputPath = os.path.join(localFolder, 'results/' + f)
         
-        # Delete the file
-        cmd = 'rm ' + inputPath
-        if dryRun:
+        if dryRun: # Print output action
             print '- rm ' + inputPath
         else: # Actually delete the file
             IrgFileFunctions.removeIfExists(inputPath)
@@ -342,7 +372,9 @@ def archiveDataSet(dataSetName, deleteLocalFiles=False, dryRun=False):
     if deleteLocalFiles: # Remove almost all files
         
         # Keep some result files and move them to the main data set directory
-        filesToKeep   = ['output-LOLA_diff_stats.txt']
+        filesToKeep   = ['output-LOLA_diff_stats.txt',
+                         'output-Log.txt',
+                         'output-PcAlignLog.txt']
         resultsFolder = os.path.join(localFolder, 'results/')
         for f in filesToKeep:
             inputPath  = os.path.join(resultsFolder, f)
@@ -426,7 +458,6 @@ def restoreArchivedDataSet(dataSetName):
 #def lookupArchivedDataSets():
 #    """Make a list of all the data sets currently stored on Lou"""
 #    print 'TODO'
-    
 
 def main():
 
