@@ -111,6 +111,8 @@ def main(argsIn):
                               help="Path to optional specified SPK (position) file to use.")
             parser.add_option("-c", "--ck", dest="ckPath",
                               help="Path to optional specified CK (orientation) file to use.")
+            parser.add_option("--dem", dest="demPath",
+                              help="Path to optional specified DEM file to use.")
 
             parser.add_option("--workDir", dest="workDir",  help="Folder to store temporary files in")
 
@@ -206,6 +208,8 @@ def main(argsIn):
         if (options.ckPath): # Add forced CK path if needed
             cmd.append('ck=')
             cmd.append(options.ckPath)
+        if (options.demPath): # Add forced DEM path if needed
+            cmd = cmd + ['shape=', 'USER', 'model=', options.demPath]
         #print cmd
         p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
         outputText, err = p.communicate()
