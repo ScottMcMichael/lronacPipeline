@@ -127,6 +127,8 @@ class DataSet:
         
         # Open the log file
         logPath = os.path.join(localFolder, 'stdOutLog.txt')
+        if not os.path.exists(logPath): # If the log isn't there just return true to mark as incomplete
+            return True
         logFile = open(logPath, 'r')
         
         # List of errors we know to look for
@@ -143,7 +145,7 @@ class DataSet:
                     print '+++++ Found an error in the following line: +++++'
                     print line
                     print ' in file: ' + logPath
-                    print '+++++++++++++++++++++++++++++++++++++++++++++++++'
+                    print '+++++++++++++++++++++++++++++++++++++++++++++++++\n'
                     logFile.close()
                     return True
         
@@ -295,7 +297,7 @@ def removeCompressedOutputs(dataSetName, dryRun=False):
     # Make sure the data set is complete before removing any files
     ds = DataSet(dataSetName)
     if not ds.isComplete():
-        raise Exception('Attempting to archive incomplete data set: ' + dataSetName)
+        raise Exception('Attempting to clear compressed on  incomplete data set: ' + dataSetName)
     localFolder = ds.getLocalFolder()
     
     # Each of these files will be deleted
@@ -338,7 +340,6 @@ def removeAllCompletedCompressedOutputs(dryRun=False):
     completeFile.close()
 
    
-    
 def archiveDataSet(dataSetName, deleteLocalFiles=False, dryRun=False):
     """Archives a data set to long term storage on Lou"""
     
