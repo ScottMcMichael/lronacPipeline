@@ -457,7 +457,8 @@ def applyInterCameraPairRotation(leftInputPath, rightInputPath, newRotationPath,
     cmdArgs = ['--keep', '--output', outputCubePath, 
                '--rotation', newRotationPath, '--left', leftInputPath, 
                '--right', rightInputPath, 
-               '--workDir', workDir]
+               '--workDir', workDir,
+               '--dem', '/home/oalexan1/projects/lronac_bug/run-smooth4-DEM.tif']
     if ckPath: # Add optional arguments
         cmdArgs.append('--ck')
         cmdArgs.append(ckPath)
@@ -1239,8 +1240,6 @@ def main(argsIn):
         else:
             print 'Skipping large GDC TEST file creation step'
 # ----------------
-
-        #raise Exception('Debugging local rotations!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
 
         print '\n-------------------------------------------------------------------------\n'
         print 'Starting last set of geocorrection accuracy checks...'

@@ -111,7 +111,7 @@ def main(argsIn):
                               help="Path to optional specified SPK (position) file to use.")
             parser.add_option("-c", "--ck", dest="ckPath",
                               help="Path to optional specified CK (orientation) file to use.")
-            parser.add_option("--dem", dest="demPath",
+            parser.add_option("--dem", dest="demPath", default=False,
                               help="Path to optional specified DEM file to use.")
 
             parser.add_option("--workDir", dest="workDir",  help="Folder to store temporary files in")
@@ -211,8 +211,13 @@ def main(argsIn):
         if (options.demPath): # Add forced DEM path if needed
             cmd = cmd + ['shape=', 'USER', 'model=', options.demPath]
         #print cmd
-        p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         outputText, err = p.communicate()
+
+        if (outputText.find('ERROR') >= 0):
+            print cmd
+            print outputText
+            raise Exception('Found error when calling spiceinit!')
 
         # Clean up temporary files
         if not options.keep:

@@ -151,7 +151,7 @@ def main(argsIn):
             parser.add_option("-s", "--spk", dest="spkPath", help="Path to write new SPK file to.")
             parser.add_option("-c", "--ck",  dest="ckPath",  help="Path to write new CK file to.")
             
-            parser.add_option("--dem", dest="demPath",
+            parser.add_option("--dem", dest="demPath", default=False,
                               help="Path to optional specified DEM file to use.")
             
             parser.add_option("-o", "--output", dest="outputPath",
@@ -307,14 +307,22 @@ def main(argsIn):
             raise Exception('Error running msopck!')
 
         # Re-run spiceinit using the new SPK and CK file
-        cmd = ['spiceinit', 'attach=', 'true', 'from=' options.outputPath,
+        cmd = ['spiceinit', 'attach=', 'true', 'from=', options.outputPath,
                            'spk=', tempSpkPath, 'ck=', tempCkPath]
         if (options.demPath): # Add forced DEM path if needed
             cmd = cmd + ['shape=', 'USER', 'model=', options.demPath]
         #print cmd
-        p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         outputText, err = p.communicate()
         
+
+        # Check for errors in the spiceinit output
+        if (outputText.find('ERROR') >= 0):
+            print cmd
+            print outputText
+            raise Exception('Encountered error when calling spiceinit!')
+
+   
         # Clean up temporary files
         if not options.keep:
             os.remove(tempTextPath)

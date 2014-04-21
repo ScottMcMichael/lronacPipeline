@@ -46,8 +46,10 @@ DEM_NODATA    = -32767
 MOON_RADIUS   = 1737400
 SUBPIXEL_MODE = 2 # 1 = fast, 2 = accurate
 
-PIXEL_ACCURACY_THRESHOLDS = [0.5, 1, 2, 4, 8, 16, 32, 64]
+PIXEL_ACCURACY_THRESHOLDS = [0, 4, 16, 64]
 
+# TODO: How high can this be to still work?
+LOW_RES_DEM_FACTOR = 30 # If using doubleDem option, initial DEM is downsampled by this factor.
 
 
 # Generate a comparison of a DEM to the LOLA point cloud
@@ -79,13 +81,13 @@ def mapProjectImage(inputImage, demPath, outputPath, resolution, centerLat, node
                                        ' +lat_0=0 +a='+str(MOON_RADIUS)+' +b='+str(MOON_RADIUS)+' +units=m" --nodata ' + str(DEM_NODATA) +
                                        ' --suppress-output --tile-size 4096')
         
-    if nodeFilePath: # Needed to operate across multiple computers
-        cmd = cmd + ' --node-file ' + nodeFilePath
+        if nodeFilePath: # Needed to operate across multiple computers
+            cmd = cmd + ' --node-file ' + nodeFilePath
         print cmd
         os.system(cmd)
 
     else:
-        print 'Map projected file  ' + outputPath + ' already exists, skipping map project step.'
+        print 'Map projected file ' + outputPath + ' already exists, skipping map project step.'
 
     return True
 
@@ -251,21 +253,39 @@ def main(argsIn):
         if options.doubleDem:
             print 'Using initial low-quality DEM to improve results'
             
+            carry = True # ================================================
+            
+            
+            # Downsample the two input images
+            lowResLeftPath  = os.path.join(tempFolder, 'lowResRight.cub')
+            lowResRightPath = os.path.join(tempFolder, 'lowResLeft.cub')
+            
+            if not os.path.exists(lowResLeftPath) or carry:
+              cmd = ('reduce sscale= ' + str(LOW_RES_DEM_FACTOR) + ' lscale= ' + str(LOW_RES_DEM_FACTOR) + 
+                           ' from= ' + options.leftPath + ' to= ' + lowResLeftPath)
+              print cmd
+              os.system(cmd)
+            if not os.path.exists(lowResRightPath) or carry:
+              cmd = ('reduce sscale= ' + str(LOW_RES_DEM_FACTOR) + ' lscale= ' + str(LOW_RES_DEM_FACTOR) + 
+                           ' from= ' + options.rightPath + ' to= ' + lowResRightPath)
+              print cmd
+              os.system(cmd)
+            
+            
             # Set up low quality DEM paths
             lowResStereoOutputPrefix  = os.path.join(tempFolder, 'lowResStereoWorkDir/stereo')
             lowResStereoOutputFolder  = os.path.join(tempFolder, 'lowResStereoWorkDir')
             lowResPointCloudPath      = lowResStereoOutputPrefix + '-PC.tif'
-            lowResDemPath             = os.path.join(tempFolder, 'lowRes-DEM.tif')
+            lowResDemPath             = lowResStereoOutputPrefix + '-DEM.tif'
             lowResHillshadePath       = os.path.join(tempFolder, 'lowRes-Hillshade.tif')
             lowResMapProjectLeftPath  = os.path.join(tempFolder, 'lowRes-MapProjLeft.tif')
             lowResMapProjectRightPath = os.path.join(tempFolder, 'lowRes-MapProjRight.tif')
             
             # Create an initial low-quality DEM
             lowResStereoOptionString = ('--corr-timeout 400 --alignment-method AffineEpipolar --subpixel-mode 1 '+
-                                        ' ' + options.leftPath + ' ' + options.rightPath + 
+                                        ' ' + lowResLeftPath + ' ' + lowResRightPath + 
                                         ' ' + lowResStereoOutputPrefix + ' --processes 8 --threads-multiprocess 4' +
                                         ' --threads-singleprocess 32 ' + ' --filter-mode 1')
-      
             if (not os.path.exists(lowResPointCloudPath)) or carry:
                 cmd = ('parallel_stereo ' + lowResStereoOptionString)
                 print cmd
@@ -284,14 +304,16 @@ def main(argsIn):
             # Generate a DEM
             if (not os.path.exists(lowResDemPath)) or carry:
                 
-                #TODO: Add a +lon_0 entry here to set the central meridian?           
-                cmd = ('point2dem -o ' + lowResDemPath + ' ' + lowResPointCloudPath
-                                  + ' -r moon --tr 10.0 --t_srs "+proj=eqc +lat_ts='
+                #TODO: Add a +lon_0 entry here to set the central meridian?
+                lowResDemMetersPerPixel = DEM_METERS_PER_PIXEL *  LOW_RES_DEM_FACTOR       
+                cmd = ('point2dem -o ' + lowResStereoOutputPrefix + ' ' + lowResPointCloudPath
+                                  + ' -r moon --tr '+ str(lowResDemMetersPerPixel) + ' --t_srs "+proj=eqc +lat_ts='
                                   + str(centerLat) + ' +lat_0=0 +a='+str(MOON_RADIUS)+
                                   ' +b='+str(MOON_RADIUS)+' +units=m" --nodata ' + str(DEM_NODATA))
+                print cmd
                 os.system(cmd)
             else:
-                print 'DEM file ' + lowResPointCloudPath + ' already exists, skipping low res point2dem step.'
+                print 'DEM file ' + lowResDemPath + ' already exists, skipping low res point2dem step.'
     
             # Create a hillshade image to visualize the output
             if (not os.path.exists(lowResHillshadePath)) or carry:
@@ -413,6 +435,8 @@ def main(argsIn):
         else:
             print 'Output file ' + colormapPath + ' already exists, skipping colormap step.'
 
+        raise Exception('esonuseonusoenu')
+ 
 
         ## Create a 3d mesh of the point cloud
         #meshPath   = os.path.join(outputFolder, 'mesh.ive')
