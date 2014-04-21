@@ -64,7 +64,7 @@ OUTPUT_PREFIX=$INPUT_FOLDER/results/output
 # Now call the lronac2dem.py function with the correct inputs
 echo lronac2dem.py --left $LEFT_IMG --right $RIGHT_IMG --stereo-left $LEFT_S_IMG --stereo-right $RIGHT_S_IMG --lola $LOLA_FILE_OUT $ASU_TAG $ASU_FILE --workDir $WORKDIR --outputPrefix $OUTPUT_PREFIX
 
-lronac2dem.py --left $LEFT_IMG --right $RIGHT_IMG --stereo-left $LEFT_S_IMG --stereo-right $RIGHT_S_IMG --lola $LOLA_FILE_OUT $ASU_TAG $ASU_FILE --workDir $WORKDIR --outputPrefix $OUTPUT_PREFIX
+lronac2dem.py --left $LEFT_IMG --right $RIGHT_IMG --stereo-left $LEFT_S_IMG --stereo-right $RIGHT_S_IMG --lola $LOLA_FILE_OUT $ASU_TAG $ASU_FILE --workDir $WORKDIR --outputPrefix $OUTPUT_PREFIX --doubleDem --keep
 
 
 
