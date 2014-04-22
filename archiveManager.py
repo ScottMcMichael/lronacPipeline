@@ -69,13 +69,13 @@ class DataSet:
     stdDevLolaError = 0.0
     name            = ''
     
-    def __init__(self, name, evaluateStatus=True):
+    def __init__(self, name, evaluateStatus=True, verbose=False):
         """Constructor"""
         self.name = name
         if evaluateStatus:
-            self.evaluateStatus()
+            self.evaluateStatus(verbose)
 
-    def evaluateStatus(self):
+    def evaluateStatus(self, verbose=False):
         """Fills in the class information and returns true the data folder was found"""
         
         # Get folder name and make sure it exists    
@@ -87,7 +87,7 @@ class DataSet:
         if self._isFolderArchived(folder):
             self.status = self.ARCHIVED
 
-        elif self._hasErrors(folder): # Data is local, but may have errors
+        elif self._hasErrors(folder, verbose): # Data is local, but may have errors
             self.status = self.INCOMPLETE
             # This check is important since not all errors are fatal!
             
@@ -122,7 +122,7 @@ class DataSet:
         itemList = os.listdir(localFolder)
         return (len(itemList) < 6) and ('downloadLog.txt' in itemList)
 
-    def _hasErrors(self, localFolder):
+    def _hasErrors(self, localFolder, verbose):
         """Searches for errors in the log file"""
         
         # Open the log file
@@ -144,10 +144,11 @@ class DataSet:
         for line in logFile:
             for e in errorList:
                 if (e in line): # Error was found, print a big message and return
-                    print '+++++ Found an error in the following line: +++++'
-                    print line
-                    print ' in file: ' + logPath
-                    print '+++++++++++++++++++++++++++++++++++++++++++++++++\n'
+                    if verbose:
+                        print '+++++ Found an error in the following line: +++++'
+                        print line
+                        print ' in file: ' + logPath
+                        print '+++++++++++++++++++++++++++++++++++++++++++++++++\n'
                     logFile.close()
                     return True
         
@@ -226,7 +227,7 @@ def recordLocalDataStatus(dryRun=False):
             continue
         
         # Get the status of this data set
-        ds = DataSet(dataSetName)
+        ds = DataSet(dataSetName, verbose=True)
         
         if ds.status == DataSet.INVALID:
             continue # Skip invalid data sets
@@ -331,7 +332,7 @@ def removeAllCompletedCompressedOutputs(dryRun=False):
     if not os.path.exists(COMPLETE_STATUS_PATH):
         raise Exception('Complete file list not present, run --check-local to generate it.')
 
-    # Loop through all data sets in the incomplete folder
+    # Loop through all data sets in the complete folder
     completeFile = open(COMPLETE_STATUS_PATH, 'r')
     for line in completeFile:
         entries     = line.split(' ')
@@ -421,7 +422,7 @@ def archiveAllCompletedResults(deleteLocalFiles=False, dryRun=False):
     if not os.path.exists(COMPLETE_STATUS_PATH):
         raise Exception('Complete file list not present, run --check-local to generate it.')
 
-    # Loop through all data sets in the incomplete folder
+    # Loop through all data sets in the complete folder
     completeFile = open(COMPLETE_STATUS_PATH, 'r')
     if not dryRun:
         archiveFile  = open(ARCHIVE_STATUS_PATH,  'a')
@@ -462,6 +463,63 @@ def restoreArchivedDataSet(dataSetName):
 #    """Make a list of all the data sets currently stored on Lou"""
 #    print 'TODO'
 
+
+
+def fixCompletedDataSets():
+    """Applies a specific fix to completed local data sets after an output format change"""
+    
+    if not os.path.exists(COMPLETE_STATUS_PATH):
+        raise Exception('Complete file list not present, run --check-local to generate it.')
+
+    # Loop through all data sets in the complete folder
+    completeFile = open(COMPLETE_STATUS_PATH, 'r')
+    for line in completeFile:
+        entries     = line.split(' ')
+        dataSetName = entries[0]
+        
+        # Make sure the data set is complete before removing any files
+        ds = DataSet(dataSetName)
+        if not ds.isComplete():
+            raise Exception('Attempting to fix incomplete data set: ' + dataSetName)
+        localFolder = ds.getLocalFolder()
+        
+        # Check if the local files have been removed.
+        localFilesPresent = os.path.exists(os.path.join(localFolder, 'results/output-Confidence.tif'))
+        
+        if not localFilesPresent: # Unpack them from the output TAR file!
+            print 'TODO: Unpack the TAR file!'
+            #TODO!
+        
+        # Each of these files will be deleted
+        filesToDelete = ['output-Colormap.tif',
+                         'output-Colormap.LBL',
+                         'output-Confidence.tif',
+                         'output-Confidence.LBL']
+        
+        # Delete all the files that need to be regenerated
+        for f in filesToDelete: # For each file in the list above
+            path = os.path.join(localFolder, 'results/' + f)
+            #os.remove(path)
+            print 'Delete file: ' + path
+            
+        # Now call the main processing script on the file
+        # - For fast jobs we don't need to use PBS
+        cmd = 'jobWrapperV2.sh ' + localFolder
+        print cmd
+        #os.system(cmd)
+        
+        # The main processing script will take care of all the work, including
+        #  packing everything back up in to a TAR file.
+        
+        # Now clean up the large files we decompressed.
+        removeCompressedOutputs(dataSetName, dryRun=True)
+        
+        raise Exception('Stopping after one execution!')
+
+    completeFile.close()    
+
+
+
 def main():
 
 
@@ -491,6 +549,10 @@ def main():
             parser.add_option("--flag-incomplete", action="store_true",
                               dest="flagIncomplete", default=False,
                               help="Flag incomplete data sets for repeat processing.")
+            
+            parser.add_option("--fix-complete", action="store_true",
+                              dest="fixComplete", default=False,
+                              help="Apply a fix to completed local data sets.")
             
             parser.add_option("--clear", action="store_true", dest="clear", default=False,
                               help="Clear files after archiving them.")
@@ -524,6 +586,8 @@ def main():
         if options.flagIncomplete:
             flagIncompleteDataSets(options.dryRun)
 
+        if options.fixComplete:
+            fixCompletedDataSets()
         
         return 0
 
