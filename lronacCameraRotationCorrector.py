@@ -207,8 +207,14 @@ def main(argsIn):
             cmd.append('ck=')
             cmd.append(options.ckPath)
         #print cmd
-        p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         outputText, err = p.communicate()
+ 
+        if (outputText.find('ERROR') >= 0):
+            print cmd
+            print outputText
+            raise Exception('Found error when calling spiceinit!')
+
 
         # Clean up temporary files
         if not options.keep:

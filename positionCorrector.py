@@ -173,8 +173,13 @@ def main(argsIn):
         # Re-run spiceinit using the new SPK file
         cmd = ['spiceinit', 'attach=', 'true', 'from=', options.outputPath, "spk=", tempSpkPath]
         #print cmd
-        p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
-        outputText, err = p.communicate()     
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        outputText, err = p.communicate()
+ 
+        if (outputText.find('ERROR') >= 0):
+            print cmd
+            print outputText
+            raise Exception('Found error when calling spiceinit!') 
 
         # Clean up temporary files
         if not options.keep:
