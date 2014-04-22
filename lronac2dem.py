@@ -371,15 +371,31 @@ def main():
             
             listOfDeliveryFiles = [demPath,      hillshadePath,      colormapPath,      confidencePath,      mapProjectLeftPath,      mapProjectRightPath,
                                    demLabelPath, hillshadeLabelPath, colormapLabelPath, confidenceLabelPath, mapProjectLeftLabelPath, mapProjectRightLabelPath]
-            IrgFileFunctions.tarFileList(listOfDeliveryFiles, compressedOutputPath)
-            
 
-#TODO:!!!!!!!!!!
-        ## Compress the diagnostic files to save disk space
-        #if not os.path.exists(compressedDebugPath):
-        #    
-        #    listOfDebugFiles = []
-        #    IrgFileFunctions.tarFileList(listOfDebugFiles, compressedDebugPath)
+            # The file names as they should appear in the tar file
+            baseTarPath  = os.path.join(outputFolder, dataSetName + '_')
+            demTarBase   = baseTarPath + 'DEM'
+            hillTarBase  = baseTarPath + 'Hillshade'
+            colorTarBase = baseTarPath + 'Colormap'
+            confTarBase  = baseTarPath + 'Confidence'
+            leftTarBase  = baseTarPath + 'MapProjLeft'
+            rightTarBase = baseTarPath + 'MapProjRight'
+
+            listOfTarDeliveryFiles = [demTarBase+'.TIF', hillTarBase+'.TIF', colorTarBase+'.TIF', confTarBase+'.TIF', leftTarBase+'.TIF', rightTarBase+'.TIF',
+                                      demTarBase+'.LBL', hillTarBase+'.LBL', colorTarBase+'.LBL', confTarBase+'.LBL', leftTarBase+'.LBL', rightTarBase+'.LBL']
+
+            # This function can handle renaming the files as they get put in the tar.
+            IrgFileFunctions.tarFileList(listOfDeliveryFiles, compressedOutputPath, listOfTarDeliveryFiles)
+
+
+        # Compress the diagnostic files to save disk space
+        if not os.path.exists(compressedDebugPath):
+            
+            listOfDebugFiles = [options.outputPrefix + 'Log.txt',
+                                options.outputPrefix + 'PcAlignLog.txt',
+                                options.outputPrefix + 'LOLA_diff_points.csv',
+                                options.outputPrefix + 'LOLA_diff_points.kml',]
+            IrgFileFunctions.tarFileList(listOfDebugFiles, compressedDebugPath)
 
 
         if not options.keep:
