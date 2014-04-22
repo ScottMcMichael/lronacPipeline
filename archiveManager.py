@@ -136,7 +136,9 @@ class DataSet:
                      'caught an exception',
                      ' ERROR**',
                      'Disk quota exceeded',
-                     'file size exceeded']
+                     'file size exceeded',
+                     'unrecognised option',
+                     'Walltime Used            : 35:']
         
         # Search for each of these errors in the log file
         for line in logFile:

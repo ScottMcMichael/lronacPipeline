@@ -45,7 +45,7 @@ DEM_NODATA    = -32767
 MOON_RADIUS   = 1737400
 SUBPIXEL_MODE = 2 # 1 = fast, 2 = accurate
 
-PIXEL_ACCURACY_THRESHOLDS = [0.5, 1, 2, 4, 8, 16, 32, 64]
+PIXEL_ACCURACY_THRESHOLDS = [4, 16, 64]
 
 
 
@@ -304,6 +304,10 @@ def main(argsIn):
             
             #TODO: Add a +lon_0 entry here to set the central meridian?
             
+            # Equirectangular style projection
+            # - Latitude of true scale = center latitude = lat_ts
+            # - Latitude of origin = 0 = lat+0
+            # - Longitude of projection center = Central meridian = lon+0
             cmd = ('point2dem --errorimage -o ' + options.prefix + ' ' + pointCloudPath + 
                             ' -r moon --tr ' + str(DEM_METERS_PER_PIXEL) + ' --t_srs "+proj=eqc +lat_ts=' + str(centerLat) + 
                             ' +lat_0=0 +a='+str(MOON_RADIUS)+' +b='+str(MOON_RADIUS)+' +units=m" --nodata ' + str(DEM_NODATA))
@@ -325,10 +329,16 @@ def main(argsIn):
             # The color LUT is kept with the source code
             lutFilePath = os.path.join( os.path.dirname(os.path.abspath(__file__)), 'colorProfileBlueRed.csv')
             
-            # Generate the colormap
-            cmd = 'colormap ' + demPath + ' -o ' + colormapPath + ' -s ' + hillshadePath + ' --lut-file ' + lutFilePath
+            
+            # Generate the initial version of colormap
+            colormapTempPath = options.prefix + '-ColormapTemp.tif'
+            cmd = 'colormap ' + demPath + ' -o ' + colormapTempPath + ' -s ' + hillshadePath + ' --lut-file ' + lutFilePath
             print cmd
             os.system(cmd)
+            
+            # Now convert to the final output version (remove transparency layer) and remove the temp file
+            IrgFileFunctions.stripRgbImageAlphaChannel(colormapTempPath, colormapPath)            
+            os.remove(colormapTempPath)
             
             # Generate another file storing the colormap info
             writeColorMapInfo(colormapPath, lutFilePath, demPath, colormapLegendPath)
