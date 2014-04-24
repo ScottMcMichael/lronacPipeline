@@ -302,6 +302,9 @@ def removeCompressedOutputs(dataSetName, dryRun=False):
     if not ds.isComplete():
         raise Exception('Attempting to clear compressed on  incomplete data set: ' + dataSetName)
     localFolder = ds.getLocalFolder()
+    compressedFilePath = os.path.join(localFolder, 'results/output-CompressedOutputs.tar')
+    if not os.path.exists(compressedFilePath):
+        raise Exception('Attempting to clear compressed but output TAR file is missing!')
     
     # Each of these files will be deleted
     filesToDelete = ['output-Colormap.tif',
@@ -361,7 +364,7 @@ def archiveDataSet(dataSetName, deleteLocalFiles=False, dryRun=False):
     
     for f in filesToArchive:
         # Get storage name to use
-        archiveName  = 'NAC_DTM_' + dataSetName + '_CompressedOutputs.tar.bz2'
+        archiveName  = 'NAC_DTM_' + dataSetName + '_CompressedOutputs.tar'
         inputPath    = os.path.join(localFolder, f)
         outputPath   = os.path.join(LOU_STORAGE_PATH, archiveName)
         
@@ -481,15 +484,26 @@ def fixCompletedDataSets():
         ds = DataSet(dataSetName)
         if not ds.isComplete():
             raise Exception('Attempting to fix incomplete data set: ' + dataSetName)
-        localFolder = ds.getLocalFolder()
+        localFolder   = ds.getLocalFolder()
+        resultsFolder = os.path.join(localFolder, 'results/')
+        outputTarPath = os.path.join(resultsFolder, 'output-CompressedOutputs.tar.bz2')
         
-        # Check if the local files have been removed.
-        localFilesPresent = os.path.exists(os.path.join(localFolder, 'results/output-Confidence.tif'))
+        print 'Fixing ' + localFolder
+        if not os.path.exists(outputTarPath):
+            print 'Skipping folder because bz2 tar file is not present'
+
+        # Check if the local files are still there (two should be a safe check)
+        confPath = os.path.join(resultsFolder, 'output-Confidence.tif')
+        demPath  = os.path.join(resultsFolder, 'output-DEM.tif')
+        localFilesPresent = os.path.exists(confPath) and os.path.exists(demPath)
         
         if not localFilesPresent: # Unpack them from the output TAR file!
-            print 'TODO: Unpack the TAR file!'
-            #TODO!
-        
+            print 'unpack ' + outputTarPath
+            os.chdir(resultsFolder) # First move to the output directory
+            cmd = 'tar -xjvf ' + outputTarPath
+            print cmd
+            os.system(cmd)
+              
         # Each of these files will be deleted
         filesToDelete = ['output-Colormap.tif',
                          'output-Colormap.LBL',
@@ -498,23 +512,29 @@ def fixCompletedDataSets():
         
         # Delete all the files that need to be regenerated
         for f in filesToDelete: # For each file in the list above
-            path = os.path.join(localFolder, 'results/' + f)
-            #os.remove(path)
+            path = os.path.join(resultsFolder, f)
             print 'Delete file: ' + path
+            os.remove(path)
             
         # Now call the main processing script on the file
         # - For fast jobs we don't need to use PBS
         cmd = 'jobWrapperV2.sh ' + localFolder
         print cmd
-        #os.system(cmd)
+        os.system(cmd)
         
         # The main processing script will take care of all the work, including
         #  packing everything back up in to a TAR file.
-        
+       
         # Now clean up the large files we decompressed.
-        removeCompressedOutputs(dataSetName, dryRun=True)
+        print 'Removing large backed up files...'
+        removeCompressedOutputs(dataSetName, dryRun=False)
         
-        raise Exception('Stopping after one execution!')
+        # Remove the old TAR file    
+        print 'Deleting ' + outputTarPath
+        os.remove(outputTarPath)
+
+        print 'Done fixing ' + localFolder
+        #raise Exception('Stopping after one execution!')
 
     completeFile.close()    
 
