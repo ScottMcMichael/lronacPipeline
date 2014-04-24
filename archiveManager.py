@@ -20,6 +20,8 @@ import sys
 
 import os, glob, optparse, re, shutil, subprocess, string, time
 
+import workerpool
+
 import IsisTools, IrgFileFunctions, IrgIsisFunctions
 
 def man(option, opt, value, parser):
@@ -467,76 +469,110 @@ def restoreArchivedDataSet(dataSetName):
 #    print 'TODO'
 
 
-
-def fixCompletedDataSets():
-    """Applies a specific fix to completed local data sets after an output format change"""
+def getDataSetListFromFile(filePath):
+    """Gets a list of data sets from one of the status files.
     
-    if not os.path.exists(COMPLETE_STATUS_PATH):
-        raise Exception('Complete file list not present, run --check-local to generate it.')
+       Call one of these: getDataSetListFromFile(COMPLETE_STATUS_PATH)
+                          getDataSetListFromFile(INCOMPLETE_STATUS_PATH)
+                          getDataSetListFromFile(ARCHIVE_STATUS_PATH)
+    """
+    
+    if not os.path.exists(filePath):
+        raise Exception('File list ' + filePath + ' not present, run --check-local to generate it.')
 
-    # Loop through all data sets in the complete folder
-    completeFile = open(COMPLETE_STATUS_PATH, 'r')
-    for line in completeFile:
+    # Loop through all data sets in the log file
+    inputFile = open(filePath, 'r')
+    outputList = []
+    for line in inputFile:
         entries     = line.split(' ')
         dataSetName = entries[0]
-        
-        # Make sure the data set is complete before removing any files
-        ds = DataSet(dataSetName)
-        if not ds.isComplete():
-            raise Exception('Attempting to fix incomplete data set: ' + dataSetName)
-        localFolder   = ds.getLocalFolder()
-        resultsFolder = os.path.join(localFolder, 'results/')
-        outputTarPath = os.path.join(resultsFolder, 'output-CompressedOutputs.tar.bz2')
-        
-        print 'Fixing ' + localFolder
-        if not os.path.exists(outputTarPath):
-            print 'Skipping folder because bz2 tar file is not present'
+        outputList.append(dataSetName)
+    inputFile.close
+    return outputList
 
-        # Check if the local files are still there (two should be a safe check)
-        confPath = os.path.join(resultsFolder, 'output-Confidence.tif')
-        demPath  = os.path.join(resultsFolder, 'output-DEM.tif')
-        localFilesPresent = os.path.exists(confPath) and os.path.exists(demPath)
-        
-        if not localFilesPresent: # Unpack them from the output TAR file!
-            print 'unpack ' + outputTarPath
-            os.chdir(resultsFolder) # First move to the output directory
-            cmd = 'tar -xjvf ' + outputTarPath
-            print cmd
-            os.system(cmd)
-              
-        # Each of these files will be deleted
-        filesToDelete = ['output-Colormap.tif',
-                         'output-Colormap.LBL',
-                         'output-Confidence.tif',
-                         'output-Confidence.LBL']
-        
-        # Delete all the files that need to be regenerated
-        for f in filesToDelete: # For each file in the list above
-            path = os.path.join(resultsFolder, f)
-            print 'Delete file: ' + path
-            os.remove(path)
-            
-        # Now call the main processing script on the file
-        # - For fast jobs we don't need to use PBS
-        cmd = 'jobWrapperV2.sh ' + localFolder
+
+# TODO: replace with a generic function!
+def fixCompletedDataSets(numThreads):
+    """Applies a specific fix to completed local data sets after an output format change"""
+    
+    # Get a list of all the completed data sets
+    dataSetList = getDataSetListFromFile(COMPLETE_STATUS_PATH)
+    
+    
+    # Make a pool with multiple worker threads
+    pool = workerpool.WorkerPool(size=numThreads)
+    
+    # Perform the mapping
+    pool.map(fixDataSet, dataSetList)
+    
+    # TODO: How are exceptions handled?
+    
+    # Send shutdown jobs to all threads, and wait until all the jobs have been completed
+    pool.shutdown()
+    pool.wait()
+    
+    
+def fixCompleteDataSet(dataSetName):
+    """Applies a specific fix to completed local data sets after an output format change"""
+    
+    # Make sure the data set is complete before removing any files
+    ds = DataSet(dataSetName)
+    if not ds.isComplete():
+        #raise Exception('Attempting to fix incomplete data set: ' + dataSetName)
+        print 'Cannot fix incomplete data set: ' + dataSetName
+        return
+    
+    
+    localFolder   = ds.getLocalFolder()
+    resultsFolder = os.path.join(localFolder, 'results/')
+    outputTarPath = os.path.join(resultsFolder, 'output-CompressedOutputs.tar.bz2')
+    
+    print 'Fixing ' + localFolder
+    if not os.path.exists(outputTarPath):
+        print 'Skipping folder because bz2 tar file is not present'
+
+    # Check if the local files are still there (two should be a safe check)
+    confPath = os.path.join(resultsFolder, 'output-Confidence.tif')
+    demPath  = os.path.join(resultsFolder, 'output-DEM.tif')
+    localFilesPresent = os.path.exists(confPath) and os.path.exists(demPath)
+    
+    if not localFilesPresent: # Unpack them from the output TAR file!
+        print 'unpack ' + outputTarPath
+        os.chdir(resultsFolder) # First move to the output directory
+        cmd = 'tar -xjvf ' + outputTarPath
         print cmd
         os.system(cmd)
+          
+    # Each of these files will be deleted
+    filesToDelete = ['output-Colormap.tif',
+                     'output-Colormap.LBL',
+                     'output-Confidence.tif',
+                     'output-Confidence.LBL']
+    
+    # Delete all the files that need to be regenerated
+    for f in filesToDelete: # For each file in the list above
+        path = os.path.join(resultsFolder, f)
+        print 'Delete file: ' + path
+        os.remove(path)
         
-        # The main processing script will take care of all the work, including
-        #  packing everything back up in to a TAR file.
-       
-        # Now clean up the large files we decompressed.
-        print 'Removing large backed up files...'
-        removeCompressedOutputs(dataSetName, dryRun=False)
-        
-        # Remove the old TAR file    
-        print 'Deleting ' + outputTarPath
-        os.remove(outputTarPath)
+    # Now call the main processing script on the file
+    # - For fast jobs we don't need to use PBS
+    cmd = 'jobWrapperV2.sh ' + localFolder
+    print cmd
+    os.system(cmd)
+    
+    # The main processing script will take care of all the work, including
+    #  packing everything back up in to a TAR file.
+   
+    # Now clean up the large files we decompressed.
+    print 'Removing large backed up files...'
+    removeCompressedOutputs(dataSetName, dryRun=False)
+    
+    # Remove the old TAR file    
+    print 'Deleting ' + outputTarPath
+    os.remove(outputTarPath)
 
-        print 'Done fixing ' + localFolder
-        #raise Exception('Stopping after one execution!')
-
-    completeFile.close()    
+    print 'Done fixing ' + localFolder
 
 
 
@@ -577,6 +613,9 @@ def main():
             parser.add_option("--clear", action="store_true", dest="clear", default=False,
                               help="Clear files after archiving them.")
             
+            parser.add_option("--threads", type="int", dest="numThreads", default=8,
+                              help="Number of threads to use.")
+            
             parser.add_option("--dry-run", action="store_true", dest="dryRun", default=False,
                               help="Don't touch any data, just display actions to be taken.")
                               
@@ -607,7 +646,7 @@ def main():
             flagIncompleteDataSets(options.dryRun)
 
         if options.fixComplete:
-            fixCompletedDataSets()
+            fixCompletedDataSets(options.numThreads)
         
         return 0
 
