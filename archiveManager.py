@@ -97,7 +97,7 @@ class DataSet:
         
             # List of the files that need to be present to be considered complete
             requiredOutputList = [ 'output-CompressedInputs.tar.bz2',
-                                   'output-CompressedOutputs.tar.bz2']
+                                   'output-CompressedOutputs.tar']
         
             # If all the required files are present the status is complete.
             self.status = self.COMPLETE
@@ -118,11 +118,10 @@ class DataSet:
 
     def _isFolderArchived(self, localFolder):
         """Returns true if the folder has been archived and cleared.\n
-           - This is indicated by a folder that is almost empty except for 'downloadLog.txt'"""
+           - This is indicated by a folder that has certain files moved into it"""
            
-        # TODO: Verify the number of entries on this list!
         itemList = os.listdir(localFolder)
-        return (len(itemList) < 6) and ('downloadLog.txt' in itemList)
+        return ('output-CompressedInputs.tar.bz2' in itemList) and ('downloadLog.txt' in itemList)
 
     def _hasErrors(self, localFolder, verbose):
         """Searches for errors in the log file"""
@@ -222,6 +221,9 @@ def recordLocalDataStatus(dryRun=False):
     # Loop through all local data folders
     foldersInDirectory = os.listdir(PROCESSING_FOLDER)
     foldersInDirectory.sort()
+    completeCount   = 0
+    incompleteCount = 0
+    archivedCount   = 0
     for f in foldersInDirectory:
         try:
             dataSetName = folderToDataSetName(f)
@@ -237,23 +239,30 @@ def recordLocalDataStatus(dryRun=False):
         dataSetStatusString = ds.getStatusString()
 
         if ds.status == DataSet.ARCHIVED:
+            archivedCount = archivedCount + 1
             if dryRun:
                 print ' - ARCHIVED file   - ' + dataSetStatusString
             else: # Add to log file file
                 archiveFile.write(dataSetStatusString + '\n') 
         
         if ds.status == DataSet.COMPLETE:
+            completeCount = completeCount + 1
             if dryRun:
                 print ' - COMPLETE file   - ' + dataSetStatusString
             else: # Add to log file file
                 completeFile.write(dataSetStatusString + '\n')
 
         if ds.status == DataSet.INCOMPLETE:
+            incompleteCount = incompleteCount + 1
             if dryRun:
                 print ' - INCOMPLETE file - ' + dataSetStatusString
             else: # Add to log file file
                 incompleteFile.write(dataSetStatusString + '\n')
         
+    print 'Found ' + str(completeCount)   + ' complete data sets'
+    print 'Found ' + str(incompleteCount) + ' incomplete data sets'
+    print 'Found ' + str(archivedCount)   + ' archived data sets'
+
     if not dryRun:
         # Finished writing the output files
         completeFile.close()
@@ -357,67 +366,72 @@ def archiveDataSet(dataSetName, deleteLocalFiles=False, dryRun=False):
     ds = DataSet(dataSetName)
     if not ds.isComplete():
         raise Exception('Attempting to archive incomplete data set: ' + dataSetName)
-    localFolder = ds.getLocalFolder()
+    localFolder   = ds.getLocalFolder()
+    resultsFolder = os.path.join(localFolder, 'results/')
     
     # In order to archive the file it just has to be moved over to the Lou filesystem.
     # - Tape archiving is performed automatically when needed.
     # - All tar files are stored in the same directory
-    filesToArchive = ['output-CompressedOutputs.tar.bz2']
+    filesToArchive = ['output-CompressedOutputs.tar']
     
     for f in filesToArchive:
         # Get storage name to use
         archiveName  = 'NAC_DTM_' + dataSetName + '_CompressedOutputs.tar'
-        inputPath    = os.path.join(localFolder, f)
+        inputPath    = os.path.join(resultsFolder, f)
         outputPath   = os.path.join(LOU_STORAGE_PATH, archiveName)
         
         # Move the file over to Lou
-        cmd = 'shiftc ' + fullPath + ' ' + outputPath
-        if dryRun:
-            print '- ' + cmd
-        else: # Actually transfer the file
-            print cmd
-            os.system(cmd)   
+        #cmd = ['shiftc', '--wait', '--verify', inputPath,  outputPath]
+        cmd = 'shiftc --wait --verify ' + inputPath + ' ' + outputPath
+        print cmd
+        if not dryRun: # Actually transfer the file
+            os.system(cmd)
+            #p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            #textOutput, err = p.communicate()
+            #print textOutput
+            #print 'ppp'
+            #print err
+            #print textOutput.find('done')
+            #if not ('done' in textOutput):
+            #    raise Exception('Error transferring file!')
     
     if deleteLocalFiles: # Remove almost all files
         
         # Keep some result files and move them to the main data set directory
         filesToKeep   = ['output-LOLA_diff_stats.txt',
                          'output-Log.txt',
-                         'output-PcAlignLog.txt']
-        resultsFolder = os.path.join(localFolder, 'results/')
+                         'output-PcAlignLog.txt',
+                         'output-CompressedInputs.tar.bz2',
+                         'output-CompressedDiagnostics.tar.bz2']
         for f in filesToKeep:
             inputPath  = os.path.join(resultsFolder, f)
             outputPath = os.path.join(localFolder,   f)
-            if dryRun:
-                print 'mv ' + inputPath + ' ' + outputPath
-            else: # Actually move the files
+            print 'mv ' + inputPath + ' ' + outputPath
+            if not dryRun: # Actually move the files
                 shutil.move(inputPath, outputPath)
         
         # Now that we have saved a few files, delete everything else
         
         cmdRmImg   = 'rm ' + localFolder + '/*.IMG'
-        rdrPath    = os.path.join(localFolder + 'lolaRdrPoints.csv')
-        prtPath    = os.path.join(localFolder + 'print.prt')
-        #logPath    = os.path.join(localFolder + 'stdOutputLog.txt')
-        workDir    = os.path.join(localFolder + '/workDir')
-        resultsDir = os.path.join(localFolder + '/results')
+        rdrPath    = os.path.join(localFolder, 'lolaRdrPoints.csv')
+        prtPath    = os.path.join(localFolder, 'print.prt')
+        #logPath    = os.path.join(localFolder, 'stdOutputLog.txt')
+        workDir    = os.path.join(localFolder, 'workDir')
+        resultsDir = os.path.join(localFolder, 'results')
         
-        if dryRun:
-            print '- ' + cmdRmImg
-            print '- rm ' + rdrPath
-            print '- rm ' + ptrPath
-            #print '- rm ' + logPath
-            print '- rm ' + workDir
-            print '- rm ' + resultsDir
-        else: # Actually delete the files
+        print cmdRmImg
+        print 'rm ' + rdrPath
+        print 'rm ' + prtPath
+        #print 'rm ' + logPath
+        print 'rm -rf ' + workDir
+        print 'rm -rf ' + resultsDir
+        if not dryRun: # Actually delete the files
             os.system(cmdRmImg)
             IrgFileFunctions.removeIfExists(rdrPath)
-            IrgFileFunctions.removeIfExists(ptrPath)
+            IrgFileFunctions.removeIfExists(prtPath)
             #IrgFileFunctions.removeIfExists(logPath)
             IrgFileFunctions.removeFolderIfExists(workDir)
             IrgFileFunctions.removeFolderIfExists(resultsDir)
-        
-    
     
     
 
@@ -438,15 +452,17 @@ def archiveAllCompletedResults(deleteLocalFiles=False, dryRun=False):
         # Get the status of this data set
         ds = DataSet(dataSetName)
         
-        # Check that it is actually incomplete
-        if ds.status != DataSet.INCOMPLETE:
-            print 'WARNING: non-incomplete set found in incomplete file:'
-            print line
+        # Check that it is actually complete
+        if not ds.isComplete():
+            print 'WARNING: incomplete set found in complete file:'
+            print dataSetName
             continue
         
         archiveDataSet(dataSetName, deleteLocalFiles, dryRun)
         if not dryRun:
             archiveFile.write(line)
+    
+    # Finished archiving data, now update files.
 
     completeFile.close()
     if not dryRun:
@@ -497,13 +513,13 @@ def fixCompletedDataSets(numThreads):
     
     # Get a list of all the completed data sets
     dataSetList = getDataSetListFromFile(COMPLETE_STATUS_PATH)
-    
+
     
     # Make a pool with multiple worker threads
     pool = workerpool.WorkerPool(size=numThreads)
     
     # Perform the mapping
-    pool.map(fixDataSet, dataSetList)
+    pool.map(fixCompleteDataSet, dataSetList)
     
     # TODO: How are exceptions handled?
     
@@ -514,14 +530,13 @@ def fixCompletedDataSets(numThreads):
     
 def fixCompleteDataSet(dataSetName):
     """Applies a specific fix to completed local data sets after an output format change"""
-    
+
     # Make sure the data set is complete before removing any files
     ds = DataSet(dataSetName)
     if not ds.isComplete():
         #raise Exception('Attempting to fix incomplete data set: ' + dataSetName)
         print 'Cannot fix incomplete data set: ' + dataSetName
         return
-    
     
     localFolder   = ds.getLocalFolder()
     resultsFolder = os.path.join(localFolder, 'results/')
@@ -530,6 +545,7 @@ def fixCompleteDataSet(dataSetName):
     print 'Fixing ' + localFolder
     if not os.path.exists(outputTarPath):
         print 'Skipping folder because bz2 tar file is not present'
+        return
 
     # Check if the local files are still there (two should be a safe check)
     confPath = os.path.join(resultsFolder, 'output-Confidence.tif')
@@ -637,7 +653,7 @@ def main():
             recordLocalDataStatus(options.dryRun)
 
         if options.archive:
-            print 'TODO!'
+            archiveAllCompletedResults(options.clear, options.dryRun)
         
         if options.clearCompressed:
             removeAllCompletedCompressedOutputs(options.dryRun)
