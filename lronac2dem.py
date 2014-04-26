@@ -44,10 +44,7 @@ def writeLabelFile(imagePath, outputPath, dataSetName, versionId, description, e
     
     # Call functions to automatically obtain some data from the referenced image
     imageSize   = IrgGeoFunctions.getImageSize(imagePath)
-    try:
-        boundingBox = IrgGeoFunctions.getImageBoundingBox(imagePath)
-    except: # If we couldn't get the bounding box just fill in junk
-        boundingBox = (0, 0, 0, 0)
+    boundingBox = IrgGeoFunctions.getImageBoundingBox(imagePath)    
 
     # Obtain the ASP version string
     aspVersionString = IrgAspFunctions.getAspVersionStrings()
@@ -235,15 +232,45 @@ def main():
         logPath = options.outputPrefix + '-Log.txt'
         logging.basicConfig(filename=logPath,level=logging.INFO)
 
-
         # These are the output mosaic paths
         filename         = os.path.splitext(options.leftPath)[0] + '.correctedMosaic.cub'
         mainMosaicPath   = os.path.join(tempFolder, os.path.basename(filename))
         filename         = os.path.splitext(options.stereoLeft)[0] + '.correctedMosaic.cub'
         stereoMosaicPath = os.path.join(tempFolder, os.path.basename(filename))
 
-        # Call lronac2refinedMosaics.py
-        if (not os.path.exists(mainMosaicPath) or not os.path.exists(stereoMosaicPath)):
+
+        # List of all the output files that will be created by makeDemAndCompare.py
+        demPath               = options.outputPrefix + '-DEM.tif'
+        intersectionErrorPath = options.outputPrefix + '-IntersectionErr.tif'
+        hillshadePath         = options.outputPrefix + '-Hillshade.tif'
+        colormapPath          = options.outputPrefix + '-Colormap.tif'
+        colormapLegendPath    = options.outputPrefix + '-ColormapLegend.csv'
+        confidencePath        = options.outputPrefix + '-Confidence.tif'
+        confidenceLegendPath  = options.outputPrefix + '-ConfidenceLegend.csv'
+        mapProjectLeftPath    = options.outputPrefix + '-MapProjLeft.tif'
+        mapProjectRightPath   = options.outputPrefix + '-MapProjRight.tif'
+        
+        compressedInputPath  = options.outputPrefix + '-CompressedInputs.tar.bz2'
+        compressedOutputPath = options.outputPrefix + '-CompressedOutputs.tar'
+        compressedDebugPath  = options.outputPrefix + '-CompressedDiagnostics.tar.bz2'
+        
+        # List of .LBL text files to be created
+        demLabelPath               = options.outputPrefix + '-DEM.LBL' 
+        intersectionErrorLabelPath = options.outputPrefix + '-IntersectionErr.LBL'
+        hillshadeLabelPath         = options.outputPrefix + '-Hillshade.LBL'
+        colormapLabelPath          = options.outputPrefix + '-Colormap.LBL'
+        confidenceLabelPath        = options.outputPrefix + '-Confidence.LBL'
+        mapProjectLeftLabelPath    = options.outputPrefix + '-MapProjLeft.LBL'
+        mapProjectRightLabelPath   = options.outputPrefix + '-MapProjRight.LBL'
+
+        # List of diagnostic files we want to archive
+        #  Currently specified below.  Should be expanded.
+
+
+
+        # Call lronac2refinedMosaics.py if outputs do not already exist
+        if ( (not os.path.exists(mainMosaicPath) or not os.path.exists(stereoMosaicPath)) 
+             and not os.path.exists(demPath) ):
             refineTemp = os.path.join(tempFolder, 'refinement')
             cmdArgs = ['--left',          options.leftPath,
                        '--right',         options.rightPath,
@@ -258,42 +285,15 @@ def main():
             print cmdArgs
             lronac2refinedMosaics.main(cmdArgs)
         
-        # Copy the pc_align log file to the output folder
-        pcAlignLogPath = os.path.join(tempFolder, 'pcAlignLog.txt')
-        shutil.copyfile(pcAlignLogPath, options.outputPrefix + '-PcAlignLog.txt')
+            # Copy the pc_align log file to the output folder
+            pcAlignLogPath = os.path.join(tempFolder, 'pcAlignLog.txt')
+            shutil.copyfile(pcAlignLogPath, options.outputPrefix + '-PcAlignLog.txt')
 
-        # Check that we successfully created the output files
-        if (not os.path.exists(mainMosaicPath) or not os.path.exists(stereoMosaicPath)):
-            raise Exception('lronac2refinedMosaics failed to produce mosaics!')
-
-        # List of all the output files that will be created by makeDemAndCompare.py
-        demPath               = options.outputPrefix + '-DEM.tif'
-        intersectionErrorPath = options.outputPrefix + '-IntersectionErr.tif'
-        hillshadePath         = options.outputPrefix + '-Hillshade.tif'
-        colormapPath          = options.outputPrefix + '-Colormap.tif'
-        colormapLegendPath    = options.outputPrefix + '-ColormapLegend.csv'
-        confidencePath        = options.outputPrefix + '-Confidence.tif'
-        confidenceLegendPath  = options.outputPrefix + '-ConfidenceLegend.csv'
-        mapProjectLeftPath    = options.outputPrefix + '-MapProjLeft.tif'
-        mapProjectRightPath   = options.outputPrefix + '-MapProjRight.tif'
-        
-        compressedInputPath  = options.outputPrefix + '-CompressedInputs.tar.bz2'
-        compressedOutputPath = options.outputPrefix + '-CompressedOutputs.tar.bz2'
-        compressedDebugPath  = options.outputPrefix + '-CompressedDiagnostics.tar.bz2'
-        
-        # List of .LBL text files to be created
-        demLabelPath               = options.outputPrefix + '-DEM.LBL' 
-        intersectionErrorLabelPath = options.outputPrefix + '-IntersectionErr.LBL'
-        hillshadeLabelPath         = options.outputPrefix + '-Hillshade.LBL'
-        colormapLabelPath          = options.outputPrefix + '-Colormap.LBL'
-        confidenceLabelPath        = options.outputPrefix + '-Confidence.LBL'
-        mapProjectLeftLabelPath    = options.outputPrefix + '-MapProjLeft.LBL'
-        mapProjectRightLabelPath   = options.outputPrefix + '-MapProjRight.LBL'
-
-        # List of diagnostic files we want to archive
-        #TODO:!!!!!!!!!!!
-
-        # Call makeDemAndCompare.py
+            # Check that we successfully created the output files
+            if (not os.path.exists(mainMosaicPath) or not os.path.exists(stereoMosaicPath)):
+                raise Exception('lronac2refinedMosaics failed to produce mosaics!')
+ 
+        # Call makeDemAndCompare.py (This won't do much if outputs already exist)
         cmdArgs = ['--left',     mainMosaicPath, 
                    '--right',    stereoMosaicPath, 
                    '--lola',     options.lolaPath, 
@@ -363,10 +363,10 @@ def main():
             listOfInputFiles = [options.leftPath, options.rightPath, options.stereoLeft, options.stereoRight, options.lolaPath]
             if options.asuPath: # Handle optional input
                 listOfInputFiles.append(options.asuPath)
-            IrgFileFunctions.tarFileList(listOfInputFiles, compressedInputPath)
+            IrgFileFunctions.tarFileList(listOfInputFiles, compressedInputPath, True)
             
 
-        # Compress the output files to save disk space
+        # Tar the output files to save file count (they are already compressed)
         if not os.path.exists(compressedOutputPath):
             
             listOfDeliveryFiles = [demPath,      hillshadePath,      colormapPath,      confidencePath,      mapProjectLeftPath,      mapProjectRightPath,
@@ -385,17 +385,17 @@ def main():
                                       demTarBase+'.LBL', hillTarBase+'.LBL', colorTarBase+'.LBL', confTarBase+'.LBL', leftTarBase+'.LBL', rightTarBase+'.LBL']
 
             # This function can handle renaming the files as they get put in the tar.
-            IrgFileFunctions.tarFileList(listOfDeliveryFiles, compressedOutputPath, listOfTarDeliveryFiles)
+            IrgFileFunctions.tarFileList(listOfDeliveryFiles, compressedOutputPath, False, listOfTarDeliveryFiles)
 
 
         # Compress the diagnostic files to save disk space
         if not os.path.exists(compressedDebugPath):
             
-            listOfDebugFiles = [options.outputPrefix + 'Log.txt',
-                                options.outputPrefix + 'PcAlignLog.txt',
-                                options.outputPrefix + 'LOLA_diff_points.csv',
-                                options.outputPrefix + 'LOLA_diff_points.kml',]
-            IrgFileFunctions.tarFileList(listOfDebugFiles, compressedDebugPath)
+            listOfDebugFiles = [options.outputPrefix + '-Log.txt',
+                                options.outputPrefix + '-PcAlignLog.txt',
+                                options.outputPrefix + '-LOLA_diff_points.csv',
+                                options.outputPrefix + '-LOLA_diff_points.kml',]
+            IrgFileFunctions.tarFileList(listOfDebugFiles, compressedDebugPath, True)
 
 
         if not options.keep:

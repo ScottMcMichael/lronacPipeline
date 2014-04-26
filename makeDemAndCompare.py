@@ -38,7 +38,6 @@ class Usage(Exception):
 # For convenience some of the constants used in the file are set up here
 
 MAP_PROJECT_METERS_PER_PIXEL  = 0.5 # Map resolution in meters
-MAX_VALID_TRIANGULATION_ERROR = 999 # Meters
 DEM_METERS_PER_PIXEL          = 1.0
 
 DEM_NODATA    = -32767
@@ -198,12 +197,6 @@ def main(argsIn):
         # Set this to true to force steps after it to activate
         carry = False
 
-        # Verify input files are present
-        if not os.path.exists(options.leftPath):
-            raise Exception('Input file ' + options.leftPath + ' not found!')
-        if not os.path.exists(options.rightPath):
-            raise Exception('Input file ' + options.rightPath + ' not found!')
-
         # Set up the output folders
         outputFolder  = os.path.dirname(options.prefix)
         inputBaseName = os.path.basename(options.leftPath)
@@ -222,10 +215,40 @@ def main(argsIn):
         logging.basicConfig(filename=options.logPath,level=logging.INFO)
 
 
+        # Go ahead and set up all the output paths
+        # -- Deliverables
+        demPath               = options.prefix + '-DEM.tif'
+        intersectionErrorPath = options.prefix + '-IntersectionErr.tif'
+        hillshadePath         = options.prefix + '-Hillshade.tif'
+        colormapPath          = options.prefix + '-Colormap.tif'
+        colormapLegendPath    = options.prefix + '-ColormapLegend.csv'
+        mapProjectLeftPath    = options.prefix + '-MapProjLeft.tif'
+        mapProjectRightPath   = options.prefix + '-MapProjRight.tif'
+        confidenceLevelPath   = options.prefix + '-Confidence.tif'
+        confidenceLegendPath  = options.prefix + '-ConfidenceLegend.csv'
+        # -- Diagnostic
+        intersectionViewPathX    = options.prefix + '-IntersectionErrorX.tif'
+        intersectionViewPathY    = options.prefix + '-IntersectionErrorY.tif'
+        intersectionViewPathZ    = options.prefix + '-IntersectionErrorZ.tif'
+        lolaDiffStatsPath        = options.prefix + '-LOLA_diff_stats.txt'
+        lolaDiffPointsPath       = options.prefix + '-LOLA_diff_points.csv'
+        lolaAsuDiffStatsPath     = options.prefix + '-ASU_LOLA_diff_stats.txt'
+        lolaAsuDiffPointsPath    = options.prefix + '-ASU_LOLA_diff_points.csv'
+        mapProjectLeftUint8Path  = options.prefix + '-MapProjLeftUint8.tif'
+        mapProjectRightUint8Path = options.prefix + '-MapProjRightUint8.tif'
+
+
         # If specified, crop the inputs that will be passed into the stereo function to reduce processing time
         mainMosaicCroppedPath   = os.path.join(tempFolder, 'mainMosaicCropped.cub')
         stereoMosaicCroppedPath = os.path.join(tempFolder, 'stereoMosaicCropped.cub')
         if options.cropAmount and (options.cropAmount > 0):
+
+            # Verify input files are present
+            if not os.path.exists(options.leftPath):
+                raise Exception('Input file ' + options.leftPath + ' not found!')
+            if not os.path.exists(options.rightPath):
+                raise Exception('Input file ' + options.rightPath + ' not found!')
+
             if (not os.path.exists(mainMosaicCroppedPath)) or carry:
                 cmd = ('crop from= ' + options.leftPath   + ' to= ' + mainMosaicCroppedPath + 
                            ' nlines= ' + str(options.cropAmount))# + ' line=24200')
@@ -253,13 +276,26 @@ def main(argsIn):
                               ' --job-size-w 4096 --job-size-h 4096 ' + # Reduce number of tile files created
                               ' ' + stereoOutputPrefix + ' --processes 8 --threads-multiprocess 4' +
                               ' --threads-singleprocess 32 --compute-error-vector' + ' --filter-mode 1' +
-                              ' --erode-max-size 5000 --max-valid-triangulation-error ' + str(MAX_VALID_TRIANGULATION_ERROR))
+                              ' --erode-max-size 5000')
   
-        if (not os.path.exists(pointCloudPath)) or carry:
+        if (not os.path.exists(pointCloudPath) and not os.path.exists(demPath)) or carry:
+
+            # Verify input files are present
+            if not os.path.exists(options.leftPath):
+                raise Exception('Input file ' + options.leftPath + ' not found!')
+            if not os.path.exists(options.rightPath):
+                raise Exception('Input file ' + options.rightPath + ' not found!')
+
             cmd = ('parallel_stereo ' + stereoOptionString)
             print cmd
             os.system(cmd)
-                       
+ 
+
+            # Compute percentage of good pixels
+            percentGood = IrgAspFunctions.getStereoGoodPixelPercentage(stereoOutputPrefix)
+            print 'Stereo completed with good pixel percentage: ' + str(percentGood)
+            logging.info('Final stereo completed with good pixel percentage: %s', str(percentGood))
+                      
         else:
             print 'Stereo file ' + pointCloudPath + ' already exists, skipping stereo step.'
 
@@ -267,39 +303,18 @@ def main(argsIn):
         stereoTime = time.time()
         logging.info('Stereo finished in %f seconds', stereoTime - startTime)
 
-        # Compute percentage of good pixels
-        percentGood = IrgAspFunctions.getStereoGoodPixelPercentage(stereoOutputPrefix)
-        print 'Stereo completed with good pixel percentage: ' + str(percentGood)
-        logging.info('Final stereo completed with good pixel percentage: %s', str(percentGood))
-
 
         # Find out the center latitude of the mosaic
-        centerLat = IrgIsisFunctions.getCubeCenterLatitude(options.leftPath, tempFolder)
-
-        # Go ahead and set up all the output paths
-        # -- Deliverables
-        demPath               = options.prefix + '-DEM.tif'
-        intersectionErrorPath = options.prefix + '-IntersectionErr.tif'
-        hillshadePath         = options.prefix + '-Hillshade.tif'
-        colormapPath          = options.prefix + '-Colormap.tif'
-        colormapLegendPath    = options.prefix + '-ColormapLegend.csv'
-        mapProjectLeftPath    = options.prefix + '-MapProjLeft.tif'
-        mapProjectRightPath   = options.prefix + '-MapProjRight.tif'
-        confidenceLevelPath   = options.prefix + '-Confidence.tif'
-        confidenceLegendPath  = options.prefix + '-ConfidenceLegend.csv'
-        # -- Diagnostic
-        intersectionViewPathX    = options.prefix + '-IntersectionErrorX.tif'
-        intersectionViewPathY    = options.prefix + '-IntersectionErrorY.tif'
-        intersectionViewPathZ    = options.prefix + '-IntersectionErrorZ.tif'
-        lolaDiffStatsPath        = options.prefix + '-LOLA_diff_stats.txt'
-        lolaDiffPointsPath       = options.prefix + '-LOLA_diff_points.csv'
-        lolaAsuDiffStatsPath     = options.prefix + '-ASU_LOLA_diff_stats.txt'
-        lolaAsuDiffPointsPath    = options.prefix + '-ASU_LOLA_diff_points.csv'
-        mapProjectLeftUint8Path  = options.prefix + '-MapProjLeftUint8.tif'
-        mapProjectRightUint8Path = options.prefix + '-MapProjRightUint8.tif'
-
+        if os.path.exists(options.leftPath):
+            centerLat = IrgIsisFunctions.getCubeCenterLatitude(options.leftPath, tempFolder)
+        elif os.path.exists(demPath): # Input file has been deleted but we still have the info
+            demInfo = IrgGeoFunctions.getImageGeoInfo(demPath, False)
+            centerLat = demInfo['standard_parallel_1']
+        else:
+            raise Exception("Can't delete the input files before creating the DEM!")
 
         # Generate a DEM
+        centerLat = None
         if (not os.path.exists(demPath)) or carry:
             
             #TODO: Add a +lon_0 entry here to set the central meridian?
@@ -308,7 +323,7 @@ def main(argsIn):
             # - Latitude of true scale = center latitude = lat_ts
             # - Latitude of origin = 0 = lat+0
             # - Longitude of projection center = Central meridian = lon+0
-            cmd = ('point2dem --errorimage -o ' + options.prefix + ' ' + pointCloudPath + 
+            cmd = ('point2dem --remove-outliers --errorimage -o ' + options.prefix + ' ' + pointCloudPath + 
                             ' -r moon --tr ' + str(DEM_METERS_PER_PIXEL) + ' --t_srs "+proj=eqc +lat_ts=' + str(centerLat) + 
                             ' +lat_0=0 +a='+str(MOON_RADIUS)+' +b='+str(MOON_RADIUS)+' +units=m" --nodata ' + str(DEM_NODATA))
             os.system(cmd)
