@@ -85,6 +85,9 @@ def mapProjectImage(inputImage, demPath, outputPath, resolution, centerLat, node
     else:
         print 'Map projected file  ' + outputPath + ' already exists, skipping map project step.'
 
+    if not os.path.exists(outputPath):
+        raise Exception('Failed to create map projected image ' + outputPath)
+
     return True
 
 

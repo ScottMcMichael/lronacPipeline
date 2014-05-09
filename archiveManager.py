@@ -18,7 +18,7 @@
 
 import sys
 
-import os, glob, optparse, re, shutil, subprocess, string, time
+import os, glob, optparse, re, shutil, subprocess, string, time, pipes
 
 import workerpool
 
@@ -44,8 +44,9 @@ STATUS_FOLDER          = '/u/smcmich1/projects/lronacPipeline/dataStatus'
 INCOMPLETE_STATUS_PATH = os.path.join(STATUS_FOLDER, 'incompleteStatus.txt')
 COMPLETE_STATUS_PATH   = os.path.join(STATUS_FOLDER, 'completeStatus.txt')
 ARCHIVE_STATUS_PATH    = os.path.join(STATUS_FOLDER, 'archiveStatus.txt')
-LOU_STORAGE_PATH       = 'lfe4:/lou/s2i/smcmich1/LRONAC_DTM'
-
+LOU_LOCAL_STORAGE_PATH = '/lou/s2i/smcmich1/LRONAC_DTM'
+LOU_STORAGE_PATH       = 'lfe4:' + LOU_LOCAL_STORAGE_PATH
+LOU_SSH_TARGET         = 'smcmich1@lfe4'
 
 def folderToDataSetName(folder):
         """Given a folder, get the data set name"""
@@ -137,9 +138,10 @@ class DataSet:
                      'caught an exception',
                      ' ERROR**',
                      'Disk quota exceeded',
+                     'Failed to read',
+                     'Unable to open',
                      'file size exceeded',
-                     'unrecognised option',
-                     'Walltime Used            : 35:']
+                     'unrecognised option']
         
         # Search for each of these errors in the log file
         for line in logFile:
@@ -395,6 +397,13 @@ def archiveDataSet(dataSetName, deleteLocalFiles=False, dryRun=False):
             #if not ('done' in textOutput):
             #    raise Exception('Error transferring file!')
     
+            # Verify that the file was actually transferred
+            resp = subprocess.call(['ssh', LOU_SSH_TARGET, 'test -e ' + pipes.quote(LOU_LOCAL_STORAGE_PATH)])
+            if resp == 0:
+                print 'shiftc file transfer confirmed.'
+            else:
+                raise Exception('Failed to transfer file using shiftc!')
+
     if deleteLocalFiles: # Remove almost all files
         
         # Keep some result files and move them to the main data set directory
