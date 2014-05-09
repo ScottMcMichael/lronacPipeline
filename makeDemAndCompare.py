@@ -42,7 +42,7 @@ DEM_METERS_PER_PIXEL          = 1.0
 
 DEM_NODATA    = -32767
 MOON_RADIUS   = 1737400
-SUBPIXEL_MODE = 2 # 1 = fast, 2 = accurate
+SUBPIXEL_MODE = 3 # 1 = fast, 2 = accurate, 3 = compromise
 
 PIXEL_ACCURACY_THRESHOLDS = [4, 16, 64]
 
@@ -279,7 +279,7 @@ def main(argsIn):
                               ' --job-size-w 4096 --job-size-h 4096 ' + # Reduce number of tile files created
                               ' ' + stereoOutputPrefix + ' --processes 8 --threads-multiprocess 4' +
                               ' --threads-singleprocess 32 --compute-error-vector' + ' --filter-mode 1' +
-                              ' --erode-max-size 5000')
+                              ' --erode-max-size 5000 --subpixel-kernel 25 25')
   
         if (not os.path.exists(pointCloudPath) and not os.path.exists(demPath)) or carry:
 
@@ -326,7 +326,7 @@ def main(argsIn):
             # - Latitude of true scale = center latitude = lat_ts
             # - Latitude of origin = 0 = lat+0
             # - Longitude of projection center = Central meridian = lon+0
-            cmd = ('point2dem --remove-outliers --errorimage -o ' + options.prefix + ' ' + pointCloudPath + 
+            cmd = ('point2dem --dem-hole-fill-len 10  --remove-outliers --errorimage -o ' + options.prefix + ' ' + pointCloudPath + 
                             ' -r moon --tr ' + str(DEM_METERS_PER_PIXEL) + ' --t_srs "+proj=eqc +lat_ts=' + str(centerLat) + 
                             ' +lat_0=0 +a='+str(MOON_RADIUS)+' +b='+str(MOON_RADIUS)+' +units=m" --nodata ' + str(DEM_NODATA))
             os.system(cmd)
@@ -410,7 +410,6 @@ def main(argsIn):
         # Call script to compare LOLA data with the ASU DEM
         if options.asuPath:
             compareDemToLola(options.lolaPath, options.asuPath, lolaAsuDiffStatsPath, lolaAsuDiffPointsPath, carry)
-
 
         # Generate a map projected version of the left and right images
         # - This step is done last since it is so slow!
