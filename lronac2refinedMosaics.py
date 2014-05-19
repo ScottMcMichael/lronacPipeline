@@ -385,6 +385,11 @@ def main(argsIn):
         leftStereoThread.join()
         rightStereoThread.join()
 
+  	# Verify that we got all the outputs
+        if (not os.path.exists(leftNoprojPath)       or not os.path.exists(rightNoprojPath) or 
+            not os.path.exists(leftStereoNoprojPath) or not os.path.exists(rightStereoNoprojPath)):
+            raise Exception('Failed to create all four noproj files, halting process!')
+
         print 'noproj threads finished.'
 
         noprojTime = time.time()
