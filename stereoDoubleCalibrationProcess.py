@@ -23,7 +23,7 @@ import os, glob, optparse, re, shutil, subprocess, string, time, math, logging, 
 
 import IrgFileFunctions, IrgIsisFunctions, IrgAspFunctions
 
-import positionCorrector, rotationCorrector, lronacCameraRotationCorrector
+import positionCorrectorV2, rotationCorrectorV2
 
 def man(option, opt, value, parser):
     print >>sys.stderr, parser.usage
@@ -95,7 +95,7 @@ def applyInterCameraPositionOffset(inputCubePath, outputCubePath, workingDirecto
                '--output',  outputCubePath, 
                '--workDir', workingDirectory]
     #print cmdArgs
-    positionCorrector.main(cmdArgs)
+    positionCorrectorV2.main(cmdArgs)
 
 
     # Check to make sure we actually created the file
@@ -189,10 +189,11 @@ def extractPixelPairsFromStereoResults(disparityImagePath, outputPixelPath,
 
 
 # Applies a planet-centered rotation and correction to the nav data of a cube
-# - If the CK and SPK paths are not specified, paths are automatically generated.
 # - Set forceOperation to run the operation even if the output file already exists
-def applyNavTransform(inputCubePath, outputCubePath, transformMatrixPath, workDir, 
-                      ckPath, spkPath, pcAlignTrans, forceOperation):
+#def applyNavTransform(inputCubePath, outputCubePath, transformMatrixPath, workDir, 
+#                      ckPath, spkPath, pcAlignTrans, forceOperation):
+def applyNavTransform(inputCubePath, outputCubePath, transformMatrixPath,
+                      pcAlignTrans, forceOperation):
 
     # Quit immediately if the output file already exists
     if (not forceOperation) and (os.path.exists(outputCubePath)):
@@ -202,23 +203,15 @@ def applyNavTransform(inputCubePath, outputCubePath, transformMatrixPath, workDi
     
     # Set up the transformation command
     cmdArgs = ['--keep', '--input', inputCubePath, '--output', outputCubePath, 
-               '--transformPath', transformMatrixPath, '--workDir', workDir]
+               '--transformPath', transformMatrixPath]
     
-    # Set up CK and SPK manual paths if they were specified
-    if (ckPath):
-        cmdArgs.append('--ck')
-        cmdArgs.append(ckPath)
-    if (spkPath):
-        cmdArgs.append('--spk')
-        cmdArgs.append(spkPath)
-
     # Set flag if the transform comes from pc_align as opposed to the lronacAngleSolver
     if (pcAlignTrans):
         cmdArgs.append('--pcAlignTrans')
     
     # Execute the transformation command
     #print cmdArgs
-    rotationCorrector.main(cmdArgs)
+    rotationCorrectorV2.main(cmdArgs)
 
     # Check to make sure we actually created the file
     if not os.path.exists(outputCubePath):
@@ -444,35 +437,35 @@ def makeZeroParamsPath(outputPath):
     
     return os.path.exists(outputPath)
     
-# Generate a modified IK kernel to adjust the rotation between an LE/RE camera pair.
-def applyInterCameraPairRotation(leftInputPath, rightInputPath, newRotationPath, outputCubePath, 
-                                 ckPath, spkPath, workDir, forceOperation):
-
-    # Quit immediately if the output file already exists
-    if (not forceOperation) and (os.path.exists(outputCubePath)):
-        print 'File ' + outputCubePath + ' already exists, skipping nav transform.'
-        return True
-
-    # Generate the new file
-    cmdArgs = ['--keep', '--output', outputCubePath, 
-               '--rotation', newRotationPath, '--left', leftInputPath, 
-               '--right', rightInputPath, 
-               '--workDir', workDir]
-    if ckPath: # Add optional arguments
-        cmdArgs.append('--ck')
-        cmdArgs.append(ckPath)
-    if spkPath:
-        cmdArgs.append('--spk')
-        cmdArgs.append(spkPath)
-    #print cmdArgs
-    lronacCameraRotationCorrector.main(cmdArgs)
-
-    # Check to make sure we actually created the file
-    if not os.path.exists(outputCubePath):
-        raise Exception('Inter-camera rotation failed to create output file ' + outputCubePath + 
-                        ' from input files ' + leftInputPath + ' and ' + rightInputPath)
-
-    return True
+## Generate a modified IK kernel to adjust the rotation between an LE/RE camera pair.
+#def applyInterCameraPairRotation(leftInputPath, rightInputPath, newRotationPath, outputCubePath, 
+#                                 ckPath, spkPath, workDir, forceOperation):
+#
+#    # Quit immediately if the output file already exists
+#    if (not forceOperation) and (os.path.exists(outputCubePath)):
+#        print 'File ' + outputCubePath + ' already exists, skipping nav transform.'
+#        return True
+#
+#    # Generate the new file
+#    cmdArgs = ['--keep', '--output', outputCubePath, 
+#               '--rotation', newRotationPath, '--left', leftInputPath, 
+#               '--right', rightInputPath, 
+#               '--workDir', workDir]
+#    if ckPath: # Add optional arguments
+#        cmdArgs.append('--ck')
+#        cmdArgs.append(ckPath)
+#    if spkPath:
+#        cmdArgs.append('--spk')
+#        cmdArgs.append(spkPath)
+#    #print cmdArgs
+#    lronacCameraRotationCorrector.main(cmdArgs)
+#
+#    # Check to make sure we actually created the file
+#    if not os.path.exists(outputCubePath):
+#        raise Exception('Inter-camera rotation failed to create output file ' + outputCubePath + 
+#                        ' from input files ' + leftInputPath + ' and ' + rightInputPath)
+#
+#    return True
     
 
 
@@ -1145,57 +1138,21 @@ def main(argsIn):
 
         # Now go back and apply the pc_align computed transform to all four cameras.
         # - This step corrects the four camera positions relative to the LOLA data.
-        leftCkPath       = os.path.join(tempFolder, 'leftFinalCk.bc')
-        leftSpkPath      = os.path.join(tempFolder, 'leftFinalSpk.bsp')
-        leftFinalWorkDir = os.path.join(tempFolder, 'leftFullCorrection/')
         print 'Applying pc_align transform to main LE image...'
         applyNavTransform(posOffsetCorrectedLeftPath, outputPathLeft, 
-                          pcAlignTransformPath, leftFinalWorkDir, leftCkPath,
-                          leftSpkPath, True, carry)
+                          pcAlignTransformPath, True, carry)
 
-        partialCorrectedRightPath = os.path.join(tempFolder, rightBaseName + '.partial_corrected.cub')
-        rightCkPath               = os.path.join(tempFolder, 'rightFinalCk.bc') 
-        rightSpkPath              = os.path.join(tempFolder, 'rightFinalSpk.bsp')
-        rightFinalWorkDir          = os.path.join(tempFolder, 'rightFullCorrection/')
         print 'Applying pc_align transform to main RE image...'
-        applyNavTransform(posOffsetCorrectedRightPath, partialCorrectedRightPath, 
-                          pcAlignTransformPath, rightFinalWorkDir,
-                          rightCkPath, rightSpkPath, True, carry)
+        applyNavTransform(posOffsetCorrectedRightPath, outputPathRight, 
+                          pcAlignTransformPath, True, carry)
 
-        leftStereoCkPath       = os.path.join(tempFolder, 'leftStereoFinalCk.bc') 
-        leftStereoSpkPath      = os.path.join(tempFolder, 'leftStereoFinalSpk.bsp')
-        leftStereoFinalWorkDir = os.path.join(tempFolder, 'leftStereoFullCorrection/')
         print 'Applying pc_align transform to stereo LE image...'
         applyNavTransform(leftStereoAdjustedPath, outputPathStereoLeft, 
-                          pcAlignTransformPath, leftStereoFinalWorkDir, 
-                          leftStereoCkPath, leftStereoSpkPath, True, carry)
+                          pcAlignTransformPath, True, carry)
 
-        partialCorrectedStereoRightPath = os.path.join(tempFolder, rightStereoBaseName + '.partial_corrected.cub')
-        rightStereoCkPath               = os.path.join(tempFolder, 'rightStereoFinalCk.bc')
-        rightStereoSpkPath              = os.path.join(tempFolder, 'rightStereoFinalSpk.bsp')
-        rightStereoFinalWorkDir         = os.path.join(tempFolder, 'rightStereoFullCorrection/')
         print 'Applying pc_align transform to stereo RE image...'
-        applyNavTransform(rightStereoAdjustedPath, partialCorrectedStereoRightPath, 
-                          pcAlignTransformPath, rightStereoFinalWorkDir, 
-                          rightStereoCkPath, rightStereoSpkPath, True, carry)
-
-
-        # Apply local transforms to both pairs of images!
-
-        # Apply the local rotation to the adjusted RE cube
-        print 'Applying inter-pair camera transforms to main RE image...'
-        mainLocalWorkDir = os.path.join(tempFolder, 'mainLocalCorrection')
-        applyInterCameraPairRotation(outputPathLeft, partialCorrectedRightPath, 
-                                    localRotationPath, outputPathRight, 
-                                    rightCkPath, rightSpkPath, mainLocalWorkDir, carry)
-
-        # Apply the local rotation to the adjusted stereo RE cube
-        print 'Applying inter-pair camera transforms to stereo RE image...'
-        stereoLocalWorkDir = os.path.join(tempFolder, 'stereoLocalCorrection')
-        applyInterCameraPairRotation(outputPathStereoLeft, partialCorrectedStereoRightPath, 
-                                     stereoRotationPath, outputPathStereoRight, 
-                                     rightStereoCkPath, rightStereoSpkPath, stereoLocalWorkDir, carry)
-        
+        applyNavTransform(rightStereoAdjustedPath, outputPathStereoRight, 
+                          pcAlignTransformPath, True, carry)
         
 
         navTime = time.time()
