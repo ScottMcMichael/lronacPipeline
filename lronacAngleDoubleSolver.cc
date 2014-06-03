@@ -415,6 +415,34 @@ size_t loadInputPointPairs(const Parameters &params, PointObsList &leftPixelPair
   return totalNumPoints;
 }
 
+
+
+/// Writes out a rotation matrix in axis-angle format plus a translation.
+/// - Output is 4x4 transform format.
+bool writeGlobalRotationMatrix(double r1, double r2, double r3, // Axis-angle rotation
+                               double t1, double t2, double t3, // Translation
+                               const std::string &outputPath)
+{
+  // Write out the global rotation/translation matrix that was applied to the camera
+  printf("Writing output file %s\n", outputPath.c_str());
+  std::ofstream outputFile(outputPath.c_str());
+  vw::math::Vector    <double,3>   axisAngle(r1, r2, r3);
+  vw::math::Quaternion<double>     rotQuat  (axis_angle_to_quaternion(axisAngle));
+  vw::math::Matrix    <double,3,3> rotMat   (rotQuat.rotation_matrix());
+
+  // Write out the data into a 4x4 matrix in the file
+  vw::math::Vector<double,3> translation(t1, t2, t3); // Pack translation for loop
+  for (int q=0; q<3; ++q)
+    outputFile << rotMat[q][0] << " " << rotMat[q][1] << " " << rotMat[q][2] << " " << translation[q] << std::endl;
+  outputFile << "0 0 0 1" << std::endl;
+  outputFile.close();
+
+  // Return success if no file error
+  return (! (outputFile.fail()) );
+}
+
+
+
 //-------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------
 
@@ -573,15 +601,15 @@ bool optimizeRotations(Parameters & params)
 
   
   
-  // Load the inital points into the solver
+  // Load the inital points into the solver and estimate all point coordinates
   printf("Initializing solver state...\n");
   Vector<double> initialState;
-  std::vector<double> initialErrorMeters;
+  std::vector<double> initialErrorMeters; // Triangulation error if initialValues is given, ground distance otherwise.
   if (!lrocClass.estimatePointLocations(overlapPairs,        stereoOverlapPairs,
-                                         leftPixelPairs,      rightPixelPairs,
-                                         leftCrossPixelPairs, rightCrossPixelPairs,
-                                         initialState,        initialErrorMeters,
-                                         params.expectedSurfaceElevation, initialValues))
+                                        leftPixelPairs,      rightPixelPairs,
+                                        leftCrossPixelPairs, rightCrossPixelPairs,
+                                        initialState,        initialErrorMeters,
+                                        params.expectedSurfaceElevation, initialValues))
   {
     printf("Failed to get initial state!\n");
     return false;
@@ -626,6 +654,10 @@ bool optimizeRotations(Parameters & params)
     initialGdcCoordFile << gdcCoord[1] << ", " << gdcCoord[0] << ", " << gdcCoord[2] << std::endl;
   }
   initialGdcCoordFile.close();
+
+
+
+  //Vector<double> initialComputedObservations = lrocClass(initialState);
   
   if (params.initialOnly)
   {
@@ -635,13 +667,13 @@ bool optimizeRotations(Parameters & params)
   
   //@@@@@@@@@@@@@@@@@@@@ SOLVER BLOCK @@@@@@@@@@@@@@@@@@@@@@@@@
   printf("Running solver...\n");
-  Vector<double> finalParams;
   printf("Using Ceres solver!\n");
   //TODO: Turn on Glog
   
   // Create Ceres solver object
   ceres::Problem problem;
   
+  // TODO: Rename these if keeping this change!
   // Set up camera parameters for solver
   double* localRotation       = &(initialState[0]);
   double* globalRotation      = &(initialState[3]);
@@ -687,8 +719,6 @@ bool optimizeRotations(Parameters & params)
   } // End of loop through main camera pair points
 
 
-  //currentPointIndex += overlapPairs.size()*NUM_PARAMS_PER_POINT; //DEBUG!!!!!!
-
   if (stereoOverlapPairs.size() > 0)
     printf("Loading parameters for stereo camera pair...\n");
   for (size_t i=0; i<stereoOverlapPairs.size(); ++i) // For each input point
@@ -708,15 +738,13 @@ bool optimizeRotations(Parameters & params)
 
     // Add the function and residual block for the right camera (slightly more complex)
     ceres::CostFunction* costFunctionRight = 
-            new ceres::NumericDiffCostFunction<RightStereoCostFunctor, ceres::CENTRAL, NUM_PARAMS_PER_OBSERVATION, NUM_PARAMS_CAMERA_SECTION, NUM_PARAMS_CAMERA_SECTION, NUM_PARAMS_CAMERA_SECTION, NUM_PARAMS_PER_POINT>(
+            new ceres::NumericDiffCostFunction<RightStereoCostFunctor, ceres::CENTRAL, NUM_PARAMS_PER_OBSERVATION, NUM_PARAMS_CAMERA_SECTION, NUM_PARAMS_CAMERA_SECTION, NUM_PARAMS_PER_POINT>(
                   new RightStereoCostFunctor(&lrocClass, stereoOverlapPairs.rightObsList[i]));
     
-    problem.AddResidualBlock(costFunctionRight, lossFunction, globalRotation, globalPosition, localStereoRotation, pointParams);
+    problem.AddResidualBlock(costFunctionRight, lossFunction, localStereoRotation, globalPosition, pointParams);
     
   } // End of loop through stereo camera pair points
 
-
-  //currentPointIndex += stereoOverlapPairs.size()*NUM_PARAMS_PER_POINT; //DEBUG!!!!!!
 
   if (leftPixelPairs.size() > 0)
     printf("Loading parameters for two left cameras...\n");
@@ -746,8 +774,6 @@ bool optimizeRotations(Parameters & params)
   } // End of loop through both left camera points
 
 
-  //currentPointIndex += leftPixelPairs.size()*NUM_PARAMS_PER_POINT; //DEBUG!!!!!!
-
   if (rightPixelPairs.size() > 0)
     printf("Loading parameters for two right cameras...\n");
   for (size_t i=0; i<rightPixelPairs.size(); ++i) // For each input point
@@ -765,13 +791,13 @@ bool optimizeRotations(Parameters & params)
 
     problem.AddResidualBlock(costFunctionLeft, lossFunction, localRotation, pointParams);
 
-    // Add the function and residual block for the stereo right camera (slightly more complex)
+    // Add the function and residual block for the right camera (slightly more complex)
     ceres::CostFunction* costFunctionRight = 
-            new ceres::NumericDiffCostFunction<RightStereoCostFunctor, ceres::CENTRAL, NUM_PARAMS_PER_OBSERVATION, NUM_PARAMS_CAMERA_SECTION, NUM_PARAMS_CAMERA_SECTION, NUM_PARAMS_CAMERA_SECTION, NUM_PARAMS_PER_POINT>(
+            new ceres::NumericDiffCostFunction<RightStereoCostFunctor, ceres::CENTRAL, NUM_PARAMS_PER_OBSERVATION, NUM_PARAMS_CAMERA_SECTION, NUM_PARAMS_CAMERA_SECTION, NUM_PARAMS_PER_POINT>(
                   new RightStereoCostFunctor(&lrocClass, rightPixelPairs.rightObsList[i]));
-    
-    problem.AddResidualBlock(costFunctionRight, lossFunction, globalRotation, globalPosition, localStereoRotation, pointParams);
 
+    problem.AddResidualBlock(costFunctionRight, lossFunction, localStereoRotation, globalPosition, pointParams);
+    
   } // End of loop through both right camera points
 
 
@@ -792,12 +818,12 @@ bool optimizeRotations(Parameters & params)
 
     problem.AddResidualBlock(costFunctionLeft, lossFunction, pointParams);
 
-    // Add the function and residual block for the stereo right camera (slightly more complex)
+    // Add the function and residual block for the right camera (slightly more complex)
     ceres::CostFunction* costFunctionRight =
-            new ceres::NumericDiffCostFunction<RightStereoCostFunctor, ceres::CENTRAL, NUM_PARAMS_PER_OBSERVATION, NUM_PARAMS_CAMERA_SECTION, NUM_PARAMS_CAMERA_SECTION, NUM_PARAMS_CAMERA_SECTION, NUM_PARAMS_PER_POINT>(
+            new ceres::NumericDiffCostFunction<RightStereoCostFunctor, ceres::CENTRAL, NUM_PARAMS_PER_OBSERVATION, NUM_PARAMS_CAMERA_SECTION, NUM_PARAMS_CAMERA_SECTION, NUM_PARAMS_PER_POINT>(
                   new RightStereoCostFunctor(&lrocClass, leftCrossPixelPairs.rightObsList[i]));
 
-    problem.AddResidualBlock(costFunctionRight, lossFunction, globalRotation, globalPosition, localStereoRotation, pointParams);
+    problem.AddResidualBlock(costFunctionRight, lossFunction, localStereoRotation, globalPosition, pointParams);
 
   } // End of loop through left cross camera pair points
 
@@ -832,8 +858,7 @@ bool optimizeRotations(Parameters & params)
        
   // TODO: Select solver options
   ceres::Solver::Options solverOptions;
-  solverOptions.max_num_iterations           = 50; //TODO: Play with these again!
-  //solverOptions.linear_solver_type           = ceres::DENSE_SCHUR;
+  solverOptions.max_num_iterations           = 150;
   solverOptions.linear_solver_type           = ceres::SPARSE_SCHUR;
   solverOptions.minimizer_progress_to_stdout = true;
   solverOptions.max_num_line_search_direction_restarts = 8;
@@ -859,7 +884,8 @@ bool optimizeRotations(Parameters & params)
 
   printf("Copying out Ceres solver results.\n");
   // Get the information back from the solver!
-  finalParams.set_size(initialState.size());
+  std::vector<double> finalParams;
+  finalParams.resize(initialState.size());
   for (size_t i=0; i<initialState.size(); ++i)
     finalParams[i] = initialState[i];
   
@@ -876,16 +902,15 @@ bool optimizeRotations(Parameters & params)
   finalStateFile.close();
 
 
-  // Compute the final triangulation error
-  std::vector<double> finalErrorMeters, finalStateCopy(finalParams.size());
-  for (size_t i=0; i<finalParams.size(); ++i)
-      finalStateCopy[i] = finalParams[i];
+  // TODO: Clean up this call
+  // Compute the final
+  std::vector<double> finalErrorMeters; // Triangulation error
   vw::Vector<double> dummyVec;
   if (!lrocClass.estimatePointLocations(overlapPairs,        stereoOverlapPairs,
                                         leftPixelPairs,      rightPixelPairs,
                                         leftCrossPixelPairs, rightCrossPixelPairs,
                                         dummyVec,            finalErrorMeters,
-                                        params.expectedSurfaceElevation, finalStateCopy))
+                                        params.expectedSurfaceElevation, finalParams))
   {
     printf("Error computing final error!\n");
     return false;
@@ -938,6 +963,7 @@ bool optimizeRotations(Parameters & params)
   // --------------- Summary of results ------------------------------
   const double rad2deg = 180.0 / M_PI;
   const double deg2rad = M_PI / 180.0;
+  // TODO: Correct these if needed!
   printf("Local  rotation angles (degrees): %lf, %lf, %lf\n", finalParams[0]*rad2deg, finalParams[1]*rad2deg, finalParams[2]*rad2deg);
   printf("Local  rotation angles (radians): %lf, %lf, %lf\n", finalParams[0], finalParams[1], finalParams[2]);
   printf("Global rotation angles (degrees): %lf, %lf, %lf\n", finalParams[3]*rad2deg, finalParams[4]*rad2deg, finalParams[5]*rad2deg);
@@ -955,7 +981,8 @@ bool optimizeRotations(Parameters & params)
   // This is the rotation matrix we solved for (matches code in IsisInterfaceLineScan.cc)
   // solvedRotation = instrument(good)_from_instrument
   vw::math::Matrix<double,3,3> tempRot = vw::math::euler_to_rotation_matrix(finalParams[0], finalParams[1], finalParams[2], "xyz");
-  vw::math::Matrix<double,3,3> localRotationMatrix = transpose(frameRotation * transpose(tempRot)); // == sc_from_instrument(good)
+  //vw::math::Matrix<double,3,3> localRotationMatrix = transpose(frameRotation * transpose(tempRot)); // == sc_from_instrument(good)
+  vw::math::Matrix<double,3,3> localRotationMatrix = vw::math::euler_to_rotation_matrix(finalParams[0], finalParams[1], finalParams[2], "xyz");
   std::cout << "Solved local rotation matrix: " << localRotationMatrix << std::endl;
 
   // Extract rotation angles --> Returns Rx(a)*Ry(b)*Rz(c)
@@ -964,14 +991,15 @@ bool optimizeRotations(Parameters & params)
   // Output angles (rZ, rY, rX)
   printf("Combined local rotation angles (degrees): %lf, %lf, %lf\n", outputLocalAngles[2]*rad2deg, outputLocalAngles[1]*rad2deg, outputLocalAngles[0]*rad2deg);
   
-  // --------------- Handle global rotation (translation is easy) -----------------------
-  vw::math::Matrix<double,3,3> globalRotMatrix = vw::math::euler_to_rotation_matrix(finalParams[3], finalParams[4], finalParams[5], "xyz");
-  std::cout << "Global rotation matrix: " << globalRotMatrix << std::endl;
-
+  //// --------------- Handle global rotation (translation is easy) -----------------------
+  //vw::math::Matrix<double,3,3> globalRotMatrix = vw::math::euler_to_rotation_matrix(finalParams[3], finalParams[4], finalParams[5], "xyz");
+  //std::cout << "Global rotation matrix: " << globalRotMatrix << std::endl;
+  //// TODO: Do we even use this section?
 
   // --------------- Now handle the stereo local rotation ----------------------
   tempRot = vw::math::euler_to_rotation_matrix(finalParams[9], finalParams[10], finalParams[11], "xyz");
-  vw::math::Matrix<double,3,3> stereoLocalRotationMatrix = transpose(frameRotation * transpose(tempRot)); // == sc_from_instrument(good)
+  //vw::math::Matrix<double,3,3> stereoLocalRotationMatrix = transpose(frameRotation * transpose(tempRot)); // == sc_from_instrument(good)
+  vw::math::Matrix<double,3,3> stereoLocalRotationMatrix = vw::math::euler_to_rotation_matrix(finalParams[9], finalParams[10], finalParams[11], "xyz");
   std::cout << "Solved stereo local rotation matrix: " << stereoLocalRotationMatrix << std::endl;
 
   // Extract rotation angles --> Returns Rx(a)*Ry(b)*Rz(c)
@@ -987,8 +1015,9 @@ bool optimizeRotations(Parameters & params)
   std::string stereoLocalRotationPath = params.outputPrefix + "-stereoLocalRotationMatrix.csv";
 
   // Write out the local rotation
-  printf("Writing output file %s\n", localRotationPath.c_str());
-  std::ofstream outputFile(localRotationPath.c_str());
+  /*
+	printf("Writing output file %s\n", localRotationPath.c_str());
+	std::ofstream outputFile(localRotationPath.c_str());
   for (unsigned int r=0; r<localRotationMatrix.rows(); ++r)
   {
     for (unsigned int c=0; c<localRotationMatrix.cols(); ++c)
@@ -997,21 +1026,18 @@ bool optimizeRotations(Parameters & params)
     }
   }
   outputFile.close();
-
+  */
+  // Write out the transform applied to the right camera
+  writeGlobalRotationMatrix(finalParams[0], finalParams[1], finalParams[2],
+                            0, 0, 0, localRotationPath);
 
   // Write out the global rotation/translation matrix that was applied to the camera
-  printf("Writing output file %s\n", globalTransformPath.c_str());
-  outputFile.open(globalTransformPath.c_str());
-  vw::math::Vector<double,3>   axisAngle   (finalParams[3], finalParams[4], finalParams[5]);
-  vw::math::Quaternion<double> rotQuat     (axis_angle_to_quaternion(axisAngle));
-  vw::math::Matrix<double,3,3> globalRotMat(rotQuat.rotation_matrix());
-
-  for (int q=0; q<3; ++q)
-    outputFile << globalRotMat[q][0] << " " << globalRotMat[q][1] << " " << globalRotMat[q][2] << " " << finalParams[6+q] << std::endl;
-  outputFile << "0 0 0 1" << std::endl;
-  outputFile.close();
+  writeGlobalRotationMatrix(finalParams[3], finalParams[4], finalParams[5],
+                            finalParams[6], finalParams[7], finalParams[8],
+                            globalTransformPath);
 
   // Write out the stereo local rotation
+  /*
   printf("Writing output file %s\n", stereoLocalRotationPath.c_str());
   outputFile.open(stereoLocalRotationPath.c_str());
   for (unsigned int r=0; r<stereoLocalRotationMatrix.rows(); ++r)
@@ -1022,13 +1048,17 @@ bool optimizeRotations(Parameters & params)
     }
   }
   outputFile.close();
+  */
+  // Write out the transform applied to the stereo right camera
+  writeGlobalRotationMatrix(finalParams[9], finalParams[10], finalParams[11],
+                            finalParams[6], finalParams[7], finalParams[8], // Same offset as stereo LE
+                            stereoLocalRotationPath);
 
   printf("**** LRONAC double angle solver finished!\n");
   printf("**************************************************************************\n");
 
   return true;
 }
-
 
 //-------------------------------------------------------------------------------------------
 
@@ -1043,59 +1073,14 @@ int main(int argc, char* argv[])
       printf("Failed to parse input parameters!\n");
       return false;
     }
-
-    if (params.debug)
-    {
-      IsisInterfaceLineScanRot leftStereoCam(params.leftStereoFilePath);
-      AdjustedCameraModelRot rotCam(boost::shared_ptr<IsisInterfaceLineScanRot>(&leftStereoCam, boost::serialization::null_deleter()));
-      Vector3 rotVec(0.00323453, -0.0112794, -0.0145248);
-      Vector3 offsetVec(3.22023, -4.80386, 23.8804);
-      rotCam.set_axis_angle_rotation(rotVec);
-      rotCam.set_translation(offsetVec);
-
-      Vector3 nullVec(0,0,0);
-      int line   = 500;
-      int sample = 500;
-      Vector2 pixel(sample, line);
-      double et = 318930609.91952;
-      printf("et = %lf\n", et);
-
-      Matrix3x3 instMatrix, bodyMatrix;
-      leftStereoCam.getMatricesAtTime(et, instMatrix, bodyMatrix);
-      for (int r=0; r<3; ++r)
-      {
-        for (int c=0; c<3; ++c)
-        {
-          printf("%lf, ", instMatrix[r][c]);
-        }
-        printf("\n");
-      }
-
-      // Input pixel pair: 3200,800    3430,997
-      // Computed GDC coordinate: 31.3108323222, -67.1141237031, 255.905626238
-      // Computed GCC coordinate: 577350, -1.36772e+06, 903026
-
-
-      /*
-      Vector3 point(577350, -1.36772e+06, 903026);
-      Vector2 pixel, idealPixel(3430,997);
-      pixel = rotCam.point_to_pixel(point);
-      std::cout << "pixel = " << pixel << std::endl;
-      std::cout << "pixel diff = " << pixel  - idealPixel << std::endl;
-
-      pixel = rotCam.point_to_pixel_rotated(point, nullVec, 997);
-      std::cout << "pixel 2= " << pixel << std::endl;
-      std::cout << "pixel 2 diff = " << pixel  - idealPixel << std::endl;
-      */
-      return 0;
-    }
-
     
     optimizeRotations(params);
   } ASP_STANDARD_CATCHES;
 
   return 0;
 }
+
+
 
 
 

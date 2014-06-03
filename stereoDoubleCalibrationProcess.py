@@ -202,7 +202,7 @@ def applyNavTransform(inputCubePath, outputCubePath, transformMatrixPath,
 
     
     # Set up the transformation command
-    cmdArgs = ['--keep', '--input', inputCubePath, '--output', outputCubePath, 
+    cmdArgs = ['--input', inputCubePath, '--output', outputCubePath, 
                '--transformPath', transformMatrixPath]
     
     # Set flag if the transform comes from pc_align as opposed to the lronacAngleSolver
@@ -656,7 +656,6 @@ def main(argsIn):
         stereoRightPosCorrectWorkDir      = os.path.join(tempFolder, 'stereoRightPosCorrectDir')
         applyInterCameraPositionOffset(spiceInitStereoRightPath, posOffsetCorrectedStereoRightPath,  
                                        stereoRightPosCorrectWorkDir, carry)
-
         positionTime = time.time()
         logging.info('Position offset complete in %f seconds', positionTime - initTime)
 
@@ -769,7 +768,6 @@ def main(argsIn):
 
         print '\n-------------------------------------------------------------------------\n' # -------------------------------------------------
 
-
         # Compute all rotations and translations between the four cubes
         # - Computes the following transforms:
         #   = main   LE   to main   RE   (camera rotation offset in IK file)
@@ -822,177 +820,69 @@ def main(argsIn):
         sbaTime = time.time()
         logging.info('SBA complete in %f seconds', sbaTime - pixelTime)
 
-        # --> Update this documentation
-        # Apply the planet-centered rotation/translation to both cameras in the stereo pair.
-        # - This corrects the stereo pair relative to the main pair.
-        # - The RE relative to LE corrections are performed later for convenience.
+        # Apply the planet-centered rotation/translation to all but the main camera 
+        #  (it is held constant while the others are moved around it)
         
+# TODO: Change rotation variable names to reflect no local rotations!
+        rightAdjustedPath = os.path.join(tempFolder, rightBaseName + '.stereoAdjusted.cub')
+        applyNavTransform(posOffsetCorrectedRightPath, rightAdjustedPath,
+                          localRotationPath, False, carry)
+
+        leftStereoAdjustedPath = os.path.join(tempFolder, leftStereoBaseName + '.stereoAdjusted.cub')
+        applyNavTransform(posOffsetCorrectedStereoLeftPath, leftStereoAdjustedPath,
+                          globalTransformPath, False, carry)
+
+        rightStereoAdjustedPath = os.path.join(tempFolder, rightStereoBaseName + '.stereoAdjusted.cub')
+        applyNavTransform(posOffsetCorrectedStereoRightPath, rightStereoAdjustedPath,
+                          stereoRotationPath, False, carry)
+
+
+
+  
+        #DEBUG: Now that the LE and RE images are corrected relative to each other, verify that our intersection error is still the same
+        print 'Running check to look at moved small points'
+        # Compute the 3d coordinates for each pixel pair using the rotation and offset computed earlier
+        # - All this step does is use stereo intersection to determine a lat/lon/alt coordinate for each pixel pair in the large data set. No optimization is performed.
+        smallGdcTestFolder = os.path.join(tempFolder, 'gdcPointsSmallTest/')
+        if not os.path.exists(smallGdcTestFolder):
+            os.mkdir(smallGdcTestFolder)
+        smallGdcTestPrefix = os.path.join(tempFolder, 'gdcPointsSmallTest/out')
+        smallGdcTestFile = smallGdcTestPrefix + '-initialGdcPoints.csv'
+        zeroParamsPath = os.path.join(tempFolder, 'zeroParamsPath.csv')
+        if (not os.path.exists(smallGdcTestFile)) or carry:
+            makeZeroParamsPath(zeroParamsPath)
+            # What are initial error computations using the files we just fixed?
+            cmd = ['lronacAngleDoubleSolver', '--outputPrefix', smallGdcTestPrefix,
+                   '--leftCubePath',        posOffsetCorrectedLeftPath,
+                   '--rightCubePath',       rightAdjustedPath,
+                   '--leftStereoCubePath',  leftStereoAdjustedPath,
+                   '--rightStereoCubePath', rightStereoAdjustedPath,
+                   '--initialOnly', '--initialValues', zeroParamsPath,
+                   '--elevation', str(expectedSurfaceElevation)]
+            cmd = cmd + leftPixelsCmdParams + rightPixelsCmdParams + leftCrossPixelsCmdParams + rightCrossPixelsCmdParams
+          
+            ## What are initial error computations using the parameters and files we just solved for?
+            #cmd = ['lronacAngleDoubleSolver', '--outputPrefix', smallGdcTestPrefix,
+            # '--leftCubePath', posOffsetCorrectedLeftPath,
+            # '--rightCubePath', posOffsetCorrectedRightPath,
+            # '--leftStereoCubePath', posOffsetCorrectedStereoLeftPath,
+            # '--rightStereoCubePath', posOffsetCorrectedStereoRightPath,
+            # '--initialOnly', '--initialValues', solvedParamsPath,
+            # '--elevation', str(expectedSurfaceElevation)]
+            #cmd = cmd + leftPixelsCmdParams + rightPixelsCmdParams + leftCrossPixelsCmdParams + rightCrossPixelsCmdParams
+          
+            print cmd
+            p = subprocess.call(cmd)
         
-        ##DEBUG=====
-        #
-        #cmd = ('~/repo/lronacPipeline/calibrationReport.py --input SBA_solution-outputGdcPoints.csv ' +
-        #       '--output finalSbaPoints.kml --name finalSbaPoints --color green --size small')
-        #os.system(cmd)
-        #
-        #cmd = ('~/repo/lronacPipeline/calibrationReport.py --input SBA_solution-outputGdcPointsIntersected.csv ' +
-        #       '--output finalSbaPointsIntersected.kml --name finalSbaPointsIntersected --color red --size small')
-        #os.system(cmd)
-
-
-##        leftStereoCkPath       = os.path.join(tempFolder, 'leftStereoDBCk.bc') 
-##        leftStereoSpkPath      = os.path.join(tempFolder, 'leftStereoDBSpk.bsp')
-#        rightStereoCkPath       = os.path.join(tempFolder, 'rightStereoDBCk.bc') 
-#        rightStereoSpkPath      = os.path.join(tempFolder, 'rightStereoDBSpk.bsp')
-#        #DEBUG=====
-#
-        print 'Applying main-stereo camera transform to stereo LE camera...'
-        leftStereoAdjustedPath  = os.path.join(tempFolder, leftStereoBaseName + '.stereoAdjusted.cub')
-        leftSteroCorrectWorkDir = os.path.join(tempFolder, 'stereoLeftStereoCorrection/')
-        applyNavTransform(posOffsetCorrectedStereoLeftPath, leftStereoAdjustedPath, 
-                          globalTransformPath, leftSteroCorrectWorkDir,
-                          '', '', False, carry)
-#                          leftStereoCkPath, leftStereoSpkPath, False, carry)
-
-        print 'Applying main-stereo camera transform to stereo RE camera...'
-        rightStereoAdjustedPath  = os.path.join(tempFolder, rightStereoBaseName + '.stereoAdjusted.cub')
-        rightSteroCorrectWorkDir = os.path.join(tempFolder, 'stereoRightStereoCorrection/')
-        applyNavTransform(posOffsetCorrectedStereoRightPath, rightStereoAdjustedPath, 
-                          globalTransformPath, rightSteroCorrectWorkDir,
-                          '', '', False, carry)
-                          #rightStereoCkPath, rightStereoSpkPath, False, carry)
-
-
-        ## DEBUG: Check angle solver on stereo adjusted LE/RE images!
-        #checkAdjacentPairAlignment(leftStereoAdjustedPath, rightStereoAdjustedPath, 
-        #                           os.path.join(tempFolder, 'stereoGlobalAdjustGdcCheck'), 
-        #                           expectedSurfaceElevation, carry)
-
-
-#####################################################################################3
-#####################################################################################3
-##########################################################################################################
-        ## DEBUG SHORTCUT: Go ahead and apply local corrections and test!
-        #
-        #
-        ## Apply the local rotation to the adjusted RE cube
-        #mainLocalWorkDir = os.path.join(tempFolder, 'mainLocalCorrection')
-        #applyInterCameraPairRotation(posOffsetCorrectedLeftPath, posOffsetCorrectedRightPath, 
-        #                            localRotationPath, outputPathRight, 
-        #                            '', '', mainLocalWorkDir, carry)
-        #
-        ## Apply the local rotation to the adjusted stereo RE cube
-        #stereoLocalWorkDir = os.path.join(tempFolder, 'stereoLocalCorrection')
-        #applyInterCameraPairRotation(leftStereoAdjustedPath, rightStereoAdjustedPath, 
-        #                             stereoRotationPath, outputPathStereoRight, 
-        #                             rightStereoCkPath, rightStereoSpkPath, stereoLocalWorkDir, carry)
-        #
-        #
-        #
-        #
-        ## Check 1: Reproject small points with solved parameters!
-        #
-        ## Check 2: What are the results with zero parameters and the fully transformed files?
-        #
-        ##DEBUG: Now that the LE and RE images are corrected relative to each other, verify that our intersection error is still the same
-        ## Compute the 3d coordinates for each pixel pair using the rotation and offset computed earlier
-        ## - All this step does is use stereo intersection to determine a lat/lon/alt coordinate for each pixel pair in the large data set.  No optimization is performed.
-        #smallGdcTestFolder = os.path.join(tempFolder, 'gdcPointsSmallTest/')
-        #if not os.path.exists(smallGdcTestFolder):
-        #    os.mkdir(smallGdcTestFolder)
-        #smallGdcTestPrefix = os.path.join(tempFolder, 'gdcPointsSmallTest/out')
-        #smallGdcTestFile   = smallGdcTestPrefix + '-initialGdcPoints.csv'
-        #zeroParamsPath     = os.path.join(tempFolder, 'zeroParamsPath.csv')
-        #if (not os.path.exists(smallGdcTestFile)) or True:#carry:
-        #    makeZeroParamsPath(zeroParamsPath)
-        #    # What are initial error computations using the files we just fixed?
-        #    cmd = ['lronacAngleDoubleSolver',  '--outputPrefix',            smallGdcTestPrefix, 
-        #                                       '--leftCubePath',            posOffsetCorrectedLeftPath, 
-        #                                       '--rightCubePath',           outputPathRight, 
-        #                                       '--leftStereoCubePath',      leftStereoAdjustedPath, 
-        #                                       '--rightStereoCubePath',     outputPathStereoRight,
-        #                                       '--initialOnly', '--initialValues', zeroParamsPath,
-        #                                       '--elevation',               str(expectedSurfaceElevation)]
-        #    cmd = cmd + leftPixelsCmdParams + rightPixelsCmdParams + leftCrossPixelsCmdParams + rightCrossPixelsCmdParams
-        #    
-        #    ## What are initial error computations using the parameters and files we just solved for?
-        #    #cmd = ['lronacAngleDoubleSolver',  '--outputPrefix',            smallGdcTestPrefix, 
-        #    #                                   '--leftCubePath',            posOffsetCorrectedLeftPath, 
-        #    #                                   '--rightCubePath',           posOffsetCorrectedRightPath, 
-        #    #                                   '--leftStereoCubePath',      posOffsetCorrectedStereoLeftPath, 
-        #    #                                   '--rightStereoCubePath',     posOffsetCorrectedStereoRightPath,
-        #    #                                   '--initialOnly', '--initialValues', solvedParamsPath, 
-        #    #                                   '--elevation',               str(expectedSurfaceElevation)]
-        #    #cmd = cmd + leftPixelsCmdParams + rightPixelsCmdParams + leftCrossPixelsCmdParams + rightCrossPixelsCmdParams
-        #    #
-        #    print cmd
-        #    p = subprocess.call(cmd)
-        #    
-        ## Generate KML for the output!
-        #testKmlFile = os.path.join(tempFolder, 'testSmallGdc.kml')
-        #if (not os.path.exists(testKmlFile)) or carry:
-        #    cmd = 'calibrationReport.py --size tiny --skip 10 --name initialTestModified --input ' + smallGdcTestFile + ' --output ' + testKmlFile
-        #    print cmd
-        #    os.system(cmd)
-        #    
-        #else:
-        #    print 'Skipping small GDC TEST file creation step'
-        #
-        #raise Exception('&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&*****')
-        #
-        #
-        #
-#####################################################################################3
-#####################################################################################3
-#####################################################################################3
+        # Generate KML for the output!
+        testKmlFile = os.path.join(tempFolder, 'testSmallGdc.kml')
+        if (not os.path.exists(testKmlFile)) or carry:
+           cmd = 'calibrationReport.py --size tiny --skip 10 --name smallGdcTestMovedPts --input ' + smallGdcTestFile + ' --output ' + testKmlFile
+           print cmd
+           os.system(cmd)
         
-        
-
-
-        #
-        ##DEBUG: Now that the LE and RE images are corrected relative to each other, verify that our intersection error is still the same
-        #print 'Running  check to look at moved small points'
-        ## Compute the 3d coordinates for each pixel pair using the rotation and offset computed earlier
-        ## - All this step does is use stereo intersection to determine a lat/lon/alt coordinate for each pixel pair in the large data set.  No optimization is performed.
-        #smallGdcTestFolder = os.path.join(tempFolder, 'gdcPointsSmallTest/')
-        #if not os.path.exists(smallGdcTestFolder):
-        #    os.mkdir(smallGdcTestFolder)
-        #smallGdcTestPrefix = os.path.join(tempFolder, 'gdcPointsSmallTest/out')
-        #smallGdcTestFile   = smallGdcTestPrefix + '-initialGdcPoints.csv'
-        #zeroParamsPath     = os.path.join(tempFolder, 'zeroParamsPath.csv')
-        #if (not os.path.exists(smallGdcTestFile)) or True:#carry:
-        #    makeZeroParamsPath(zeroParamsPath)
-        #    # What are initial error computations using the files we just fixed?
-        #    cmd = ['lronacAngleDoubleSolver',  '--outputPrefix',            smallGdcTestPrefix, 
-        #                                       '--leftCubePath',            posOffsetCorrectedLeftPath, 
-        #                                       '--rightCubePath',           rightAdjustedPath, 
-        #                                       '--leftStereoCubePath',      leftStereoAdjustedPath, 
-        #                                       '--rightStereoCubePath',     rightStereoAdjustedPath,
-        #                                       '--initialOnly', '--initialValues', zeroParamsPath,
-        #                                       '--elevation',               str(expectedSurfaceElevation)]
-        #    cmd = cmd + leftPixelsCmdParams + rightPixelsCmdParams + leftCrossPixelsCmdParams + rightCrossPixelsCmdParams
-        #
-        #    ## What are initial error computations using the parameters and files we just solved for?
-        #    #cmd = ['lronacAngleDoubleSolver',  '--outputPrefix',            smallGdcTestPrefix, 
-        #    #                                   '--leftCubePath',            posOffsetCorrectedLeftPath, 
-        #    #                                   '--rightCubePath',           posOffsetCorrectedRightPath, 
-        #    #                                   '--leftStereoCubePath',      posOffsetCorrectedStereoLeftPath, 
-        #    #                                   '--rightStereoCubePath',     posOffsetCorrectedStereoRightPath,
-        #    #                                   '--initialOnly', '--initialValues', solvedParamsPath, 
-        #    #                                   '--elevation',               str(expectedSurfaceElevation)]
-        #    #cmd = cmd + leftPixelsCmdParams + rightPixelsCmdParams + leftCrossPixelsCmdParams + rightCrossPixelsCmdParams
-        #    
-        #    print cmd
-        #    p = subprocess.call(cmd)
-        #    
-        ## Generate KML for the output!
-        #testKmlFile = os.path.join(tempFolder, 'testSmallGdc.kml')
-        #if (not os.path.exists(testKmlFile)) or carry:
-        #    cmd = 'calibrationReport.py --size tiny --skip 10 --name smallGdcTestMovedPts --input ' + smallGdcTestFile + ' --output ' + testKmlFile
-        #    print cmd
-        #    os.system(cmd)
-        #    
-        #else:
-        #    print 'Skipping small GDC TEST file creation step'
+        else:
+           print 'Skipping small GDC TEST file creation step'
 
 
         print '\n-------------------------------------------------------------------------\n' # ----------------------------------------------------
@@ -1184,8 +1074,6 @@ def main(argsIn):
             print cmd
             os.system(cmd)
 
-        carry = True
-
         # Generate KML for the output!
         testKmlFile = os.path.join(tempFolder, 'testLargeGdc.kml')
         if (not os.path.exists(testKmlFile)) or carry:
@@ -1196,8 +1084,6 @@ def main(argsIn):
         else:
             print 'Skipping large GDC TEST file creation step'
 # ----------------
-
-        #raise Exception('Debugging local rotations!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
 
         print '\n-------------------------------------------------------------------------\n'
         print 'Starting last set of geocorrection accuracy checks...'
@@ -1336,29 +1222,29 @@ def main(argsIn):
 
             # Remove stereo corrected files
             IrgFileFunctions.removeIfExists(leftStereoAdjustedPath)
-            IrgFileFunctions.removeFolderIfExists(leftSteroCorrectWorkDir)
+            #IrgFileFunctions.removeFolderIfExists(leftStereoCorrectWorkDir)
             IrgFileFunctions.removeIfExists(rightStereoAdjustedPath)
-            IrgFileFunctions.removeFolderIfExists(rightSteroCorrectWorkDir)
+            #IrgFileFunctions.removeFolderIfExists(rightStereoCorrectWorkDir)
             # Clean pc_align steps
             IrgFileFunctions.removeIfExists(pixelPairsLarge)   # TODO: Update some of these for recent changes!
             #IrgFileFunctions.removeFolderIfExists(largeGdcFolder)
             #IrgFileFunctions.removeFolderIfExists(pcAlignFolder)
             # Clean out final file correction
-            IrgFileFunctions.removeIfExists(leftCkPath)
-            IrgFileFunctions.removeIfExists(leftSpkPath)
-            IrgFileFunctions.removeFolderIfExists(leftFinalWorkDir)
-            IrgFileFunctions.removeIfExists(rightCkPath)
-            IrgFileFunctions.removeIfExists(rightSpkPath)
-            IrgFileFunctions.removeFolderIfExists(rightFinalWorkDir)
-            IrgFileFunctions.removeIfExists(leftStereoCkPath)
-            IrgFileFunctions.removeIfExists(leftStereoSpkPath)
-            IrgFileFunctions.removeFolderIfExists(leftStereoFinalWorkDir)
-            IrgFileFunctions.removeIfExists(rightStereoCkPath)
-            IrgFileFunctions.removeIfExists(rightStereoSpkPath)
-            IrgFileFunctions.removeFolderIfExists(rightStereoFinalWorkDir)
+            #IrgFileFunctions.removeIfExists(leftCkPath)
+            #IrgFileFunctions.removeIfExists(leftSpkPath)
+            #IrgFileFunctions.removeFolderIfExists(leftFinalWorkDir)
+            #IrgFileFunctions.removeIfExists(rightCkPath)
+            #IrgFileFunctions.removeIfExists(rightSpkPath)
+            #IrgFileFunctions.removeFolderIfExists(rightFinalWorkDir)
+            #IrgFileFunctions.removeIfExists(leftStereoCkPath)
+            #IrgFileFunctions.removeIfExists(leftStereoSpkPath)
+            #IrgFileFunctions.removeFolderIfExists(leftStereoFinalWorkDir)
+            #IrgFileFunctions.removeIfExists(rightStereoCkPath)
+            #IrgFileFunctions.removeIfExists(rightStereoSpkPath)
+            #IrgFileFunctions.removeFolderIfExists(rightStereoFinalWorkDir)
             # Remove local transform folders
-            IrgFileFunctions.removeFolderIfExists(mainLocalWorkDir)
-            IrgFileFunctions.removeFolderIfExists(stereoLocalWorkDir)
+            #IrgFileFunctions.removeFolderIfExists(mainLocalWorkDir)
+            #IrgFileFunctions.removeFolderIfExists(stereoLocalWorkDir)
             ## Remove check folders
             #IrgFileFunctions.removeFolderIfExists(os.path.join(tempFolder, 'pcAlignStereoGdcCheck'))
             #IrgFileFunctions.removeFolderIfExists(os.path.join(tempFolder, 'stereoGlobalAdjustGdcCheck'))

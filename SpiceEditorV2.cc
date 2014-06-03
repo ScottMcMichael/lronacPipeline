@@ -75,7 +75,6 @@ bool handle_arguments(int argc, char* argv[], Parameters &opt)
   general_options.add_options()
     ("debug",                  po::bool_switch(&opt.debug                 )->default_value(false),  "DEBUG mode")
     ("sourceCube",  po::value(&opt.sourceCubePath)->default_value(""), "Path to cube used to compute rotations")
-    ("outputPrefix",  po::value(&outputPrefix)->default_value(""), "Output prefix")
     ("transformFile", po::value<std::string>(&opt.transformFile)->default_value(""), "Path to 3x4 matrix containing transform to apply (pc_align-style)")
     ("transformType", po::value<int>(&opt.transformType)->default_value(0),
           "Code to indicate how the transform is applied (0 = global, 1 = local(translation only), 2=pc_align");
@@ -93,8 +92,8 @@ bool handle_arguments(int argc, char* argv[], Parameters &opt)
     asp::check_command_line( argc, argv, opt, general_options, general_options,
                              positional, positional_desc, usage );
 
-  if (!vm.count("outputPrefix") || !vm.count("transformFile"))
-    vw_throw( vw::ArgumentErr() << "Requires transform file, and output path in order to proceed.\n\n"
+  if (!vm.count("transformFile"))
+    vw_throw( vw::ArgumentErr() << "Requires transform file in order to proceed.\n\n"
               << usage << general_options );
   
   return true;
@@ -133,8 +132,8 @@ bool editSpiceFile(const Parameters &params)
   // First load the input transform data
 
   // Global transforms get stored here
-  vw::Matrix3x3 correciton_in_body_R;
-  vm::Vector3   correction_in_body_T;
+  vw::Matrix3x3 correction_in_body_R;
+  vw::Vector3   correction_in_body_T;
   // Local transforms get stored here
   vw::Matrix3x3 dummyRot;
   vw::Vector3 lronacOffset;
@@ -158,6 +157,16 @@ bool editSpiceFile(const Parameters &params)
   // Init an ASP interface to the cube also
   IsisInterfaceLineScanRot cubeInterface(params.sourceCubePath);
 
+  // Make sure both information tables are there
+  if (!cube.hasTable("InstrumentPosition")) {
+    std::cout << "Error: Cube missing InstrumentPosition table!" << std::endl;
+    return false;
+  }
+  if (!cube.hasTable("InstrumentPointing")) {
+    std::cout << "Error: Cube missing InstrumentPointing table!" << std::endl;
+    return false;
+  }
+
   //----------------------------------------------------------------------------------------------
   //--- Rotation correction ---
 
@@ -165,10 +174,6 @@ bool editSpiceFile(const Parameters &params)
   if (params.transformType != TRANSFORM_TYPE_LOCAL)
   {
     // Get the rotation table
-    if (!cube.hasTable("InstrumentPointing")) {
-      std::cout << "Error: Cube missing InstrumentPointing table!" << std::endl;
-      return false;
-    }
     Isis::Table pointingTable("InstrumentPointing");
     cube.read(pointingTable);
 
@@ -186,14 +191,14 @@ bool editSpiceFile(const Parameters &params)
       double q3  = static_cast<double>(tableLine[3]);
       double et  = static_cast<double>(tableLine[7]); // Ephemeris time
       
-      std::cout << " Old line values: ";
-      for (int c=0; c<numFields; ++c)
-        std::cout << static_cast<double>(pointingTable[r][c]) << ", ";
-      std::cout << std::endl;
+      //std::cout << " Old line values: ";
+      //for (int c=0; c<numFields; ++c)
+      //  std::cout << static_cast<double>(pointingTable[r][c]) << ", ";
+      //std::cout << std::endl;
      
       // Convert input quaternion to rotation matrix
       // - Our correction is in body coordinates, not J2000 coordinates so we need to convert.
-      vw::math::Quaternion qIn(q0, q1, q2, q3);
+      vw::math::Quaternion<double> qIn(q0, q1, q2, q3);
       vw::Matrix3x3 instrument_from_J2000_R_in = qIn.rotation_matrix();
 
       // Get the body orientation
@@ -201,7 +206,7 @@ bool editSpiceFile(const Parameters &params)
       cubeInterface.getMatricesAtTime(et, R_inst, body_from_J2000_R);
 
       // Go from J2000 coordinates to body coordinates
-      vw::Matrix3x3 instrument_from_body_R = body_from_J2000_R * transpose(instrument_from_J2000_R);
+      vw::Matrix3x3 instrument_from_body_R = body_from_J2000_R * transpose(instrument_from_J2000_R_in);
 
       // Apply the input correction matrix
       vw::Matrix3x3 instrumentFixed_from_body_R = correction_in_body_R * instrument_from_body_R;
@@ -210,7 +215,7 @@ bool editSpiceFile(const Parameters &params)
       vw::Matrix3x3 instrumentFixed_from_J2000 = transpose(transpose(body_from_J2000_R) * instrumentFixed_from_body_R);
 
       // Pack new rotation back into the cube via quaternion
-      vw::math::Quaternion qOut(instrumentFixed_from_J2000);
+      vw::math::Quaternion<double> qOut(instrumentFixed_from_J2000);
       tableLine[0] = qOut[0];
       tableLine[1] = qOut[1];
       tableLine[2] = qOut[2];
@@ -219,14 +224,14 @@ bool editSpiceFile(const Parameters &params)
       
       //TODO: Update the table description
 
-      std::cout << " New line values: ";
-      for (int c=0; c<numFields; ++c)
-      {
-        std::cout << static_cast<double>(pointingTable[r][c]) << ", ";
-      }
-      std::cout << std::endl;
+      //std::cout << " New line values: ";
+      //for (int c=0; c<numFields; ++c)
+      //{
+      //  std::cout << static_cast<double>(pointingTable[r][c]) << ", ";
+      //}
+      //std::cout << std::endl;
     }
-    printf("Writing rotation table!/n");
+    printf("Writing rotation table!\n");
     cube.write(pointingTable);
   } // End of rotation correction in non-local transform case
 
@@ -235,10 +240,6 @@ bool editSpiceFile(const Parameters &params)
   //--- Position correction ---
 
   // Get the rotation table
-  if (!cube.hasTable("InstrumentPosition")) {
-    std::cout << "Error: Cube missing InstrumentPosition table!" << std::endl;
-    return false;
-  }
   Isis::Table positionTable("InstrumentPosition");
   cube.read(positionTable);
 
@@ -256,10 +257,10 @@ bool editSpiceFile(const Parameters &params)
     double z  = static_cast<double>(tableLine[2]);
     double et = static_cast<double>(tableLine[6]); // Ephemeris time
     
-    std::cout << " Old line values: ";
-    for (int c=0; c<numFields; ++c)
-      std::cout << static_cast<double>(positionTable[r][c]) << ", ";
-    std::cout << std::endl;
+    //std::cout << " Old line values: ";
+    //for (int c=0; c<numFields; ++c)
+    //  std::cout << static_cast<double>(positionTable[r][c]) << ", ";
+    //std::cout << std::endl;
    
     // The input coordinates
     vw::Vector3 instrument_from_J2000_T_in(x, y, z);
@@ -322,18 +323,18 @@ bool editSpiceFile(const Parameters &params)
     tableLine[0] = newPosition[0];
     tableLine[1] = newPosition[1];
     tableLine[2] = newPosition[2];
-    pointingTable.Update(tableLine, r);
+    positionTable.Update(tableLine, r);
     
     //TODO: Update the table description
 
-    std::cout << " New line values: ";
-    for (int c=0; c<numFields; ++c)
-    {
-      std::cout << static_cast<double>(positionTable[r][c]) << ", ";
-    }
-    std::cout << std::endl;
+    //std::cout << " New line values: ";
+    //for (int c=0; c<numFields; ++c)
+    //{
+    //  std::cout << static_cast<double>(positionTable[r][c]) << ", ";
+    //}
+    //std::cout << std::endl;
   }
-  printf("Writing rotation table!/n");
+  printf("Writing position table!\n");
   cube.write(positionTable);
 
 

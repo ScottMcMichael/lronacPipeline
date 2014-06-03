@@ -185,3 +185,4 @@ virtual vw::Quat camera_pose(vw::Vector2 const& pix) const {
   
 #endif
 
+

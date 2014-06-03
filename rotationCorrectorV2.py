@@ -102,9 +102,9 @@ def main(argsIn):
 
         # Call lronac spice editor tool to generate modified text file
         # - Call is silent unless an error occurs
-        cmd = ['spiceEditor', '--transformType', str(transformType),
+        cmd = ['spiceEditorV2', '--transformType', str(transformType),
                               '--transformFile', options.transformPath,
-                              '--sourceCube',    options.inputPath]
+                              '--sourceCube',    options.outputPath]
         p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
         outputText, err = p.communicate()
         print outputText
