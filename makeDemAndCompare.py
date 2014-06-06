@@ -277,9 +277,9 @@ def main(argsIn):
         stereoOptionString = ('--corr-timeout 400 --alignment-method AffineEpipolar --subpixel-mode ' + str(SUBPIXEL_MODE) + 
                               ' ' + options.leftPath + ' ' + options.rightPath + 
                               ' --job-size-w 4096 --job-size-h 4096 ' + # Reduce number of tile files created
-                              ' ' + stereoOutputPrefix + ' --processes 8 --threads-multiprocess 4' +
-                              ' --threads-singleprocess 32 --compute-error-vector' + ' --filter-mode 1' +
-                              ' --erode-max-size 5000 --subpixel-kernel 25 25')
+                              ' ' + stereoOutputPrefix + ' --processes 6 --threads-multiprocess 3' +
+                             ' --threads-singleprocess 18 --compute-error-vector' + ' --filter-mode 1' +
+                              ' --erode-max-size 5000 --subpixel-kernel 35 35 --subpixel-max-levels 0')
   
         if (not os.path.exists(pointCloudPath) and not os.path.exists(demPath)) or carry:
 
@@ -326,12 +326,12 @@ def main(argsIn):
             # - Latitude of true scale = center latitude = lat_ts
             # - Latitude of origin = 0 = lat+0
             # - Longitude of projection center = Central meridian = lon+0
-            cmd = ('point2dem --dem-hole-fill-len 10  --remove-outliers --errorimage -o ' + options.prefix + ' ' + pointCloudPath + 
+            cmd = ('point2dem --dem-hole-fill-len 15  --remove-outliers --errorimage -o ' + options.prefix + ' ' + pointCloudPath + 
                             ' -r moon --tr ' + str(DEM_METERS_PER_PIXEL) + ' --t_srs "+proj=eqc +lat_ts=' + str(centerLat) + 
                             ' +lat_0=0 +a='+str(MOON_RADIUS)+' +b='+str(MOON_RADIUS)+' +units=m" --nodata ' + str(DEM_NODATA))
             os.system(cmd)
         else:
-            print 'DEM file ' + pointCloudPath + ' already exists, skipping point2dem step.'
+            print 'DEM file ' + demPath + ' already exists, skipping point2dem step.'
 
         # Create a hillshade image to visualize the output
         if (not os.path.exists(hillshadePath)) or carry:

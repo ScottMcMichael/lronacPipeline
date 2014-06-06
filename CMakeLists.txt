@@ -9,12 +9,10 @@ set(PACKAGE_NAME "LRONAC Pipeline")
 set(PACKAGE_STRING "${PACKAGE_NAME} ${PACKAGE_VERSION}")
 set(PACKAGE_BUGREPORT "scott.t.mcmichael@nasa.gov")
 
-
-#TODO: Remove this, the find functions should handle it!
-set(BASESYSTEM_INSTALL_DIR  "/home/smcmich1/repo/BaseSystem")
-set(VISIONWORKBENCH_ROOT    "/home/smcmich1/repo/visionworkbench/build")
-set(StereoPipeline_ROOT     "/home/smcmich1/repo/StereoPipeline/build")
-set(NGT_TOOLS_SOURCE        "/home/smcmich1/repo/Tools") # Need to point to FindX.cmake files there
+set(BASESYSTEM_INSTALL_DIR  "/u/smcmich1/projects/BaseSystem")
+set(VISIONWORKBENCH_ROOT    "/u/smcmich1/projects/visionworkbench/build")
+set(StereoPipeline_ROOT     "/u/smcmich1/projects/StereoPipeline/build")
+set(NGT_TOOLS_SOURCE        "/u/smcmich1/projects/Tools") # Need to point to FindX.cmake files there
 set(CERES_INSTALL_DIR       ${BASESYSTEM_INSTALL_DIR})
 set(SUITESPARSE_INSTALL_DIR ${BASESYSTEM_INSTALL_DIR})
 
@@ -52,7 +50,7 @@ set(BOOST_LIBRARYDIR  "${BASESYSTEM_INSTALL_DIR}/lib")
 set(BOOST_INCLUDEDIR "${BASESYSTEM_INSTALL_DIR}/include/boost-1_55/boost")
 set(Boost_NO_SYSTEM_PATHS ON) #This does not seem to work
 #set(Boost_DEBUG 1) # Uncomment for useful finding boost debug output
-set(BOOST_MIN_VERSION "1.54.0")
+set(BOOST_MIN_VERSION "1.55.0")
 set(REQUIRED_BOOST_LIBS program_options system filesystem regex date_time thread iostreams)
 
 find_package(Boost ${BOOST_MIN_VERSION} REQUIRED COMPONENTS ${REQUIRED_BOOST_LIBS})
@@ -216,6 +214,8 @@ target_link_libraries(lronacAngleDoubleSolver  ${QT_LIBRARIES} ${VISIONWORKBENCH
 add_executable(spiceEditor IsisInterfaceLineScanRot.h IsisInterfaceLineScanRot.cc SpiceEditor.cc) 
 target_link_libraries(spiceEditor  ${VISIONWORKBENCH_LIBRARIES} ${StereoPipeline_LIBRARIES} ${Boost_LIBRARIES} -lisis3 -lcspice) 
 
+add_executable(spiceEditorV2 IsisInterfaceLineScanRot.h IsisInterfaceLineScanRot.cc SpiceEditorV2.cc) 
+target_link_libraries(spiceEditorV2  ${VISIONWORKBENCH_LIBRARIES} ${StereoPipeline_LIBRARIES} ${Boost_LIBRARIES} -lisis3) 
 
 
 
