@@ -3,6 +3,18 @@
 ======= Build instructions ===========================================
 
 - Make sure your StereoPipeline installation is up to date.
+  - Last tested with the ASP version listed blow:
+"
+NASA Ames Stereo Pipeline 2.4.0_post
+  Build ID: ffbcda1
+Built against:
+  NASA Vision Workbench 2.2.0_post
+    Build ID: 32b9d80
+  USGS ISIS 3.4.6.5819 2014-04-29 # Version date v002 # 3rd party libraries version stable # release stage (alpha, beta, stable)
+  Boost C++ Libraries 105500
+  GDAL 1.10.1 | 20130826
+  Proj.4 480
+"
 
 - Check out and build the NGT Tools repository:
 git clone https://github.com/NeoGeographyToolkit/Tools.git
@@ -98,16 +110,20 @@ Inputs: Lola point cloud, four images (LE1, RE1, LE2, RE2)
 2  - Apply known position offset (about 1 meter per camera)
 3  - Run stereo program to find pixel matches between all camera pairs
 4  - Put all pixel pairs through SBA solver to compute transforms between cameras
-   - Solve for local rotation (RE to LE) and global rotation (2 to 1)
-5  - Apply global transform to the stereo camera pair (LE2 and RE2).
-6  - Generate a point cloud from LE1 and LE2
+   - Solve for global rotation (RE1, LE2, RE2) and translation (2 from 1)
+5  - Apply transforms to the cameras (RE1, LE2, and RE2)
+6  - Generate a point cloud from the camera pair with the greatest overlap
 7  - Use pc_align to find offset of the new point cloud to the LOLA point cloud
-8  - Apply pc_align computed transform to all four cameras.
-9  - Apply local transform to RE1 and RE2
-10 - Noproj the two pairs of cameras
-11 - Make a mosaic with each of the two pairs using lronacjitreg and handmos
-12 - Generate final stereo DEM from mosaics.
+8  - Apply pc_align computed transform to all four cameras
+9  - Noproj the two pairs of cameras
+10 - Make a mosaic with each of the two pairs using lronacjitreg and handmos
+11 - Generate final stereo DEM from mosaics
 
+
+Note that the processing method changed after version 1.4 of the software.  The local rotation 
+computations and generation of modified kernel files were removed to cope with the significant 
+changes to the LRO-NAC kernel structure that came with the release of the newer temperature
+dependent kernels.  Most of the 'V2' files were introduced to handle these changes.
 
 
 ======= Overview of files =====================================================
@@ -119,27 +135,33 @@ CMakeLists.txt = Main build script for lronacPipeline
 
 ----- Executables -----
 
+--> Neither of these tools are used by the current version.
 mkspk  = NAIF provided tool to create new position kernel files.
 msopck = NAIF provided tool to create new orientation kernel files.
 
 
 ----- Python Scripts -----
 
-rotationCorrector.py = Calls mkspk and msopck to generate modified position and orientation kernel files. 
-positionCorrector.py = Calls mkspk to generate a modified position kernel file. 
+rotationCorrector.py   = Calls mkspk and msopck to generate modified position and orientation kernel files. 
+positionCorrector.py   = Calls mkspk to generate a modified position kernel file (applies rigid camera offset). 
+rotationCorrectorV2.py = Modifies the position and orientation of a cube file.
+positionCorrectorV2.py = Modifies the position of a cube file (applies rigid camera offset).
+
 
 lronacCameraRotationCorrector.py = Applies a rotation to a frame kernel file.
 
-lronacPipeline.py = Original test script based on lronac2mosaic.py
-lronac2dem.py     = New tool to generate a more accurate DEM from two pairs of IMG files.
-IsisTools.py      = Python functions used by other scripts in this folder.
+lronacPipeline.py    = Old test script based on lronac2mosaic.py
+lronac2dem.py        = Generates a calibrated DEM and packages it up for archiving.
+IsisTools.py         = Python functions used by other scripts in this folder.
+makeDemAndCompare.py = Generates a DEM and map projections from two cubes and calculates accuracy statistics.
 
 stereoDoubleCalibrationProcess.py = Given two pairs of .IMG files, generates fully calibrated version of each of them.
 
 lronacDataGrabber.py = Tool to help download batches of LRONAC data matching the ASU DTM data.
 generateReport.py    = Tool for plotting the output of lronacPipeline.py.
 calibrationReport.py = Generates a KML plot of a set of GDC points. 
-
+archiveManager.py    = Specialized tool for handling data on the Nasa Pleiades computer.
+clearOldKernels.py   = Script for deleting deprecated LRO-NAC spice kernels from an ISIS installation to save space.
 
 
 ----- C++ code -----
@@ -150,6 +172,7 @@ lronacSolverSupport.h       = Support code for the SBA tool.
 IsisInterfaceLineScanRot.h  = Replacement of IsisInterfaceLineScan with additional functionality.
 IsisInterfaceLineScanRot.cc = See IsisInterfaceLineScanRot.h.
 SpiceEditor.cc              = Tool to generate intermediate position and orientation kernel correction files given a transform.
+SpiceEditorV2.cc            = Tool to apply a correction to a cube's position/rotation data given a transform.
 stereo.h                    = Copy of the same file from StereoPipeline/src/asp/Tools with some dependencies removed.
 stereo.cc                   = See stereo.h
 
@@ -157,6 +180,4 @@ stereo.cc                   = See stereo.h
 
 makePcAlignPlots.py         = Tool to help visualize pc_align output.  Not currently used.
 lronacMathTester.py         = Debug script.
-extractQtieControlPoints.py = Converts a Qtie control points file to a simple csv format.
-
 

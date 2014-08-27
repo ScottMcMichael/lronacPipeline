@@ -260,14 +260,6 @@ def callStereoCorrelation(leftInputPath, rightInputPath, outputPrefix, correlati
         print 'File ' + disparityImagePath + ' already exists, skipping stereo computation.'
         return disparityImagePath
 
-#    # Use parallel stereo call, steps 0 and 1 only.  Other options to try and increase speed.
-#    cmd = ('parallel_stereo  --corr-max-levels 3 --compute-error-vector --entry-point 0 --stop-point 2' + 
-#           ' --alignment none --subpixel-mode 1 --disable-fill-holes --processes 8 ' + 
-#           ' --threads-multiprocess 4 --threads-singleprocess 32 --cost-mode 0 --corr-timeout ' + 
-#           str(correlationTimeout) + ' ' + leftInputPath + ' ' + rightInputPath + ' ' + outputPrefix)
-#    print cmd
-#    os.system(cmd)
-
     # Call only the initial stereo stages to cut down on processing time
 
     # Stage 0 (fast)
@@ -436,37 +428,7 @@ def makeZeroParamsPath(outputPath):
     fakeLog.close()
     
     return os.path.exists(outputPath)
-    
-## Generate a modified IK kernel to adjust the rotation between an LE/RE camera pair.
-#def applyInterCameraPairRotation(leftInputPath, rightInputPath, newRotationPath, outputCubePath, 
-#                                 ckPath, spkPath, workDir, forceOperation):
-#
-#    # Quit immediately if the output file already exists
-#    if (not forceOperation) and (os.path.exists(outputCubePath)):
-#        print 'File ' + outputCubePath + ' already exists, skipping nav transform.'
-#        return True
-#
-#    # Generate the new file
-#    cmdArgs = ['--keep', '--output', outputCubePath, 
-#               '--rotation', newRotationPath, '--left', leftInputPath, 
-#               '--right', rightInputPath, 
-#               '--workDir', workDir]
-#    if ckPath: # Add optional arguments
-#        cmdArgs.append('--ck')
-#        cmdArgs.append(ckPath)
-#    if spkPath:
-#        cmdArgs.append('--spk')
-#        cmdArgs.append(spkPath)
-#    #print cmdArgs
-#    lronacCameraRotationCorrector.main(cmdArgs)
-#
-#    # Check to make sure we actually created the file
-#    if not os.path.exists(outputCubePath):
-#        raise Exception('Inter-camera rotation failed to create output file ' + outputCubePath + 
-#                        ' from input files ' + leftInputPath + ' and ' + rightInputPath)
-#
-#    return True
-    
+  
 
 
 # Looks in the pc_align output folder for the variably-named log file
