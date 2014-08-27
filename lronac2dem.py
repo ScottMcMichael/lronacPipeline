@@ -321,7 +321,7 @@ def main():
         if (options.asuPath):  # If ASU has a name for this set, use it
             startPos    = options.asuPath.rfind('_') + 1
             stopPos     = options.asuPath.rfind('.') - 1
-            dataSetName = options.asuPath[startPos:endPos]
+            dataSetName = options.asuPath[startPos:stopPos]
         else: # Generate a data set in format NAC_DTM_MXXXXXX_MXXXXXXX
             dataSetName = IsisTools.makeDataSetName(options.leftPath, options.stereoLeft)
 

@@ -277,8 +277,8 @@ def main(argsIn):
         stereoOptionString = ('--corr-timeout 400 --alignment-method AffineEpipolar --subpixel-mode ' + str(SUBPIXEL_MODE) + 
                               ' ' + options.leftPath + ' ' + options.rightPath + 
                               ' --job-size-w 4096 --job-size-h 4096 ' + # Reduce number of tile files created
-                              ' ' + stereoOutputPrefix + ' --processes 6 --threads-multiprocess 3' +
-                             ' --threads-singleprocess 18 --compute-error-vector' + ' --filter-mode 1' +
+                              ' ' + stereoOutputPrefix + ' --processes 10 --threads-multiprocess 4' +
+                             ' --threads-singleprocess 32 --compute-error-vector' + ' --filter-mode 1' +
                               ' --erode-max-size 5000 --subpixel-kernel 35 35 --subpixel-max-levels 0')
   
         if (not os.path.exists(pointCloudPath) and not os.path.exists(demPath)) or carry:
@@ -317,7 +317,6 @@ def main(argsIn):
             raise Exception("Can't delete the input files before creating the DEM!")
 
         # Generate a DEM
-        centerLat = None
         if (not os.path.exists(demPath)) or carry:
             
             #TODO: Add a +lon_0 entry here to set the central meridian?

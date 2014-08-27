@@ -21,6 +21,8 @@ import os, glob, optparse, re, shutil, subprocess, sys, string, time, urllib, ur
 import matplotlib.pyplot as plt
 import numpy as np
 
+import IrgIsisFunctions
+
 def man(option, opt, value, parser):
     print >>sys.stderr, parser.usage
     print >>sys.stderr, '''\
@@ -121,6 +123,11 @@ def plotError(fileContents, outputPath, skip):
 #--------------------------------------------------------------------------------
 
 def main():
+
+    val = IrgIsisFunctions.getCubeCenterLatitude('/u/smcmich1/data/lronacProduction/NAC_DTM_M115108088_M115114873/workDir/M115114873LE.correctedMosaic.cub')
+    print val
+    return 0
+
 
     try:
         try:

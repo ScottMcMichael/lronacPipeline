@@ -67,7 +67,7 @@ echo "Starting jobSubmissionScriptProd.sh with input file $INPUT_FILE"
 OUTPUT_FOLDER=/u/smcmich1/data/lronacProduction
 
 # Limit number of batch jobs to submit
-SIMULTANEOUS_JOB_LIMIT=18
+SIMULTANEOUS_JOB_LIMIT=20
 SLEEP_TIME=240 # Check number of active processes every few minutes
 
 # Loop until we have exhausted our source file
@@ -79,10 +79,12 @@ do
     # - The index of the last line we got is used to start the next search on the correct line.
     # - Unfortunately this script must be completely silent for this to work.
     echo "Downloading next data set..."
+    echo "productionDataGrabber.py -i $INPUT_FILE --starting-line $LAST_LINE -o $OUTPUT_FOLDER"
     GRABBER_OUTPUT=$(productionDataGrabber.py -i $INPUT_FILE --starting-line $LAST_LINE -o $OUTPUT_FOLDER)
     echo $GRABBER_OUTPUT
 
     # Check if we actually got data
+    LAST_GRABBED_LINE=$LAST_LINE # Back up the last line in case there is an output error
     LAST_LINE=$(cut -d " " -f 1 <<< "$GRABBER_OUTPUT")
     #echo $LAST_LINE
     if [ "$LAST_LINE" -eq "-1" ]; then
@@ -100,6 +102,7 @@ do
     LOLA_POINTS_PATH=$FULL_DIRECTORY/lolaRdrPoints.csv
     if [ ! -e "$LOLA_POINTS_PATH" ]; then
         echo "LOLA point path $LOLA_POINTS_PATH expected but not found, skipping this data set"
+        LAST_LINE=$((LAST_GRABBED_LINE+1))
         continue
     fi
 
@@ -128,9 +131,9 @@ do
                 echo "Running script for $PRETTY_NAME"
       
                 # Submit the job using a westmere (cheap) CPU
-                echo qsub -q long -N ${JOB_NAME} -l walltime="35:00:00" -W group_list=s1219 -j oe -e $ERR_OUT_PATH -o $STD_OUT_PATH -S /bin/bash -V -C $PWD -l select=1:ncpus=12:model=wes -m eb -- /u/smcmich1/projects/lronacPipeline/jobWrapperV2.sh $FULL_DIRECTORY       
+                echo qsub -q long -N ${JOB_NAME} -l walltime="40:00:00" -W group_list=s1440 -j oe -e $ERR_OUT_PATH -o $STD_OUT_PATH -S /bin/bash -V -C $PWD -l select=1:ncpus=20:model=ivy -m eb -- /u/smcmich1/projects/lronacPipeline/jobWrapperV2.sh $FULL_DIRECTORY       
 
-                qsub -q long -N ${JOB_NAME} -l walltime="35:00:00" -W group_list=s1219 -j oe -e $ERR_OUT_PATH -o $STD_OUT_PATH -S /bin/bash -V -C $PWD -l select=1:ncpus=12:model=wes -m eb -- /u/smcmich1/projects/lronacPipeline/jobWrapperV2.sh $FULL_DIRECTORY       
+                qsub -q long -N ${JOB_NAME} -l walltime="40:00:00" -W group_list=s1440 -j oe -e $ERR_OUT_PATH -o $STD_OUT_PATH -S /bin/bash -V -C $PWD -l select=1:ncpus=20:model=ivy -m eb -- /u/smcmich1/projects/lronacPipeline/jobWrapperV2.sh $FULL_DIRECTORY       
 
                break # Move on to the next data seta
 
@@ -144,17 +147,15 @@ do
         done # End waiting loop
 
     fi
-
+    #break # DEBUG only do one loop iteration
 done
 
 echo jobSubmissionScript completed!
 
-#TODO: Will need to re-run modified v2 script to catch "stragglers" where the download finished but the processing stopped.
-
 # Sample individual submissions
 
 # Submit the job using a westmere (cheap) CPU
-#qsub -q normal -N aristarchu2 -e $DATA_FOLDER/ARISTARCHU2/errorOut.txt -o $DATA_FOLDER/ARISTARCHU2/outOut.txt -l walltime="8:00:00" -W group_list=s1219 -j oe -S /bin/bash -C $PWD -V -l select=1:ncpus=12:model=wes -m eb -- /u/smcmich1/projects/lronacPipeline/jobWrapperV2.sh $DATA_FOLDER/ARISTARCHU2
+#qsub -q normal -N aristarchu2 -e $DATA_FOLDER/ARISTARCHU2/errorOut.txt -o $DATA_FOLDER/ARISTARCHU2/outOut.txt -l walltime="8:00:00" -W group_list=s1219 -j oe -S /bin/bash -C $PWD -V -l select=1:ncpus=12:model=ivy -m eb -- /u/smcmich1/projects/lronacPipeline/jobWrapperV2.sh $DATA_FOLDER/ARISTARCHU2
 
 
 #exit

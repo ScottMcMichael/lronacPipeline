@@ -45,8 +45,8 @@ INCOMPLETE_STATUS_PATH = os.path.join(STATUS_FOLDER, 'incompleteStatus.txt')
 COMPLETE_STATUS_PATH   = os.path.join(STATUS_FOLDER, 'completeStatus.txt')
 ARCHIVE_STATUS_PATH    = os.path.join(STATUS_FOLDER, 'archiveStatus.txt')
 LOU_LOCAL_STORAGE_PATH = '/lou/s2i/smcmich1/LRONAC_DTM'
-LOU_STORAGE_PATH       = 'lfe4:' + LOU_LOCAL_STORAGE_PATH
-LOU_SSH_TARGET         = 'smcmich1@lfe4'
+LOU_STORAGE_PATH       = 'lfe3:' + LOU_LOCAL_STORAGE_PATH
+LOU_SSH_TARGET         = 'smcmich1@lfe3'
 
 def folderToDataSetName(folder):
         """Given a folder, get the data set name"""
@@ -71,6 +71,7 @@ class DataSet:
     meanLolaError   = 0.0
     stdDevLolaError = 0.0
     name            = ''
+    stopTime        = ''
     
     def __init__(self, name, evaluateStatus=True, verbose=False):
         """Constructor"""
@@ -87,6 +88,10 @@ class DataSet:
             self.status = self.INVALID
             return False
         
+        pbsLogPath = folder + '/stdOutLog.txt'
+        if os.path.exists(pbsLogPath):
+            self.stopTime = time.ctime(os.path.getmtime(pbsLogPath))
+
         if self._isFolderArchived(folder):
             self.status = self.ARCHIVED
 
@@ -178,7 +183,7 @@ class DataSet:
         """Returns a string describing the data set"""
         
         s = (self.name + ' ' +
-              str(self.meanLolaError) + ' ' + str(self.stdDevLolaError) )
+              str(self.meanLolaError) + ' ' + str(self.stdDevLolaError) + ' --- ' + self.stopTime)
         return s
     
     def isOnLocalDisk(self):
@@ -326,7 +331,7 @@ def removeCompressedOutputs(dataSetName, dryRun=False):
                      'output-Hillshade.tif',
                      'output-MapProjLeft.tif',
                      'output-MapProjRight.tif',
-                     'output-MapProjLeftUint8.tif',  # Files after her are not compressed but can
+                     'output-MapProjLeftUint8.tif',  # Files after here are not compressed but can
                      'output-MapProjRightUint8.tif', #  quickly be regenerated from compressed files.
                      'output-IntersectionErrorX.tif',
                      'output-IntersectionErrorY.tif',
@@ -334,7 +339,7 @@ def removeCompressedOutputs(dataSetName, dryRun=False):
     
     for f in filesToDelete: # For each file in the list above
         inputPath = os.path.join(localFolder, 'results/' + f)
-        
+        #print 'Deleting file ' + inputPath       
         if dryRun: # Print output action
             print '- rm ' + inputPath
         else: # Actually delete the file
@@ -351,6 +356,7 @@ def removeAllCompletedCompressedOutputs(dryRun=False):
     # Loop through all data sets in the complete folder
     completeFile = open(COMPLETE_STATUS_PATH, 'r')
     for line in completeFile:
+        print 'Clearing data in ' + line
         entries     = line.split(' ')
         dataSetName = entries[0]
         
@@ -549,12 +555,22 @@ def fixCompleteDataSet(dataSetName):
     
     localFolder   = ds.getLocalFolder()
     resultsFolder = os.path.join(localFolder, 'results/')
-    outputTarPath = os.path.join(resultsFolder, 'output-CompressedOutputs.tar.bz2')
+    #outputTarPath = os.path.join(resultsFolder, 'output-CompressedOutputs.tar.bz2')
     
     print 'Fixing ' + localFolder
-    if not os.path.exists(outputTarPath):
-        print 'Skipping folder because bz2 tar file is not present'
-        return
+    #if not os.path.exists(outputTarPath):
+    #    print 'Skipping folder because bz2 tar file is not present'
+    #    return
+
+    statusString = ds.getStatusString()
+    if 'May' in statusString:
+        print statusString
+        os.system('mv ' + localFolder + '/results/ ' + localFolder + '/results_bad/')
+        os.system('rm -rf '+ localFolder +'/workDir')
+        os.system('rm '+localFolder+'/downloadLog.txt')
+    return
+
+    # Older fix below here
 
     # Check if the local files are still there (two should be a safe check)
     confPath = os.path.join(resultsFolder, 'output-Confidence.tif')

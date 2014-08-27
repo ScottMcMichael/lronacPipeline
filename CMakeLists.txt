@@ -195,8 +195,8 @@ endif (OPENMP_FOUND)
 
 
 # Add the Ceres library
-set(CERES_LIBRARIES    ${CERES_INSTALL_DIR}/lib/libceres.so ${CERES_INSTALL_DIR}/lib/libminiglog.so)
-set(CERES_INCLUDE_DIRS ${CERES_INSTALL_DIR}/include ${CERES_INSTALL_DIR}/include/ceres/internal/miniglog)
+set(CERES_LIBRARIES    ${CERES_INSTALL_DIR}/lib/libceres.so)
+set(CERES_INCLUDE_DIRS ${CERES_INSTALL_DIR}/include)
 foreach(f ${CERES_INCLUDE_DIRS})
     message("${f}")
     include_directories("${f}")

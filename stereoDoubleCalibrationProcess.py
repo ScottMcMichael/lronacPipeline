@@ -967,11 +967,11 @@ def main(argsIn):
         
         # The max-displacement threshold will be adjusted until we are either using a certain number of LOLA points
         #  or until we are using a certain percentage of the input points.
-        MIN_NUM_LOLA_POINTS    = 5000
-        MIN_LOLA_PERCENTAGE    = 0.01
-        STARTING_DISPLACEMENT  = 200
-        MAX_MAX_DISPLACEMENT   = 2000
-        DISPLACEMENT_INCREMENT = 180
+        MIN_NUM_LOLA_POINTS    = 4000
+        MIN_LOLA_PERCENTAGE    = 0.005
+        STARTING_DISPLACEMENT  = 50
+        MAX_MAX_DISPLACEMENT   = 1800
+        DISPLACEMENT_INCREMENT = 50
 
         # Determine the number of points we want
         numLolaPoints          = IrgFileFunctions.getFileLineCount(options.lolaPath) - 1        

@@ -97,6 +97,8 @@ def retrieveData(inputFile, outputFolder, startLine=0):
     f = open(inputFile, 'r')
     for line in f:
 
+        #print line
+
         # Skip the first N lines of the file if requested
         # - Also always skip the first header line
         if i <= startLine:
@@ -118,15 +120,17 @@ def retrieveData(inputFile, outputFolder, startLine=0):
         if os.path.exists(logPath):
             continue
 
-        #print 'Grabbing data for data set ' + dataSetName
-
         # Skip this list if not all the image paths are available
         imagePathList  = strings[13:17]
 	try:
+            #print imagePathList
 	    imagePathList.index('')
+            #print 'Found a blank spot!'
             continue # Found a blank spot, skip this row
         except:
             pass # Did not find a blank spot, keep going
+
+        #print 'Grabbing data for data set ' + dataSetName
 
         IrgFileFunctions.createFolder(subFolder) # Create the output folder
         
@@ -134,7 +138,9 @@ def retrieveData(inputFile, outputFolder, startLine=0):
         IMAGE_BASE_URL = 'http://lroc.sese.asu.edu/data/'
         lastDiskPath   = ''
         for imageRaw in imagePathList:
-            
+         
+            #print 'imageRaw = ' + imageRaw
+   
 	    image = imageRaw.replace('"', '') # Strip quotes
 
             # Get the output path
@@ -143,6 +149,9 @@ def retrieveData(inputFile, outputFolder, startLine=0):
             diskPath     = os.path.join(subFolder, nameOnDisk)
             lastDiskPath = diskPath
             
+            #print 'diskPath = ' + diskPath
+            #print 'lastDiskPath = ' + lastDiskPath
+
             # Download the image if we don't have it
             if not os.path.exists(diskPath):
                 fullUrl = IMAGE_BASE_URL + image
@@ -154,12 +163,15 @@ def retrieveData(inputFile, outputFolder, startLine=0):
 
         # Init the nav data from one cube
         cubePath = lastDiskPath + '.cub'
+        #print 'cubePath = ' + cubePath
         if not os.path.exists(cubePath):
             cmd = 'lronac2isis from=' + lastDiskPath + ' to=' + cubePath
+            #print cmd
             os.system(cmd)
         #  Call spiceinit silently
         FNULL = open(os.devnull, 'w')
         cmd = ['spiceinit', 'from='+cubePath]
+        #print cmd
         subprocess.call(cmd, stdout=FNULL, stderr=subprocess.STDOUT)
 
         # Get the bounding box of the cube's footprint
@@ -226,6 +238,9 @@ def main():
         #print "Beginning processing....."
 
         #startTime = time.time()
+
+        #retrieveLolaFile(0.1, 0.2, 0.1, 0.2, './deleteMe', 0.05) # Debugging call
+        #raise Exception('DEBUG LOLA GRAB')
 
         outputString = retrieveData(options.inputFile, options.outputFolder, int(options.startLine))
         print outputString
