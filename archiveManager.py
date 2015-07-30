@@ -365,6 +365,30 @@ def removeAllCompletedCompressedOutputs(dryRun=False):
     completeFile.close()
 
    
+def removeAllIncomplete(dryRun=False):
+    """Completely removes the incomplete data sets"""
+
+    if not os.path.exists(INCOMPLETE_STATUS_PATH):
+        raise Exception('Incomplete file list not present, run --check-local to generate it.')
+
+    # Loop through all data sets in the complete folder
+    incompleteFile = open(INCOMPLETE_STATUS_PATH, 'r')
+    for line in incompleteFile:
+        print 'Clearing data in ' + line.strip()
+        entries     = line.split(' ')
+        dataSetName = entries[0]
+        ds = DataSet(dataSetName)
+        cmd = 'rm -rf ' + ds.getLocalFolder()
+        #print cmd
+        if not dryRun:
+            os.system(cmd)
+    # TODO: Clear the line in the input file
+
+    incompleteFile.close()
+
+
+
+
 def archiveDataSet(dataSetName, deleteLocalFiles=False, dryRun=False):
     """Archives a data set to long term storage on Lou"""
     
@@ -616,6 +640,32 @@ def fixCompleteDataSet(dataSetName):
     print 'Done fixing ' + localFolder
 
 
+def reduceLocalArchives(dryRun):
+    '''Remove more local files in order to save storage space.'''
+
+    if not os.path.exists(ARCHIVE_STATUS_PATH):
+        raise Exception('Archive file list not present, run --check-local to generate it.')
+
+    # Loop through all data sets in the archive file
+    archiveFile = open(ARCHIVE_STATUS_PATH, 'r')
+    for line in archiveFile:
+        entries     = line.split(' ')
+        dataSetName = entries[0]
+
+        # Get the status of this data set
+        ds = DataSet(dataSetName)
+
+        fileToDelete = os.path.join(ds.getLocalFolder(), 'output-CompressedInputs.tar.bz2')
+        if not os.path.exists(fileToDelete):
+            continue
+        
+        print 'Removing ' + fileToDelete
+        if not dryRun:
+            os.remove(fileToDelete)
+
+    archiveFile.close()
+    
+
 
 def main():
 
@@ -640,6 +690,14 @@ def main():
             parser.add_option("--clear-compressed", action="store_true",
                               dest="clearCompressed", default=False,
                               help="Clear all local files in completed folders which have been compressed.")
+            parser.add_option("--clear-incomplete", action="store_true",
+                              dest="clearIncomplete", default=False,
+                              help="Completely remove all of the incomplete files.")
+
+            parser.add_option("--reduce-local-archives", action="store_true",
+                              dest="reduceLocalArchives", default=False,
+                              help="Remove more local files in order to save storage space")
+
 
             # TODO: Archive restore function
 
@@ -677,11 +735,17 @@ def main():
         if options.checkLocal:
             recordLocalDataStatus(options.dryRun)
 
+        if options.reduceLocalArchives:
+            reduceLocalArchives(options.dryRun)
+
         if options.archive:
             archiveAllCompletedResults(options.clear, options.dryRun)
         
         if options.clearCompressed:
             removeAllCompletedCompressedOutputs(options.dryRun)
+
+        if options.clearIncomplete:
+            removeAllIncomplete(options.dryRun)
         
         if options.flagIncomplete:
             flagIncompleteDataSets(options.dryRun)

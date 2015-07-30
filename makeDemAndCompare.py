@@ -319,8 +319,6 @@ def main(argsIn):
         # Generate a DEM
         if (not os.path.exists(demPath)) or carry:
             
-            #TODO: Add a +lon_0 entry here to set the central meridian?
-            
             # Equirectangular style projection
             # - Latitude of true scale = center latitude = lat_ts
             # - Latitude of origin = 0 = lat+0

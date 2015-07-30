@@ -21,18 +21,23 @@ def parseBoundingBoxes(folder):
     for line in f:
         if 'minLon' in line:
             numStart = line.find(':') + 1
-            minLon   = line[numStart:]
+            minLon   = line[numStart:].strip()
         if 'maxLon' in line:
             numStart = line.find(':') + 1
-            maxLon   = line[numStart:]
+            maxLon   = line[numStart:].strip()
         if 'minLat' in line:
             numStart = line.find(':') + 1
-            minLat   = line[numStart:]
+            minLat   = line[numStart:].strip()
         if 'maxLat' in line:
             numStart = line.find(':') + 1
-            maxLat   = line[numStart:]
+            maxLat   = line[numStart:].strip()
 
     f.close()
+
+    #if (abs(float(minLat)) > 60) or (abs(float(maxLat)) > 60):
+    #    print 'lat > 60! --> ' + folder
+    #    print minLat
+    #    print maxLat
 
     # Make sure we got all four values
     if (not minLon) or (not minLat) or (not maxLon) or (not maxLat):
@@ -55,10 +60,16 @@ def generateKml(outputPath, bbDict, colors):
     
     # Try to set up bounding box for each used folder
     i = 0
-    for k, v in bbDict:
-        (minLon, minLat, maxLon, maxLat) = v
+    for key in bbDict:
+        (minLon, minLat, maxLon, maxLat) = bbDict[key]
         
-        poly = kml.newpolygon(name=f, outerboundaryis=[(maxLat,minLon), (maxLat,maxLon), (minLat, maxLon), (minLat,minLon), (maxLat,minLon)])
+        poly = kml.newpolygon(name=key, outerboundaryis=[(minLon,maxLat), (maxLon,maxLat), (maxLon, minLat), (minLon,minLat), (minLon,maxLat)])
+
+        #if key == 'NAC_DTM_M188958772_M188987370':
+        #    print key
+        #    print bbDict[key]
+        #    print poly
+
 #        poly.style.polystyle.color   = simplekml.Color.red # Why is polygon not working?
 #        poly.style.polystyle.fill    = 1
 #        poly.style.polystyle.outline = 1
@@ -76,6 +87,8 @@ def generateKml(outputPath, bbDict, colors):
         
         i = i + 1
     
+    print i
+
     # Save kml document
     kml.save(outputPath)
 
@@ -90,7 +103,7 @@ def getInputImages(folder):
     for line in f:
         if '.IMG' in line:
             nameStart = line.rfind('/') + 1
-            imgName = line[nameStart:]
+            imgName = line[nameStart:].strip()
             imgFiles.append(imgName)
     f.close()
 
@@ -113,17 +126,17 @@ def getAsuImageList():
             
             # Grab the name from the line
             nameStart = line.rfind('/') + 1
-            setName = line[nameStart:]
+            setName = line[nameStart:].strip()
             asuDict[setName] = []
         
         if '.IMG' in line:
             # Get the name and append to the list for this set
             nameStart = line.rfind('/') + 1
-            imgName = line[nameStart:]
+            imgName = line[nameStart:].strip()
             asuDict[setName].append(imgName)
     f.close()
     
-    print asuDict
+    #print asuDict
     
     return(asuDict)
     
@@ -144,39 +157,53 @@ def findAsuMatches():
     foldersInDirectory.sort()
     bbDict = {}
     colors = []
-    i = 0
     for f in foldersInDirectory:
+
+        # Skip the other files in the directory
+        if 'NAC_DTM' not in f:
+            continue
 
         folderPath = os.path.join(dataFolder, f)
 
-        # Get the bounding box from the folder
-        bb = parseBoundingBoxes(folderPath)
+        if not os.path.exists(os.path.join(folderPath, 'output-CompressedInputs.tar.bz2')):
+            print 'Skipping incomplete folder ' + f
+            continue
+
+        try:
+            # Get the bounding box from the folder
+            bb = parseBoundingBoxes(folderPath)
+
+            # Get the list of input images used by that folder
+            imageList = getInputImages(folderPath)
+        except:
+            #print 'Folder ' + folderPath + ' is incomplete, skipping it!'
+            continue
+        
         bbDict[f] = bb
 
-        # Get the list of input images used by that folder
-        imageList = getInputImages(folderPath)
-        
         # Search for those images in the ASU list
         allContained = True
-        for k, v in asuImageList: # Loop through all ASU data sets
+        for key in asuImageList: # Loop through all ASU data sets
         
             for image in imageList: # Loop through all image for current folder
-                if image not in v:
+                #print '-- ' + image
+                if image not in asuImageList[key]:
                     allContained = False
                     break
+                #else:
+                #    print 'Matched image ' + image
                 
             if allContained:
-                print 'Folder ' + f + ' matched ASU data set ' + k
+                print 'Folder ' + f + ' matched ASU data set ' + key
                 break
             
         # Handle unmatched DTMs and assign color for KML plot
         if not allContained:
             colors.append('white')
-            print 'Folder ' + f + ' did not match any data set'
+            #print 'Folder ' + f + ' did not match any data set'
         else:
             colors.append('red')
-            
-        i = i + 1
+           
     
     # Create a kml file containing the bounding box of each DTM    
     generateKml(bbKmlPath, bbDict, colors)

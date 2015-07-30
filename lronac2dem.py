@@ -399,9 +399,10 @@ def main():
 
 
         if not options.keep:
-            print 'Deleting temporary files'
-            IrgFileFunctions.removeIfExists(mainMosaicPath)
-            IrgFileFunctions.removeIfExists(stereoMosaicPath)
+            pass
+            #print 'Deleting temporary files'
+            #IrgFileFunctions.removeIfExists(mainMosaicPath)
+            #IrgFileFunctions.removeIfExists(stereoMosaicPath)
         
         endTime = time.time()
 
